@@ -17,18 +17,32 @@
  * `AgentStrategy` interface, different control flow.
  */
 
+import { isParallelSafe } from './tools.js';
 import type { NormalizedMessage, TurnDetails } from './types/chat.js';
 import type { ChatEvent, ChatRequest, RawUsage } from './types/llm.js';
 import type { AgentStrategy, StrategyEvent, StrategyRunInput } from './types/strategy.js';
-import type { ToolResult } from './types/tools.js';
+import type { ToolHandler, ToolResult } from './types/tools.js';
 
 interface ReactLoopOptions {
   /** Cap on loop iterations to avoid runaway tool-call ping-pong. Default 24. */
   maxTurns?: number;
+  /**
+   * Opt-in: when `true`, tool calls produced in a single turn are partitioned
+   * by the handler's `parallelSafe` tag. Parallel-safe calls run concurrently
+   * with `Promise.all`; the remaining (mutation) calls run sequentially after
+   * the parallel group settles. Result yield order and `messages` order are
+   * preserved in the original input order, so the trace and next-turn prompt
+   * are byte-for-byte identical to a sequential run — the only observable
+   * difference is wall-clock.
+   *
+   * Defaults to `false` (current behavior: every call serialised).
+   */
+  parallelDispatch?: boolean;
 }
 
 export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentStrategy {
   const maxTurns = options.maxTurns ?? 24;
+  const parallelDispatch = options.parallelDispatch === true;
   return {
     id: 'react-loop',
     async *run(input: StrategyRunInput, signal: AbortSignal): AsyncIterable<StrategyEvent> {
@@ -168,19 +182,87 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
             ...(tc.signature ? { signature: tc.signature } : {}),
           })),
         });
-        for (const call of pendingToolCalls) {
-          const result: ToolResult = await input.tools.execute(
-            { id: call.id, name: call.name, args: call.args },
-            input.toolContext(),
-          );
-          yield { kind: 'tool_result', id: call.id, result };
-          messages.push({
-            role: 'tool',
-            callId: call.id,
-            name: call.name,
-            resultJson: JSON.stringify(safeSerializable(result)),
-            text: '',
-          });
+
+        if (parallelDispatch) {
+          // Resolve each call's handler so we can ask `isParallelSafe`.
+          // Missing handler (defensive — shouldn't happen) → treated as
+          // not parallel-safe, so it falls into the sequential group.
+          const handlersByName = new Map<string, ToolHandler>();
+          for (const h of input.toolList) handlersByName.set(h.name, h);
+          const parallelIndices: number[] = [];
+          const sequentialIndices: number[] = [];
+          for (let i = 0; i < pendingToolCalls.length; i++) {
+            const c = pendingToolCalls[i]!;
+            const h = handlersByName.get(c.name);
+            if (h && isParallelSafe(h)) parallelIndices.push(i);
+            else sequentialIndices.push(i);
+          }
+
+          // Pre-allocate result slots so even when the parallel group
+          // settles out of order, we yield + push messages in the
+          // original input order. The trace and next-turn prompt must
+          // be identical to the sequential mode — only wall-clock
+          // differs.
+          const results: ToolResult[] = new Array(pendingToolCalls.length);
+
+          // Parallel-safe group: run concurrently. Handler errors are
+          // already normalised into `{ ok: false }` results by the
+          // dispatch layer, so Promise.all never rejects in practice.
+          if (parallelIndices.length > 0) {
+            await Promise.all(
+              parallelIndices.map(async (i) => {
+                const call = pendingToolCalls[i]!;
+                results[i] = await input.tools.execute(
+                  { id: call.id, name: call.name, args: call.args },
+                  input.toolContext(),
+                );
+              }),
+            );
+          }
+          // Mutation group: still sequential, in original relative order.
+          for (const i of sequentialIndices) {
+            if (signal.aborted) {
+              yield { kind: 'error', message: 'aborted' };
+              return;
+            }
+            const call = pendingToolCalls[i]!;
+            results[i] = await input.tools.execute(
+              { id: call.id, name: call.name, args: call.args },
+              input.toolContext(),
+            );
+          }
+
+          // Yield + append in original input order.
+          for (let i = 0; i < pendingToolCalls.length; i++) {
+            const call = pendingToolCalls[i]!;
+            const result = results[i]!;
+            yield { kind: 'tool_result', id: call.id, result };
+            messages.push({
+              role: 'tool',
+              callId: call.id,
+              name: call.name,
+              resultJson: JSON.stringify(safeSerializable(result)),
+              text: '',
+            });
+          }
+        } else {
+          // Default behavior: byte-for-byte identical to the pre-change
+          // sequential loop — dispatch, yield, push, in order, one at a
+          // time.
+          for (const call of pendingToolCalls) {
+            const result: ToolResult = await input.tools.execute(
+              { id: call.id, name: call.name, args: call.args },
+              input.toolContext(),
+            );
+            yield { kind: 'tool_result', id: call.id, result };
+            messages.push({
+              role: 'tool',
+              callId: call.id,
+              name: call.name,
+              resultJson: JSON.stringify(safeSerializable(result)),
+              text: '',
+            });
+          }
         }
         // Close the tool-dispatch segment for this iteration. Pair
         // with the `llm_response` emitted above; `ts` delta is the
