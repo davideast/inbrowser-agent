@@ -96,8 +96,12 @@ export type {
   TraceEvent,
   LlmRequestTrace,
   LlmResponseTrace,
+  TurnDispatchCompleteTrace,
   ToolDeclarationView,
 } from './types/trace.js';
+
+export type { TurnTimingRow } from './diagnostics/timing.js';
+export { turnTimingTable } from './diagnostics/timing.js';
 
 export type {
   TruthfulnessFlag,
