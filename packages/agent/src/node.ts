@@ -26,3 +26,5 @@ export {
   EventTooLargeError,
   DEFAULT_MAX_EVENT_BYTES,
 } from './events/log-core.js';
+
+export { FixtureLoadError, loadFixture, loadFixtures } from './eval/load-node.js';
