@@ -1,0 +1,16 @@
+{
+  "id": "pyric-agents/seed-data-shape-validated",
+  "skill": "pyric-agents",
+  "description": "Writes a shape-validated Firestore seed via the pyric write_firestore_seed tool.",
+  "notes": "Grounded in the pyric-agents skill's `write_firestore_seed` flow: top-level object keyed by collection name, values are arrays of plain objects. Success is the tool returning ok: true (lint+shape-clean) and the trace containing a `write_firestore_seed` call. If the agent slips into the bare `Write` tool, the fixture fails. Falls back to `trace-contains-tool-call/by-name` plus `final-runtime/run-summary-ok` until a richer pyric-specific spec lands.",
+  "prompt": "Seed Firestore with two collections via the pyric tools: /books (3 documents, fields: title, author, available) and /borrowers (2 documents, fields: name, activeLoanId). Use write_firestore_seed and respect its strict shape. Do not hand-write the JSON file with a general write tool.",
+  "initialState": {
+    "rules": "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /books/{bookId} {\n      allow read: if true;\n      allow write: if request.auth != null && request.auth.token.admin == true;\n    }\n    match /borrowers/{userId} {\n      allow read, write: if request.auth != null && request.auth.uid == userId;\n    }\n  }\n}\n"
+  },
+  "successSpec": {
+    "name": "trace-contains-tool-call/by-name",
+    "args": {
+      "tool": "write_firestore_seed"
+    }
+  }
+}

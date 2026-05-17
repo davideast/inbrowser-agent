@@ -1,0 +1,30 @@
+{
+  "id": "pyric-agents/lint-gated-write-orders-price-tamper",
+  "skill": "pyric-agents",
+  "description": "Authors Firestore rules through the pyric tool flow that reject price-tampered orders.",
+  "notes": "Grounded in the pyric-agents skill: draft rules, call lint_firestore_rules until clean, then write_firestore_rules. The seeded scenario plants a /menu collection with admin-set prices and a /orders collection where users can submit orders. The agent must produce rules that (a) lint clean and (b) reject an order whose line-item price disagrees with the corresponding menu doc's price under simulation. Falls back to `final-rules-includes/literal` + `trace-contains-tool-call/by-name` when the pyric-specific spec is not yet registered.",
+  "prompt": "Use the pyric tools to author Firestore rules for this scenario: /menu items are written by admins only and have a numeric price field. /orders documents are created by users and contain a menu item id and a claimed price. Reject any order whose claimed price disagrees with the current menu item's price. Lint the draft and write it through the pyric flow.",
+  "initialState": {
+    "rules": "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /menu/{itemId} {\n      allow read: if true;\n      allow write: if request.auth != null && request.auth.token.admin == true;\n    }\n    match /orders/{orderId} {\n      allow read: if request.auth != null && resource.data.userId == request.auth.uid;\n      allow create: if request.auth != null;\n    }\n  }\n}\n",
+    "code": "// Seed: one menu item at the admin-set price, one user-attempt order at a tampered price.\n// menu/burger { name: 'Burger', price: 9 }\n// orders/orderA { userId: <self>, itemId: 'burger', claimedPrice: 1 }\n"
+  },
+  "successSpec": {
+    "name": "pyric-agents/lint-clean-and-rule-rejects-cheat",
+    "args": {
+      "lintToolName": "lint_firestore_rules",
+      "writeToolName": "write_firestore_rules",
+      "cheatAttempt": {
+        "path": "/orders/orderA",
+        "op": "create",
+        "data": { "userId": "user-1", "itemId": "burger", "claimedPrice": 1 },
+        "expect": "deny"
+      },
+      "positive": {
+        "path": "/orders/orderB",
+        "op": "create",
+        "data": { "userId": "user-1", "itemId": "burger", "claimedPrice": 9 },
+        "expect": "allow"
+      }
+    }
+  }
+}

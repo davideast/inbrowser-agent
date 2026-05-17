@@ -1,0 +1,13 @@
+{
+  "id": "playground-prompts/auction-bid-validation-variants",
+  "skill": "playground-prompts",
+  "description": "Produces three auction-themed playground prompts exercising get() cross-document checks.",
+  "notes": "Grounded in the playground-prompts skill: a well-shaped prompt is 30-50 words, names a bounded domain, two collections + a relationship, a security boundary, and a verifiable-by-violation rule constraint. Success here is that the assistant text references the load-bearing capability words (`get`, `highest bid`, `bid`, `auction`) and produces multiple variants. Falls back to `report-mentions/all-of` until a richer prompt-shape scoring spec lands.",
+  "prompt": "Generate three short playground prompts in the 30-50 word range that exercise Firestore get() cross-document checks against the current highest bid on an auction listing. Each prompt should name the two collections involved and describe what the rule rejects.",
+  "successSpec": {
+    "name": "report-mentions/all-of",
+    "args": {
+      "tokens": ["auction", "bid", "highest", "get(", "reject"]
+    }
+  }
+}

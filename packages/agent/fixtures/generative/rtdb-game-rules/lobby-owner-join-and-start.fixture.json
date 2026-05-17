@@ -1,0 +1,32 @@
+{
+  "id": "rtdb-game-rules/lobby-owner-join-and-start",
+  "skill": "rtdb-game-rules",
+  "description": "Lobby/owner RTDB rules let the guest join and the host start; reject non-host status change.",
+  "notes": "Grounded in the game-rules skill's lobby state-machine pattern (4 guarded transitions). Seeds a lobby waiting for a guest. Positive: the guest joins by writing their uid into /lobbies/$id/guest. Cheat: a third user attempts to flip status from 'waiting' to 'playing' without being host. Success = simulator accepts positive AND rejects cheat. Uses the coordinated game-rules spec; falls back to literal rule inspection when unavailable.",
+  "prompt": "Write RTDB security rules for a lobby at /lobbies/$lobbyId. The host field is set on create. Anyone authenticated may join an empty guest slot. Only the host may transition status from 'waiting' to 'playing'. Host and guest are immutable once set.",
+  "initialState": {
+    "presetId": "lobby",
+    "rules": "{\n  \"rules\": {\n    \"lobbies\": {\n      \"$lobbyId\": {\n        \".read\": \"auth != null\",\n        \".write\": \"auth != null\"\n      }\n    }\n  }\n}\n",
+    "code": "// Seed /lobbies/l1: { host: 'hostUid', guest: '', status: 'waiting' }\n"
+  },
+  "successSpec": {
+    "name": "game-rules/simulator-accepts-positive-and-rejects-cheat",
+    "args": {
+      "database": "rtdb",
+      "positive": {
+        "auth": { "uid": "guestUid" },
+        "path": "/lobbies/l1/guest",
+        "op": "set",
+        "data": "guestUid",
+        "expect": "allow"
+      },
+      "cheat": {
+        "auth": { "uid": "randomUid" },
+        "path": "/lobbies/l1/status",
+        "op": "set",
+        "data": "playing",
+        "expect": "deny"
+      }
+    }
+  }
+}
