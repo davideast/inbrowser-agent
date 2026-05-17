@@ -1,0 +1,24 @@
+{
+  "id": "rtdb-data-modeling/nested-posts-under-user",
+  "skill": "rtdb-data-modeling",
+  "description": "Model proposal flags nested posts under /users and recommends flat collections.",
+  "notes": "Seeded code samples a structure where /users/$uid/posts grows unbounded. Reading /users/$uid downloads every post. Skill playbook anti-pattern: deep nesting and unbounded lists under entities. Proposal must name the flattening fix or denormalization.",
+  "prompt": "Look at the data structure here and propose a better model. I keep downloading way too much data when I read a user.",
+  "initialState": {
+    "code": "// Current seeded RTDB shape:\n// /users\n//   alice\n//     profile: { name: 'Alice', email: 'alice@test.com' }\n//     posts:\n//       -Npost001: { title: 'Hello', body: '...' }\n//       -Npost002: { title: 'World', body: '...' }\n//       ... ten thousand more ...\n//   bob\n//     profile: { name: 'Bob', email: 'bob@test.com' }\n//     posts:\n//       -Npost500: { title: 'Hi', body: '...' }\n//\n// The app reads /users/$uid to render the profile screen.\nexport const sample = {\n  users: {\n    alice: {\n      profile: { name: 'Alice', email: 'alice@test.com' },\n      posts: { '-Npost001': { title: 'Hello', body: 'first' } }\n    }\n  }\n};\n"
+  },
+  "successSpec": {
+    "name": "report-mentions/at-least-one-of",
+    "args": {
+      "tokens": [
+        "flatten",
+        "flat collection",
+        "top-level",
+        "/posts",
+        "denormaliz",
+        "nested",
+        "downloads everything"
+      ]
+    }
+  }
+}

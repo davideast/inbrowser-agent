@@ -1,0 +1,16 @@
+{
+  "id": "firebase-security-rules/lock-root-keep-public-posts",
+  "skill": "firebase-security-rules",
+  "description": "Agent locks down the cascading root rule while preserving public read on /posts.",
+  "notes": "Seeded rules have .read: true at root, which cascades and exposes /users. Skill playbook: design rules from most restrictive root to most permissive leaves. After the change, the final rules must NOT contain a top-level `.read: true` literal at the root object. Public read on /posts is the intended carve-out.",
+  "prompt": "Lock down my rules so the root is no longer publicly readable, but keep /posts publicly readable.",
+  "initialState": {
+    "rules": "{\n  \"rules\": {\n    \".read\": true,\n    \".write\": false,\n    \"users\": {\n      \"$uid\": {\n        \".write\": \"auth.uid === $uid\"\n      }\n    },\n    \"posts\": {\n      \"$postId\": {\n        \".write\": \"auth != null\"\n      }\n    }\n  }\n}\n"
+  },
+  "successSpec": {
+    "name": "final-rules-excludes/literal",
+    "args": {
+      "literal": "\".read\": true,\n    \".write\""
+    }
+  }
+}

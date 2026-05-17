@@ -1,0 +1,16 @@
+{
+  "id": "firestore-rules-audit/open-write-users",
+  "skill": "firestore-rules-audit",
+  "description": "Audit names the unauthenticated write vulnerability on /users.",
+  "notes": "Plants SEC-3 (no auth) on /users/{uid} with allow write: if true. The skill playbook says a good audit prioritizes critical findings and an unprotected write on /users is the canonical critical case. Report must mention the path or the vulnerability class so the user can act.",
+  "prompt": "Audit my Firestore rules for security issues.",
+  "initialState": {
+    "rules": "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /users/{uid} {\n      allow read: if request.auth != null;\n      allow write: if true;\n    }\n    match /posts/{postId} {\n      allow read: if true;\n      allow write: if request.auth != null;\n    }\n  }\n}\n"
+  },
+  "successSpec": {
+    "name": "report-mentions/at-least-one-of",
+    "args": {
+      "tokens": ["/users", "unauthenticated write", "open write", "allow write: if true"]
+    }
+  }
+}
