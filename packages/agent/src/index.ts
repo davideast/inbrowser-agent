@@ -182,6 +182,27 @@ export {
   extractTrialMetrics,
 } from './eval/metric-collector.js';
 
+// Eval harness comparison report. Consumes two named `MetricsTable[]`s
+// (typically baseline vs variant) and emits a per-fixture, per-metric
+// A/B comparison report applying the no-effect rule from the
+// implementation plan. See `eval/comparison-report.ts` for the
+// polarity map and the markdown / JSON renderers.
+export type {
+  CompareMetricsInput,
+  ComparisonFixture,
+  ComparisonLabel,
+  ComparisonMetricName,
+  ComparisonReport,
+  ComparisonRow,
+  Polarity,
+} from './eval/comparison-report.js';
+export {
+  POLARITY,
+  compareMetrics,
+  renderJson,
+  renderMarkdown,
+} from './eval/comparison-report.js';
+
 export type {
   MetricsCollector,
   RecordTurnInput,
