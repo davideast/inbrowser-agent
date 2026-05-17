@@ -1,0 +1,13 @@
+{
+  "id": "playground-prompts/state-machine-marketplace-listing",
+  "skill": "playground-prompts",
+  "description": "Produces a playground prompt exercising state-machine transitions on marketplace listings.",
+  "notes": "Grounded in the playground-prompts skill catalog entry #15 (marketplace listings). Success is the assistant text mentioning the load-bearing state-machine words and the listing/buyer roles so a reader can verify the rule shape. The skill itself names state-machine transitions as a load-bearing capability for the playground.",
+  "prompt": "Give me one playground prompt in the 30-50 word range that forces the agent to write Firestore rules enforcing a listing state machine: active → sold and active → withdrawn, with only the seller allowed to withdraw and only purchase records flipping state to sold.",
+  "successSpec": {
+    "name": "report-mentions/all-of",
+    "args": {
+      "tokens": ["listing", "state", "seller", "active", "sold", "withdrawn"]
+    }
+  }
+}

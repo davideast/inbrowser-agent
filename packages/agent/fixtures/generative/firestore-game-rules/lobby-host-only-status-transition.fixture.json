@@ -1,0 +1,32 @@
+{
+  "id": "firestore-game-rules/lobby-host-only-status-transition",
+  "skill": "firestore-game-rules",
+  "description": "Firestore lobby rules let the guest join but only the host may start the match.",
+  "notes": "Grounded in the firestore-game-rules skill's host/guest convention and lobby state machine. Seeds /lobbies/l1 in 'waiting' state. Positive: guest writes their uid into the empty guest slot. Cheat: a random uid attempts to set status='playing'. Falls back to `final-rules-includes/literal` looking for `currentTurn` / `host` / `guest` markers if the simulator spec is unavailable.",
+  "prompt": "Write Firestore security rules for a lobby at /lobbies/{lobbyId} using the host/guest convention. Host is set on create and immutable. An authenticated user may claim the empty guest slot. Only the host may transition status from 'waiting' to 'playing'. Reject any other status writes.",
+  "initialState": {
+    "presetId": "lobby-firestore",
+    "rules": "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /lobbies/{lobbyId} {\n      allow read: if request.auth != null;\n      allow create: if request.auth != null && request.resource.data.host == request.auth.uid;\n    }\n  }\n}\n",
+    "code": "// Seed /lobbies/l1: { host: 'hostUid', guest: '', status: 'waiting' }\n"
+  },
+  "successSpec": {
+    "name": "game-rules/simulator-accepts-positive-and-rejects-cheat",
+    "args": {
+      "database": "firestore",
+      "positive": {
+        "auth": { "uid": "guestUid" },
+        "path": "/lobbies/l1",
+        "op": "update",
+        "data": { "guest": "guestUid" },
+        "expect": "allow"
+      },
+      "cheat": {
+        "auth": { "uid": "randomUid" },
+        "path": "/lobbies/l1",
+        "op": "update",
+        "data": { "status": "playing" },
+        "expect": "deny"
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "id": "rtdb-game-rules/tic-tac-toe-turn-enforcement",
+  "skill": "rtdb-game-rules",
+  "description": "Tic-tac-toe RTDB rules accept the rightful player's move and reject an out-of-turn move.",
+  "notes": "Grounded in the game-rules skill workflow for RTDB (turnGuard, flip, winCheckHelper). Seeds a 3x3 game in progress where currentTurn is 'X'. Positive case: playerX writes to an empty cell and flips currentTurn to 'O'. Cheat case: playerO attempts to write before turn flip. Success = simulator accepts positive AND rejects cheat. Uses the coordinated `game-rules/simulator-accepts-positive-and-rejects-cheat` spec; falls back to `final-rules-includes/literal` for the turnGuard signal when the simulator spec is not yet wired.",
+  "prompt": "Write RTDB security rules for a 3x3 tic-tac-toe game at /games/$gameId. Only the player whose mark equals currentTurn can write. The turn must flip on every move. Cells, once marked, are immutable. Use the game-rules primitives (turnGuard, flip).",
+  "initialState": {
+    "presetId": "tic-tac-toe",
+    "rules": "{\n  \"rules\": {\n    \"games\": {\n      \"$gameId\": {\n        \".read\": \"auth != null\",\n        \".write\": \"auth != null\"\n      }\n    }\n  }\n}\n",
+    "code": "// Seed game state under /games/g1:\n// { playerX: 'uidA', playerO: 'uidB', currentTurn: 'X', moveCount: 0,\n//   board: { c0: '', c1: '', c2: '', c3: '', c4: '', c5: '', c6: '', c7: '', c8: '' },\n//   status: 'playing', winner: null }\n"
+  },
+  "successSpec": {
+    "name": "game-rules/simulator-accepts-positive-and-rejects-cheat",
+    "args": {
+      "database": "rtdb",
+      "positive": {
+        "auth": { "uid": "uidA" },
+        "path": "/games/g1",
+        "op": "update",
+        "data": { "board": { "c4": "X" }, "currentTurn": "O", "moveCount": 1 },
+        "expect": "allow"
+      },
+      "cheat": {
+        "auth": { "uid": "uidB" },
+        "path": "/games/g1",
+        "op": "update",
+        "data": { "board": { "c0": "O" }, "currentTurn": "X", "moveCount": 1 },
+        "expect": "deny"
+      }
+    }
+  }
+}

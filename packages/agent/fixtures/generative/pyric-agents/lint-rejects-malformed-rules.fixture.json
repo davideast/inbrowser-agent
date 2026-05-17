@@ -1,0 +1,16 @@
+{
+  "id": "pyric-agents/lint-rejects-malformed-rules",
+  "skill": "pyric-agents",
+  "description": "Agent recovers from a lint error before writing; final rules are well-formed.",
+  "notes": "Grounded in the pyric-agents skill's lint-gated workflow: the seeded rules source is intentionally malformed (unbalanced braces and missing rules_version). The agent should call `lint_firestore_rules`, observe the errors, fix the source, re-lint, and only then call `write_firestore_rules`. Success = final workspace rules include the rules_version directive and a closing service block. Uses `final-rules-includes/literal` plus `trace-contains-tool-call/by-name` to verify both the fix and the tool path.",
+  "prompt": "The current Firestore rules don't lint. Use the pyric tools to diagnose, fix, and write a clean version that keeps the same authorization intent: profiles readable by anyone, writable only by their owner.",
+  "initialState": {
+    "rules": "service cloud.firestore {\n  match /databases/{database}/documents {\n    match /profiles/{userId} {\n      allow read: if true;\n      allow write: if request.auth.uid == userId;\n    \n  }\n"
+  },
+  "successSpec": {
+    "name": "final-rules-includes/literal",
+    "args": {
+      "tokens": ["rules_version", "match /profiles/{userId}", "allow write"]
+    }
+  }
+}

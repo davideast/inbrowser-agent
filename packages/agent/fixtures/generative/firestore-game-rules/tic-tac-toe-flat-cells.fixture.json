@@ -1,0 +1,42 @@
+{
+  "id": "firestore-game-rules/tic-tac-toe-flat-cells",
+  "skill": "firestore-game-rules",
+  "description": "Firestore tic-tac-toe rules accept a turn-correct move and reject an off-turn move.",
+  "notes": "Grounded in the firestore-game-rules skill's host/guest convention plus flat-cell layout (c0..c8 at the document top level) so MapDiff and dynamic key access work. Seeds /games/g1 with host as currentTurn. Positive: host writes c4='X' and flips currentTurn. Cheat: guest writes c0='O' while currentTurn is still host. Both should be exercised by the simulator-backed spec.",
+  "prompt": "Write Firestore security rules for a 3x3 tic-tac-toe game at /games/{gameId}. Use the host/guest convention with currentTurn 'host' or 'guest'. Cells live at the top level as c0..c8 (not nested) so MapDiff and dynamic key access work. Enforce turn, mark correctness, and cell immutability once played.",
+  "initialState": {
+    "presetId": "tic-tac-toe-firestore",
+    "rules": "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /games/{gameId} {\n      allow read: if request.auth != null;\n      allow create, update: if request.auth != null;\n    }\n  }\n}\n",
+    "code": "// Seed /games/g1: {\n//   host: 'hostUid', guest: 'guestUid', currentTurn: 'host',\n//   c0: '', c1: '', c2: '', c3: '', c4: '', c5: '', c6: '', c7: '', c8: '',\n//   lastMove: '', moveCount: 0, status: 'playing', winner: null\n// }\n"
+  },
+  "successSpec": {
+    "name": "game-rules/simulator-accepts-positive-and-rejects-cheat",
+    "args": {
+      "database": "firestore",
+      "positive": {
+        "auth": { "uid": "hostUid" },
+        "path": "/games/g1",
+        "op": "update",
+        "data": {
+          "c4": "X",
+          "lastMove": "c4",
+          "currentTurn": "guest",
+          "moveCount": 1
+        },
+        "expect": "allow"
+      },
+      "cheat": {
+        "auth": { "uid": "guestUid" },
+        "path": "/games/g1",
+        "op": "update",
+        "data": {
+          "c0": "O",
+          "lastMove": "c0",
+          "currentTurn": "host",
+          "moveCount": 1
+        },
+        "expect": "deny"
+      }
+    }
+  }
+}

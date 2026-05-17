@@ -1,0 +1,46 @@
+{
+  "id": "rtdb-game-rules/connect-four-win-claim",
+  "skill": "rtdb-game-rules",
+  "description": "Connect-four-style RTDB rules verify a legitimate win claim and reject a bogus one.",
+  "notes": "Grounded in the game-rules skill's helper-node pattern: the client must set xWins / oWins booleans, the rules verify against the board. Seeds a near-finished 7x6 board where R has three in a row in column 0 and is about to drop a winning fourth. Positive: R places at c0r3 and claims rWins=true. Cheat: Y attempts to mark itself the winner without a winning line. Uses the coordinated game-rules simulator spec; falls back to `final-rules-includes/literal` for the winCheckHelper marker.",
+  "prompt": "Write RTDB security rules for a 7x6 Connect Four game at /c4games/$gameId. The board is /board/$cell with cells c0r0..c6r5. The client supplies booleans rWins and yWins on each move; rules must verify the win claim against the board. Use winCheckHelper from the game-rules primitives.",
+  "initialState": {
+    "presetId": "connect-four",
+    "rules": "{\n  \"rules\": {\n    \"c4games\": {\n      \"$gameId\": {\n        \".read\": \"auth != null\",\n        \".write\": \"auth != null\"\n      }\n    }\n  }\n}\n",
+    "code": "// Seed /c4games/g1: playerR 'rUid', playerY 'yUid', currentTurn 'R',\n//   moveCount 6, board has R at c0r0,c0r1,c0r2 and Y at c1r0,c2r0,c3r0,\n//   rWins false, yWins false, status 'playing', winner null.\n"
+  },
+  "successSpec": {
+    "name": "game-rules/simulator-accepts-positive-and-rejects-cheat",
+    "args": {
+      "database": "rtdb",
+      "positive": {
+        "auth": { "uid": "rUid" },
+        "path": "/c4games/g1",
+        "op": "update",
+        "data": {
+          "board": { "c0r3": "R" },
+          "currentTurn": "Y",
+          "moveCount": 7,
+          "rWins": true,
+          "status": "finished",
+          "winner": "R"
+        },
+        "expect": "allow"
+      },
+      "cheat": {
+        "auth": { "uid": "yUid" },
+        "path": "/c4games/g1",
+        "op": "update",
+        "data": {
+          "board": { "c1r1": "Y" },
+          "currentTurn": "R",
+          "moveCount": 7,
+          "yWins": true,
+          "status": "finished",
+          "winner": "Y"
+        },
+        "expect": "deny"
+      }
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "id": "firestore-game-rules/connect-four-split-allow",
+  "skill": "firestore-game-rules",
+  "description": "Firestore Connect Four rules use split-allow to fit under the complexity ceiling.",
+  "notes": "Grounded in the firestore-game-rules skill's Split-Allow Pattern: separate `allow update` rules per state transition (normal move, host win claim, guest win claim, draw). Seeds a near-finished 7x6 game where host has three vertical pieces in col 0. Positive: host drops a fourth in col 0 and writes status='won', winner='host'. Cheat: guest claims a win without four-in-a-row. Falls back to `final-rules-includes/literal` (looking for at least two `allow update` clauses) when the simulator spec is not yet wired.",
+  "prompt": "Write Firestore security rules for a 7x6 Connect Four game at /c4/{gameId} using the host/guest convention. Cells are flat (c0r0..c6r5). Apply the Split-Allow Pattern: separate allow update rules for normal moves, host-win claims, guest-win claims, and draws. Validate gravity and win lines.",
+  "initialState": {
+    "presetId": "connect-four-firestore",
+    "rules": "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /c4/{gameId} {\n      allow read: if request.auth != null;\n      allow create: if request.auth != null;\n    }\n  }\n}\n",
+    "code": "// Seed /c4/g1: host 'hostUid', guest 'guestUid', currentTurn 'host', moveCount 6,\n//   c0r0 'R', c0r1 'R', c0r2 'R', c1r0 'Y', c2r0 'Y', c3r0 'Y',\n//   all other cells empty, lastCol -1, lastRow -1, status 'playing', winner null.\n"
+  },
+  "successSpec": {
+    "name": "game-rules/simulator-accepts-positive-and-rejects-cheat",
+    "args": {
+      "database": "firestore",
+      "positive": {
+        "auth": { "uid": "hostUid" },
+        "path": "/c4/g1",
+        "op": "update",
+        "data": {
+          "c0r3": "R",
+          "lastCol": 0,
+          "lastRow": 3,
+          "currentTurn": "guest",
+          "moveCount": 7,
+          "status": "won",
+          "winner": "host"
+        },
+        "expect": "allow"
+      },
+      "cheat": {
+        "auth": { "uid": "guestUid" },
+        "path": "/c4/g1",
+        "op": "update",
+        "data": {
+          "c1r1": "Y",
+          "lastCol": 1,
+          "lastRow": 1,
+          "currentTurn": "host",
+          "moveCount": 7,
+          "status": "won",
+          "winner": "guest"
+        },
+        "expect": "deny"
+      }
+    }
+  }
+}
