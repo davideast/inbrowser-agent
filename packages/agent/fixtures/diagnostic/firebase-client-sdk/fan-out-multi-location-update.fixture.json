@@ -1,0 +1,12 @@
+{
+  "id": "firebase-client-sdk/fan-out-multi-location-update",
+  "skill": "firebase-client-sdk",
+  "description": "Generated code uses update() at root with a multi-location object to fan out a new post.",
+  "notes": "Skill playbook 'three write modes': update at root is the fan-out mechanism. The generated code must call update on the root ref with at least two paths in a single object. Grounding via final-runtime/run-summary-ok ensures the code runs without throwing under the run-once tool, which is what the playbook says verifies the work.",
+  "prompt": "Generate client code that creates a new post and writes it atomically to /posts/{id}, /post-summaries/{id}, and /user-posts/{uid}/{id} in a single fan-out update. Use the modular Firebase Web SDK.",
+  "initialState": {},
+  "successSpec": {
+    "name": "final-runtime/run-summary-ok",
+    "args": {}
+  }
+}

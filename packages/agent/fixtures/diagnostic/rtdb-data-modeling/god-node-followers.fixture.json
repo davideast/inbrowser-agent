@@ -1,0 +1,24 @@
+{
+  "id": "rtdb-data-modeling/god-node-followers",
+  "skill": "rtdb-data-modeling",
+  "description": "Model proposal flags a god-node followers list and recommends an index table.",
+  "notes": "Seed shows /followers as a single top-level node with hundreds of thousands of children. Every client reads it whole. Skill playbook calls this out as a god-node anti-pattern: shard or replace with an index table keyed by user.",
+  "prompt": "Our /followers node now has hundreds of thousands of entries and the app reads it on every screen. How should we restructure this?",
+  "initialState": {
+    "code": "// Current seeded RTDB shape:\n// /followers\n//   alice: { bob: true, carol: true, ... }   <-- one child with ~200k entries\n//   bob:   { alice: true }\n//\n// Clients read /followers (the whole node) to figure out who follows whom.\nexport const sample = {\n  followers: {\n    alice: { bob: true, carol: true },\n    bob: { alice: true }\n  }\n};\n"
+  },
+  "successSpec": {
+    "name": "report-mentions/at-least-one-of",
+    "args": {
+      "tokens": [
+        "god node",
+        "god-node",
+        "shard",
+        "index table",
+        "/user-followers",
+        "per-user",
+        "scoped"
+      ]
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "firestore-rules-audit/missing-validation-on-create",
+  "skill": "firestore-rules-audit",
+  "description": "Audit identifies missing data validation on create rules for user-facing PII.",
+  "notes": "Plants SEC-6 (no validation) on /profiles/{uid}. Writes are gated by auth but no shape check — any field of any type can land. The skill playbook calls this out as high severity when the path carries user data.",
+  "prompt": "Look at my Firestore rules and tell me whether anything is missing for the profiles collection.",
+  "initialState": {
+    "rules": "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /profiles/{uid} {\n      allow read: if request.auth != null;\n      allow create, update: if request.auth.uid == uid;\n      allow delete: if false;\n    }\n  }\n}\n"
+  },
+  "successSpec": {
+    "name": "report-mentions/at-least-one-of",
+    "args": {
+      "tokens": [
+        "validation",
+        "validate",
+        "request.resource.data",
+        "schema",
+        "shape check",
+        "SEC-6"
+      ]
+    }
+  }
+}

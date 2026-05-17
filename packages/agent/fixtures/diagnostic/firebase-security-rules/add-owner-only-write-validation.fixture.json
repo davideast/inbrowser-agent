@@ -1,0 +1,16 @@
+{
+  "id": "firebase-security-rules/add-owner-only-write-validation",
+  "skill": "firebase-security-rules",
+  "description": "Agent adds owner-only write and a validate rule to /users/$uid.",
+  "notes": "Seed has .read on /users but .write is wide open to any authenticated user and no .validate is present. Skill playbook calls out '.write without .validate' and 'permissive parent without ownership' as anti-patterns. Final rules must contain the owner check using $uid against auth.uid.",
+  "prompt": "Tighten the /users rules so only the owning user can write, and reject writes that aren't shaped like a user record.",
+  "initialState": {
+    "rules": "{\n  \"rules\": {\n    \".read\": false,\n    \".write\": false,\n    \"users\": {\n      \"$uid\": {\n        \".read\": \"auth != null\",\n        \".write\": \"auth != null\"\n      }\n    }\n  }\n}\n"
+  },
+  "successSpec": {
+    "name": "final-rules-includes/literal",
+    "args": {
+      "literal": "auth.uid === $uid"
+    }
+  }
+}

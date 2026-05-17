@@ -1,0 +1,12 @@
+{
+  "id": "firebase-client-sdk/cursor-paginated-query",
+  "skill": "firebase-client-sdk",
+  "description": "Generated code paginates /posts with orderByKey, limitToFirst, and a startAt cursor.",
+  "notes": "Skill playbook: 'No offset-based pagination. Always cursor-based with startAt.' The generated code must order by a single field, take a page size, and use the last key from the previous page as the cursor. Grounding via final-runtime/run-summary-ok confirms the code executes; the cursor shape itself is enforced by a custom code-shape spec to be added in a follow-up.",
+  "prompt": "Write a function pagePosts(pageSize, lastKey) that returns the next page of /posts using cursor-based pagination on the key. Sign in anonymously first. Modular Firebase Web SDK.",
+  "initialState": {},
+  "successSpec": {
+    "name": "final-runtime/run-summary-ok",
+    "args": {}
+  }
+}

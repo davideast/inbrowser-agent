@@ -1,0 +1,22 @@
+{
+  "id": "firebase-project-audit/root-write-true",
+  "skill": "firebase-project-audit",
+  "description": "Project audit flags root .write: true as a critical finding.",
+  "notes": "RTDB rules with .write: true at root. Skill playbook: critical severity, all-paths writeable. Audit report should call out the root rule or the unbounded write surface.",
+  "prompt": "Audit this Firebase project and tell me the most important thing to fix first.",
+  "initialState": {
+    "rules": "{\n  \"rules\": {\n    \".read\": \"auth != null\",\n    \".write\": true,\n    \"users\": {\n      \"$uid\": {\n        \".read\": \"auth.uid === $uid\",\n        \".write\": \"auth.uid === $uid\"\n      }\n    }\n  }\n}\n"
+  },
+  "successSpec": {
+    "name": "report-mentions/at-least-one-of",
+    "args": {
+      "tokens": [
+        "root .write",
+        "\".write\": true",
+        "root write",
+        "publicly writable",
+        "anyone can write"
+      ]
+    }
+  }
+}

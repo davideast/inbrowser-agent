@@ -1,0 +1,23 @@
+{
+  "id": "firebase-project-audit/write-without-validate",
+  "skill": "firebase-project-audit",
+  "description": "Audit flags an auth-gated path that accepts writes with no validate rule.",
+  "notes": "Rules grant .write on /posts/$postId to any authenticated user but never define a sibling .validate. Skill playbook flags this as high severity because any shape can land. Audit report should mention the missing validation.",
+  "prompt": "Run a project audit and prioritize the findings.",
+  "initialState": {
+    "rules": "{\n  \"rules\": {\n    \".read\": false,\n    \".write\": false,\n    \"posts\": {\n      \"$postId\": {\n        \".read\": true,\n        \".write\": \"auth != null\"\n      }\n    },\n    \"users\": {\n      \"$uid\": {\n        \".read\": \"auth.uid === $uid\",\n        \".write\": \"auth.uid === $uid\",\n        \".validate\": \"newData.hasChildren(['name','email'])\"\n      }\n    }\n  }\n}\n"
+  },
+  "successSpec": {
+    "name": "report-mentions/at-least-one-of",
+    "args": {
+      "tokens": [
+        ".validate",
+        "validate rule",
+        "validation",
+        "no schema",
+        "missing validate",
+        "any shape"
+      ]
+    }
+  }
+}

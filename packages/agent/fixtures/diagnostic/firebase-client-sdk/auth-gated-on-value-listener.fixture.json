@@ -1,0 +1,12 @@
+{
+  "id": "firebase-client-sdk/auth-gated-on-value-listener",
+  "skill": "firebase-client-sdk",
+  "description": "Generated code waits for auth before subscribing with onValue and unsubscribes on cleanup.",
+  "notes": "Skill playbook step 3: auth gate. Step 5: onValue for live data. Step 8: unsubscribe on cleanup. The final code in the workspace must show all three. Grounding via final-runtime/run-summary-ok ensures the generated code at least executed under the run-once tool without runtime error; the listener+unsubscribe shape is enforced by final-app-source/* checks the planner can add later. For now we ground success on a clean run summary, which is the verifiable signal the playbook itself names.",
+  "prompt": "Write a tiny client that signs in anonymously, subscribes to /games/abc with onValue, prints each update, and unsubscribes after 100 ms. Use the modular Firebase Web SDK.",
+  "initialState": {},
+  "successSpec": {
+    "name": "final-runtime/run-summary-ok",
+    "args": {}
+  }
+}
