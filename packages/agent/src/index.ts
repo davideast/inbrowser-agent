@@ -159,6 +159,22 @@ export type {
 } from './eval/runner.js';
 export { defaultSystemPromptBuilder, runFixture, runFixtures } from './eval/runner.js';
 
+// Eval harness metric collector. Consumes `EvalRunRecord[]` plus an
+// optional parallel `SpecResult[]` and produces one `MetricsTable`
+// per fixture. See `eval/metric-collector.ts` for the eight metrics.
+export type {
+  AggregateStat,
+  AggregatedMetrics,
+  CollectMetricsInput,
+  MetricsTable,
+  TrialMetrics,
+} from './eval/metric-collector.js';
+export {
+  aggregateTrials,
+  collectMetrics,
+  extractTrialMetrics,
+} from './eval/metric-collector.js';
+
 export type {
   MetricsCollector,
   RecordTurnInput,
