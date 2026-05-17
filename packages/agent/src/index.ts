@@ -125,6 +125,20 @@ export {
   validateFixture,
 } from './eval/index.js';
 
+// Eval harness runner surface. The eval-side `RunRecord` is exposed
+// here as `EvalRunRecord` to avoid colliding with the
+// per-MCP-tool-call `RunRecord` exported below from
+// `./metrics/runs.js`. The eval barrel (`./eval/index.js`) keeps the
+// natural `RunRecord` name; downstream eval branches typically
+// import from there.
+export type { RunRecord as EvalRunRecord } from './eval/run-record.js';
+export type {
+  RunFixtureInput,
+  RunFixturesDeps,
+  RunFixturesOptions,
+} from './eval/runner.js';
+export { defaultSystemPromptBuilder, runFixture, runFixtures } from './eval/runner.js';
+
 export type {
   MetricsCollector,
   RecordTurnInput,
