@@ -112,7 +112,11 @@ export { analyzeTruthfulness } from './diagnostics/index.js';
 
 export type {
   PartialWorkspace,
+  RunSnapshot,
   SkillName,
+  SpecFn,
+  SpecRegistry,
+  SpecResult,
   SuccessSpecReference,
   TaskFixture,
   ValidationError,
@@ -120,8 +124,24 @@ export type {
 } from './eval/index.js';
 export {
   SKILL_NAMES,
+  SPEC_FINAL_RULES_EXCLUDES_LITERAL,
+  SPEC_FINAL_RULES_INCLUDES_LITERAL,
+  SPEC_FINAL_RUNTIME_RUN_SUMMARY_OK,
+  SPEC_REPORT_MENTIONS_ALL_OF,
+  SPEC_REPORT_MENTIONS_AT_LEAST_ONE_OF,
+  SPEC_TRACE_CONTAINS_TOOL_CALL_BY_NAME,
+  STARTER_SPEC_NAMES,
   applyWorkspaceOverrides,
+  createSpecRegistry,
+  evaluateSpec,
+  finalRulesExcludesLiteral,
+  finalRulesIncludesLiteral,
+  finalRuntimeRunSummaryOk,
   parseFixture,
+  registerStarterSpecs,
+  reportMentionsAllOf,
+  reportMentionsAtLeastOneOf,
+  traceContainsToolCallByName,
   validateFixture,
 } from './eval/index.js';
 
