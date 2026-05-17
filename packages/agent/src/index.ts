@@ -100,6 +100,13 @@ export type {
 } from './types/trace.js';
 
 export type {
+  TruthfulnessFlag,
+  TruthfulnessFlagCategory,
+  TruthfulnessReport,
+} from './diagnostics/index.js';
+export { analyzeTruthfulness } from './diagnostics/index.js';
+
+export type {
   MetricsCollector,
   RecordTurnInput,
   SessionTotals,
