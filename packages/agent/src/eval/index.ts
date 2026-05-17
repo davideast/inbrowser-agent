@@ -28,6 +28,17 @@ export type {
 } from './metric-collector.js';
 export { aggregateTrials, collectMetrics, extractTrialMetrics } from './metric-collector.js';
 
+export type {
+  CompareMetricsInput,
+  ComparisonFixture,
+  ComparisonLabel,
+  ComparisonMetricName,
+  ComparisonReport,
+  ComparisonRow,
+  Polarity,
+} from './comparison-report.js';
+export { POLARITY, compareMetrics, renderJson, renderMarkdown } from './comparison-report.js';
+
 export {
   CUSTOM_SPEC_NAMES,
   SPEC_FINAL_RULES_EXCLUDES_LITERAL,
