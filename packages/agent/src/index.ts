@@ -72,7 +72,7 @@ export type {
   LintWarning,
   StitchClient,
 } from './types/tools.js';
-export { createToolRegistry, createDispatch } from './tools.js';
+export { createToolRegistry, createDispatch, isParallelSafe, isPure } from './tools.js';
 
 export type { Capabilities } from './types/capabilities.js';
 export { DEFAULT_CAPABILITIES } from './types/capabilities.js';
