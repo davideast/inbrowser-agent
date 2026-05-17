@@ -1,5 +1,5 @@
-import { readSseDataLines } from '../sse';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types';
+import { readSseDataLines } from '../sse.js';
+import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types.js';
 /**
  * Gemini provider — raw fetch against the Generative Language REST
  * API, parsing SSE directly. The `@google/genai` SDK is intentionally

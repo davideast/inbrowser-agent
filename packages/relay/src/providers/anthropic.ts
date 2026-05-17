@@ -1,5 +1,5 @@
-import { readSseDataLines } from '../sse';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types';
+import { readSseDataLines } from '../sse.js';
+import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types.js';
 /**
  * Anthropic provider — talks to Anthropic's native Messages API
  * (`POST /v1/messages` with `stream: true`).

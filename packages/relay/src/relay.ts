@@ -16,8 +16,8 @@ import {
   type SweepSchedule,
   createJobEngine,
 } from '@inbrowser/resumable';
-import { SSE_DONE_LINE, SSE_STREAM_OPEN, encodeSseEvent } from './sse';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from './types';
+import { SSE_DONE_LINE, SSE_STREAM_OPEN, encodeSseEvent } from './sse.js';
+import type { InferenceEvent, InferenceProvider, NormalizedRequest } from './types.js';
 
 export interface CreateRelayOpts {
   /** Backing `JobStore` for resumable inference jobs. */

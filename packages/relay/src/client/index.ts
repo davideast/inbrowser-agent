@@ -16,8 +16,8 @@
  * instead of waiting for the OS-level socket teardown) lives in
  * `./browser.ts` — env-agnostic core doesn't reach for `document`.
  */
-import { readSseDataLines } from '../sse';
-import type { InferenceEvent, NormalizedRequest } from '../types';
+import { readSseDataLines } from '../sse.js';
+import type { InferenceEvent, NormalizedRequest } from '../types.js';
 
 export interface ResumableClientOpts {
   /** URL the client POSTs to start a new job. */
@@ -237,4 +237,4 @@ function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-export { installBrowserLifecycle } from './browser';
+export { installBrowserLifecycle } from './browser.js';

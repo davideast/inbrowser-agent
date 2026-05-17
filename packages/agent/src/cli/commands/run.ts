@@ -35,7 +35,6 @@ import type { Emitter } from '../output.js';
 import { errorEvent } from '../output.js';
 import type { ParsedArgs } from '../parse.js';
 import { type SessionLog, openSessionLog } from '../session-log.js';
-import { RunView } from '../ui/RunView.js';
 
 export interface RunPayload {
   prompt: string;
@@ -190,11 +189,14 @@ interface RunWithTuiInput {
  * preserves the "you can scroll back and see what ran" affordance.
  */
 async function runWithTui(input: RunWithTuiInput): Promise<number> {
-  // Lazy-import OpenTUI so the NDJSON / non-TTY path doesn't pay the
-  // native-binary load cost (the Zig core compiles + loads on import).
-  const [{ createCliRenderer }, { createRoot }] = await Promise.all([
+  // Lazy-import OpenTUI + RunView so the NDJSON / non-TTY path doesn't
+  // pay the native-binary load cost (the Zig core compiles + loads on
+  // import), and so `@opentui/react`'s internal extensionless ESM
+  // imports don't break consumers that only need the non-TUI surface.
+  const [{ createCliRenderer }, { createRoot }, { RunView }] = await Promise.all([
     import('@opentui/core'),
     import('@opentui/react'),
+    import('../ui/RunView.js'),
   ]);
 
   // Tee the session stream: write each event to the log file BEFORE

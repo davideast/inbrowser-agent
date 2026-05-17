@@ -10,6 +10,7 @@
     "build:agent": "bun run --cwd packages/agent build",
     "typecheck": "bun run --cwd packages/resumable typecheck && bun run --cwd packages/relay typecheck && bun run --cwd packages/agent typecheck",
     "test": "bun run --cwd packages/resumable test && bun run --cwd packages/relay test && bun run --cwd packages/agent test",
+    "smoke": "bun scripts/smoke-pack.ts",
     "format": "biome format --write .",
     "lint": "biome lint .",
     "check": "biome check ."

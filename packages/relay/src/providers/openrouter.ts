@@ -1,5 +1,5 @@
-import { readSseDataLines } from '../sse';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types';
+import { readSseDataLines } from '../sse.js';
+import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types.js';
 /**
  * OpenRouter provider — talks to /api/v1/chat/completions with
  * streaming SSE. Environment-agnostic: runs unchanged page-side and

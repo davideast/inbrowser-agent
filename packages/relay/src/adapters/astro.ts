@@ -19,7 +19,7 @@
  *   // src/pages/api/inference/job/[id]/stream.ts
  *   export { stream as GET } from '~/server/relay';
  */
-import type { Relay } from '../relay';
+import type { Relay } from '../relay.js';
 
 /** The shape Astro's APIRoute uses — narrowed so we don't have to
  *  declare a hard dependency on the `astro` package's types. */

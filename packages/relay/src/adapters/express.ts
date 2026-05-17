@@ -28,7 +28,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
  *   app.get('/api/inference/job/:id/stream', stream);
  */
 import { Readable } from 'node:stream';
-import type { Relay } from '../relay';
+import type { Relay } from '../relay.js';
 
 /**
  * Minimal request shape — matches both `express.Request` and
