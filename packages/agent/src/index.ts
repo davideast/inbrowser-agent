@@ -74,6 +74,14 @@ export type {
 } from './types/tools.js';
 export { createToolRegistry, createDispatch, isParallelSafe, isPure } from './tools.js';
 
+export type {
+  MemoKeyComponent,
+  MemoOptions,
+  MemoStats,
+  MemoizedDispatch,
+} from './dispatch-memoization.js';
+export { createMemoizedDispatch } from './dispatch-memoization.js';
+
 export type { Capabilities } from './types/capabilities.js';
 export { DEFAULT_CAPABILITIES } from './types/capabilities.js';
 
