@@ -19,6 +19,24 @@ export interface ToolHandler<A = unknown, D = unknown> {
   parameters: JsonSchema;
   /** Capability gate — handler is excluded from `list()` when this returns false. */
   available?(capabilities: Capabilities): boolean;
+  /**
+   * Opt-in: the dispatcher is allowed to run this tool concurrently with
+   * other `parallelSafe` tools issued in the same turn. Absent or `false`
+   * means the conservative default — the dispatcher treats it as not safe
+   * to parallelize. Read this field via {@link isParallelSafe} so the
+   * default is applied uniformly. Pure-tool dispatchers (parallel
+   * scheduling) consume this; tag-only branches do not change runtime
+   * behavior.
+   */
+  parallelSafe?: boolean;
+  /**
+   * Opt-in: calling this tool with the same arguments against the same
+   * workspace state always produces the same result, so a content-addressed
+   * cache may serve repeat calls. Absent or `false` means the conservative
+   * default — the dispatch layer must execute the handler every call. Read
+   * this field via {@link isPure} so the default is applied uniformly.
+   */
+  pure?: boolean;
   execute(args: A, ctx: ToolContext): Promise<ToolResult<D>>;
 }
 

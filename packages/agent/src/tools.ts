@@ -137,6 +137,26 @@ function findByName(registry: ToolRegistry, name: string): ToolHandler | undefin
   return all.find((h) => h.name === name);
 }
 
+/**
+ * Read `handler.parallelSafe` with the conservative default. The default
+ * when the field is absent or `false` is `false` — callers must opt in
+ * explicitly. Centralised so parallel-dispatch and any future scheduler
+ * apply the same rule.
+ */
+export function isParallelSafe(handler: ToolHandler): boolean {
+  return handler.parallelSafe === true;
+}
+
+/**
+ * Read `handler.pure` with the conservative default. The default when
+ * the field is absent or `false` is `false` — callers must opt in. The
+ * memoization layer reads this through here so a future change to the
+ * default (not in this branch) lands in a single spot.
+ */
+export function isPure(handler: ToolHandler): boolean {
+  return handler.pure === true;
+}
+
 /** Trim a string to `max` chars with an ellipsis marker. */
 function truncate(s: string, max: number): string {
   return s.length <= max ? s : `${s.slice(0, max)}…`;

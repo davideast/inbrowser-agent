@@ -6,6 +6,8 @@ import {
   type ToolHandler,
   createDispatch,
   createToolRegistry,
+  isParallelSafe,
+  isPure,
 } from '../src/index.js';
 
 function fakeCtx(): ToolContext {
@@ -175,5 +177,54 @@ describe('createDispatch', () => {
     expect(result.ok).toBe(false);
     expect(result.summary).toContain('threw');
     expect(result.summary).toContain('boom');
+  });
+});
+
+describe('capability tags', () => {
+  test('isParallelSafe defaults to false when the tag is absent', () => {
+    expect(isParallelSafe(echoTool)).toBe(false);
+  });
+
+  test('isParallelSafe is false when explicitly set to false', () => {
+    const tagged: ToolHandler = { ...echoTool, parallelSafe: false };
+    expect(isParallelSafe(tagged)).toBe(false);
+  });
+
+  test('isParallelSafe is true when explicitly set to true', () => {
+    const tagged: ToolHandler = { ...echoTool, parallelSafe: true };
+    expect(isParallelSafe(tagged)).toBe(true);
+  });
+
+  test('isPure defaults to false when the tag is absent', () => {
+    expect(isPure(echoTool)).toBe(false);
+  });
+
+  test('isPure is false when explicitly set to false', () => {
+    const tagged: ToolHandler = { ...echoTool, pure: false };
+    expect(isPure(tagged)).toBe(false);
+  });
+
+  test('isPure is true when explicitly set to true', () => {
+    const tagged: ToolHandler = { ...echoTool, pure: true };
+    expect(isPure(tagged)).toBe(true);
+  });
+
+  test('the two tags are independent', () => {
+    const parallelOnly: ToolHandler = { ...echoTool, parallelSafe: true };
+    expect(isParallelSafe(parallelOnly)).toBe(true);
+    expect(isPure(parallelOnly)).toBe(false);
+
+    const pureOnly: ToolHandler = { ...echoTool, pure: true };
+    expect(isParallelSafe(pureOnly)).toBe(false);
+    expect(isPure(pureOnly)).toBe(true);
+  });
+
+  test('tags survive registration and round-trip through list()', () => {
+    const r = createToolRegistry();
+    const tagged: ToolHandler = { ...echoTool, parallelSafe: true, pure: true };
+    r.register(tagged);
+    const [retrieved] = r.list();
+    expect(isParallelSafe(retrieved)).toBe(true);
+    expect(isPure(retrieved)).toBe(true);
   });
 });
