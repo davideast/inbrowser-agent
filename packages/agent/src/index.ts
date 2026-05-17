@@ -94,6 +94,7 @@ export { createAgentSession } from './session.js';
 
 export type {
   AgentStrategy,
+  ReflexionConfig,
   StrategyRunInput,
   StrategyEvent,
 } from './types/strategy.js';
