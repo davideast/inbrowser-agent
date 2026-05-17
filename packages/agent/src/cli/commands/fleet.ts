@@ -4,15 +4,15 @@
  * `fleet_summary` event with per-session totals + the isolation flag.
  */
 
+import type { SessionEvent, ToolContext } from '../../index.js';
+import { createMetricsCollector } from '../../metrics.js';
 import { createAgentSession } from '../../session.js';
 import { createReactLoopStrategy } from '../../strategy.js';
 import { createDispatch, createToolRegistry } from '../../tools.js';
-import { createMetricsCollector } from '../../metrics.js';
-import type { SessionEvent, ToolContext } from '../../index.js';
 import { fakeSandbox, scriptedLlm, writeRulesTool } from '../fixtures.js';
 import type { Emitter } from '../output.js';
-import { openSessionLog } from '../session-log.js';
 import type { ParsedArgs } from '../parse.js';
+import { openSessionLog } from '../session-log.js';
 
 export interface FleetCommandIO {
   emit: Emitter;
@@ -100,10 +100,18 @@ export async function fleetCommand(args: ParsedArgs, io: FleetCommandIO): Promis
         id: member.id,
       });
 
-      log.write({ type: 'session_start', ts: now(), sessionId: member.id, scenario: 'write-rules' });
+      log.write({
+        type: 'session_start',
+        ts: now(),
+        sessionId: member.id,
+        scenario: 'write-rules',
+      });
 
       let eventCount = 0;
-      for await (const ev of session.submit(member.prompt, AbortSignal.timeout(30_000)) as AsyncIterable<SessionEvent>) {
+      for await (const ev of session.submit(
+        member.prompt,
+        AbortSignal.timeout(30_000),
+      ) as AsyncIterable<SessionEvent>) {
         eventCount += 1;
         if (ev.kind === 'turn_completed') {
           const turnEvent = {
@@ -137,7 +145,12 @@ export async function fleetCommand(args: ParsedArgs, io: FleetCommandIO): Promis
             () => `[${member.id}] tool ${ev.callId} ${ev.result.ok ? 'ok' : 'fail'}`,
           );
         } else if (ev.kind === 'error') {
-          const errEvent = { type: 'session_error', ts: now(), sessionId: member.id, message: ev.message };
+          const errEvent = {
+            type: 'session_error',
+            ts: now(),
+            sessionId: member.id,
+            message: ev.message,
+          };
           log.write(errEvent);
           emit.event(errEvent, () => `[${member.id}] error: ${ev.message}`);
         }

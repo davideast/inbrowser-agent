@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  legacyProviderAsLlmClient,
-  type LegacyProvider,
-  type ChatRequest,
   type ChatEvent,
+  type ChatRequest,
+  type LegacyProvider,
+  legacyProviderAsLlmClient,
 } from '../src/index.js';
 
 function fakeProvider(opts: {
@@ -47,10 +47,13 @@ describe('legacyProviderAsLlmClient', () => {
   });
 
   test('streams text chunks as `text` events then a `turn_complete`', async () => {
-    const client = legacyProviderAsLlmClient(fakeProvider({
-      streamText: ['hello ', 'world'],
-      usage: { promptTokens: 10, outputTokens: 2 },
-    }), 'fake');
+    const client = legacyProviderAsLlmClient(
+      fakeProvider({
+        streamText: ['hello ', 'world'],
+        usage: { promptTokens: 10, outputTokens: 2 },
+      }),
+      'fake',
+    );
     const req: ChatRequest = {
       messages: [{ role: 'user', text: 'hi' }],
       tools: [],
@@ -67,12 +70,22 @@ describe('legacyProviderAsLlmClient', () => {
   });
 
   test('relays tool calls as `tool_call` events', async () => {
-    const client = legacyProviderAsLlmClient(fakeProvider({
-      toolCall: { callId: 'c1', name: 'writeRules', args: { source: '...' } },
-    }), 'fake');
-    const events = await collect(client.chat({
-      messages: [], tools: [], toolUseEnabled: true,
-    }, new AbortController().signal));
+    const client = legacyProviderAsLlmClient(
+      fakeProvider({
+        toolCall: { callId: 'c1', name: 'writeRules', args: { source: '...' } },
+      }),
+      'fake',
+    );
+    const events = await collect(
+      client.chat(
+        {
+          messages: [],
+          tools: [],
+          toolUseEnabled: true,
+        },
+        new AbortController().signal,
+      ),
+    );
     const toolCall = events.find((e) => e.kind === 'tool_call');
     expect(toolCall).toBeDefined();
     if (toolCall?.kind !== 'tool_call') throw new Error('unreachable');
@@ -83,13 +96,24 @@ describe('legacyProviderAsLlmClient', () => {
   test('emits an `error` event when the legacy provider throws', async () => {
     const provider: LegacyProvider = {
       label: 'Broken',
-      async chatWithTools() { throw new Error('boom'); },
-      async ask() { throw new Error('boom'); },
+      async chatWithTools() {
+        throw new Error('boom');
+      },
+      async ask() {
+        throw new Error('boom');
+      },
     };
     const client = legacyProviderAsLlmClient(provider, 'broken');
-    const events = await collect(client.chat({
-      messages: [], tools: [], toolUseEnabled: true,
-    }, new AbortController().signal));
+    const events = await collect(
+      client.chat(
+        {
+          messages: [],
+          tools: [],
+          toolUseEnabled: true,
+        },
+        new AbortController().signal,
+      ),
+    );
     const error = events.find((e) => e.kind === 'error');
     expect(error).toBeDefined();
     if (error?.kind === 'error') expect(error.message).toBe('boom');

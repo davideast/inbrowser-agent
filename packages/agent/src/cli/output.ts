@@ -34,7 +34,10 @@ export interface Emitter {
   finish(): void;
 }
 
-function projectFields(obj: Record<string, unknown>, fields?: readonly string[]): Record<string, unknown> {
+function projectFields(
+  obj: Record<string, unknown>,
+  fields?: readonly string[],
+): Record<string, unknown> {
   if (!fields || fields.length === 0) return obj;
   const out: Record<string, unknown> = {};
   for (const f of fields) {
@@ -51,7 +54,10 @@ export function pickMode(
   return stream.isTTY ? 'text' : 'ndjson';
 }
 
-export function createEmitter(opts: OutputOptions, stream: NodeJS.WriteStream = process.stdout): Emitter {
+export function createEmitter(
+  opts: OutputOptions,
+  stream: NodeJS.WriteStream = process.stdout,
+): Emitter {
   const fields = opts.fields;
   if (opts.mode === 'ndjson') {
     return {

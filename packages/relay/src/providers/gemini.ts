@@ -1,3 +1,5 @@
+import { readSseDataLines } from '../sse';
+import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types';
 /**
  * Gemini provider — raw fetch against the Generative Language REST
  * API, parsing SSE directly. The `@google/genai` SDK is intentionally
@@ -12,8 +14,6 @@
  * generation match what the SDK produced.
  */
 import type { LegacyChatMessage, LegacyToolDecl } from '../types.js';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types';
-import { readSseDataLines } from '../sse';
 
 const ENDPOINT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -325,11 +325,7 @@ export const geminiProvider: InferenceProvider = async function* (req) {
       // The non-retryable kinds (SAFETY, RECITATION, MAX_TOKENS,
       // network/parse failures) fall straight through and surface.
       // Final attempt always yields whatever it produces.
-      if (
-        evt.kind === 'error' &&
-        isRetryableError(evt.message) &&
-        attempt < MAX_GEMINI_ATTEMPTS
-      ) {
+      if (evt.kind === 'error' && isRetryableError(evt.message) && attempt < MAX_GEMINI_ATTEMPTS) {
         retry = true;
         break;
       }
@@ -366,13 +362,7 @@ export const geminiProvider: InferenceProvider = async function* (req) {
  * schema object (the same `parameters` reference is held by the
  * ToolRegistry and shared across providers).
  */
-const STRIP_KEYS = new Set([
-  'additionalProperties',
-  '$schema',
-  '$ref',
-  '$defs',
-  'definitions',
-]);
+const STRIP_KEYS = new Set(['additionalProperties', '$schema', '$ref', '$defs', 'definitions']);
 
 function sanitizeGeminiSchema(node: unknown): unknown {
   if (Array.isArray(node)) {

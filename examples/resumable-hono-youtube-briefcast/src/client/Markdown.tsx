@@ -157,8 +157,7 @@ function renderBlock(block: MarkdownBlock, index: number): ReactNode {
 
 function renderInline(source: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const tokenPattern =
-    /(\[[^\]]+\]\(https?:\/\/[^)\s]+\)|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  const tokenPattern = /(\[[^\]]+\]\(https?:\/\/[^)\s]+\)|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
   let cursor = 0;
   let match: RegExpExecArray | null;
 

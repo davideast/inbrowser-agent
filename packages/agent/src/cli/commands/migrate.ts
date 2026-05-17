@@ -39,7 +39,13 @@ export function migrateCommand(args: ParsedArgs, io: MigrateCommandIO): number {
 
   const toolAllow: Set<string> | null = (() => {
     if (Array.isArray(toolsCsv)) return new Set(toolsCsv);
-    if (typeof toolsCsv === 'string') return new Set(toolsCsv.split(',').map((s) => s.trim()).filter(Boolean));
+    if (typeof toolsCsv === 'string')
+      return new Set(
+        toolsCsv
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      );
     return null;
   })();
 

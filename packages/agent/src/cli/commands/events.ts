@@ -39,7 +39,8 @@ export function eventsCommand(args: ParsedArgs, io: EventsCommandIO): number {
   if (typeof args.options['session'] === 'string') filter.sessionId = args.options['session'];
   if (typeof args.options['tool'] === 'string') filter.tool = args.options['tool'] as string;
   if (typeof args.options['agent'] === 'string') filter.agent = args.options['agent'] as string;
-  if (typeof args.options['phase'] === 'string') filter.phase = args.options['phase'] as MutationPhase;
+  if (typeof args.options['phase'] === 'string')
+    filter.phase = args.options['phase'] as MutationPhase;
   if (typeof args.options['since'] === 'string') filter.since = args.options['since'] as string;
   if (typeof args.options['until'] === 'string') filter.until = args.options['until'] as string;
   if (typeof args.options['target-kind'] === 'string') {

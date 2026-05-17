@@ -14,12 +14,7 @@
  * each MCP tool call is its own run.
  */
 
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-} from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { EventLogIO } from '../events/log.js';
 
@@ -44,9 +39,7 @@ export interface RunRecord {
   errorSummary?: string;
 }
 
-export type RunRecordFilter = Partial<
-  Pick<RunRecord, 'agent' | 'tool' | 'mode' | 'outcome'>
->;
+export type RunRecordFilter = Partial<Pick<RunRecord, 'agent' | 'tool' | 'mode' | 'outcome'>>;
 
 export interface RunLog {
   readonly path: string;

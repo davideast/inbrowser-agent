@@ -6,30 +6,32 @@
  * workspace + runtime patches as tool results flow in.
  */
 
-import type {
-  AgentSession,
-  AgentSessionConfig,
-  SessionEvent,
-} from './types/session.js';
 import type { ChatMessage } from './types/chat.js';
 import type { RuntimeState } from './types/runtime.js';
+import type { AgentSession, AgentSessionConfig, SessionEvent } from './types/session.js';
 import type { StrategyEvent } from './types/strategy.js';
-import type { Workspace } from './types/workspace.js';
 import type { ToolResult } from './types/tools.js';
+import type { Workspace } from './types/workspace.js';
 
 let sessionCounter = 0;
 
 export function createAgentSession(config: AgentSessionConfig): AgentSession {
   const id = config.id ?? `session-${++sessionCounter}-${Date.now().toString(36)}`;
-  let workspace: Workspace = freezeWorkspace(config.history.length > 0 ? extractInitialWorkspace(config) : initialWorkspace());
+  let workspace: Workspace = freezeWorkspace(
+    config.history.length > 0 ? extractInitialWorkspace(config) : initialWorkspace(),
+  );
   let runtime: RuntimeState = initialRuntime();
   let history: ChatMessage[] = [...config.history];
   let currentAbort: AbortController | null = null;
 
   const session: AgentSession = {
     id,
-    get workspace() { return workspace; },
-    get runtime() { return runtime; },
+    get workspace() {
+      return workspace;
+    },
+    get runtime() {
+      return runtime;
+    },
     submit(prompt, externalSignal): AsyncIterable<SessionEvent> {
       // Compose an internal controller that listens to both the
       // external signal and our `cancel()` override.
@@ -69,19 +71,22 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
 
     const systemPrompt = config.systemPromptBuilder(workspace, runtime);
 
-    const strategyEvents = config.strategy.run({
-      prompt,
-      history,
-      workspace,
-      runtime,
-      llm: config.llm,
-      tools: config.tools,
-      toolList: config.toolList,
-      toolContext: config.toolContext,
-      systemPrompt,
-      ...(config.tracer ? { tracer: config.tracer } : {}),
-      turnId,
-    }, signal);
+    const strategyEvents = config.strategy.run(
+      {
+        prompt,
+        history,
+        workspace,
+        runtime,
+        llm: config.llm,
+        tools: config.tools,
+        toolList: config.toolList,
+        toolContext: config.toolContext,
+        systemPrompt,
+        ...(config.tracer ? { tracer: config.tracer } : {}),
+        turnId,
+      },
+      signal,
+    );
 
     let assistantText = '';
     const assistantId = `a-${turnId}`;

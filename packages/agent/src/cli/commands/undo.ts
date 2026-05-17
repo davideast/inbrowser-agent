@@ -25,8 +25,8 @@
  * design point.
  */
 
-import { openEventLog } from '../../events/log.js';
 import { buildRollbackEvent } from '../../events/log-core.js';
+import { openEventLog } from '../../events/log.js';
 import type { MutationEvent } from '../../types/events.js';
 import type { Emitter } from '../output.js';
 import type { ParsedArgs } from '../parse.js';
@@ -58,7 +58,11 @@ export function undoCommand(args: ParsedArgs, io: UndoCommandIO): number {
     const target = all.find((e) => e.id === eventId);
     if (!target) {
       io.emit.event(
-        { type: 'error', name: 'NotFound', message: `event ${eventId} not found in project ${projectId}` },
+        {
+          type: 'error',
+          name: 'NotFound',
+          message: `event ${eventId} not found in project ${projectId}`,
+        },
         () => `error: event ${eventId} not found`,
       );
       io.emit.finish();
@@ -84,7 +88,8 @@ export function undoCommand(args: ParsedArgs, io: UndoCommandIO): number {
           message: `event ${eventId} is marked reversible:false`,
           reason: target.irreversibleReason ?? '(no reason recorded)',
         },
-        () => `error: event ${eventId} is irreversible (${target.irreversibleReason ?? 'no reason recorded'})`,
+        () =>
+          `error: event ${eventId} is irreversible (${target.irreversibleReason ?? 'no reason recorded'})`,
       );
       io.emit.finish();
       return 64;

@@ -1,16 +1,5 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ApiError,
-  fetchBriefcast,
-  fetchBriefcasts,
-  fetchHealth,
-  startBriefcast,
-} from './api';
-import {
-  createEmptyBriefcastView,
-  reduceBriefcastEvent,
-} from '../shared/reducer';
-import { Markdown } from './Markdown';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { createEmptyBriefcastView, reduceBriefcastEvent } from '../shared/reducer';
 import type {
   AudioSegmentView,
   BriefcastEvent,
@@ -19,6 +8,8 @@ import type {
   BriefcastStatus,
   BriefcastView,
 } from '../shared/types';
+import { Markdown } from './Markdown';
+import { ApiError, fetchBriefcast, fetchBriefcasts, fetchHealth, startBriefcast } from './api';
 import './styles.css';
 
 const SELECTED_KEY = 'briefcast:selected';
@@ -26,7 +17,7 @@ const SELECTED_KEY = 'briefcast:selected';
 export function App() {
   const [items, setItems] = useState<BriefcastIndexEntry[] | null>(null);
   const [selectedId, setSelectedId] = useState(() =>
-    typeof localStorage === 'undefined' ? '' : localStorage.getItem(SELECTED_KEY) ?? '',
+    typeof localStorage === 'undefined' ? '' : (localStorage.getItem(SELECTED_KEY) ?? ''),
   );
   const [briefcast, setBriefcast] = useState<BriefcastView | null>(null);
   const [url, setUrl] = useState('');
@@ -99,8 +90,7 @@ export function App() {
               (event, nextSeq) => {
                 currentNextSeq = nextSeq;
                 setBriefcast((current) => {
-                  const base =
-                    current ?? createEmptyBriefcastView(briefcast.jobId, briefcast.url);
+                  const base = current ?? createEmptyBriefcastView(briefcast.jobId, briefcast.url);
                   const next = reduceBriefcastEvent(base, event);
                   return { ...next, nextSeq, terminalStatus: 'running' };
                 });
@@ -205,11 +195,7 @@ export function App() {
           </p>
         ) : null}
         {listError ? <p className="error">{listError}</p> : null}
-        <BriefcastList
-          items={items}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-        />
+        <BriefcastList items={items} selectedId={selectedId} onSelect={setSelectedId} />
       </aside>
       <section className="detail">
         {detailError ? <p className="error detail-error">{detailError}</p> : null}
@@ -248,9 +234,7 @@ export function BriefcastList(props: {
           onClick={() => props.onSelect(item.jobId)}
         >
           <span className="item-title">{item.title}</span>
-          {item.description ? (
-            <span className="item-description">{item.description}</span>
-          ) : null}
+          {item.description ? <span className="item-description">{item.description}</span> : null}
           <span className={`badge ${item.status}`}>{statusLabel(item.status)}</span>
         </button>
       ))}
@@ -286,13 +270,9 @@ export function BriefcastDetail({ briefcast }: { briefcast: BriefcastView | null
             <p className="detail-description">{briefcast.description}</p>
           ) : null}
         </div>
-        <span className={`badge ${briefcast.status}`}>
-          {statusLabel(briefcast.status)}
-        </span>
+        <span className={`badge ${briefcast.status}`}>{statusLabel(briefcast.status)}</span>
       </header>
-      {briefcast.error ? (
-        <p className="error">Briefcast stopped: {briefcast.error}</p>
-      ) : null}
+      {briefcast.error ? <p className="error">Briefcast stopped: {briefcast.error}</p> : null}
 
       <section className="player-section">
         {briefcast.combinedAudioUrl ? (
@@ -306,11 +286,7 @@ export function BriefcastDetail({ briefcast }: { briefcast: BriefcastView | null
 
       <section className="writeup-section">
         <h3>Briefcast text</h3>
-        {hasWriteup ? (
-          <Markdown source={briefcast.writeupMarkdown} />
-        ) : (
-          <TextSkeleton />
-        )}
+        {hasWriteup ? <Markdown source={briefcast.writeupMarkdown} /> : <TextSkeleton />}
       </section>
 
       <details className="transcript-section">

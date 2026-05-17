@@ -1,3 +1,4 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
 /**
  * Express adapter — shims `(req, res)` ⇄ Web `Request`/`Response` so
  * the relay's Web-standard handlers can run unchanged inside an
@@ -27,7 +28,6 @@
  *   app.get('/api/inference/job/:id/stream', stream);
  */
 import { Readable } from 'node:stream';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Relay } from '../relay';
 
 /**
@@ -128,13 +128,10 @@ export function createExpressHandlers(
   }
 
   return {
-    start: (req, res) =>
-      dispatch(req, res, () => relay.handleStart(toRequest(req))),
+    start: (req, res) => dispatch(req, res, () => relay.handleStart(toRequest(req))),
     stream: (req, res) => {
       const jobId = req.params?.[jobIdParam] ?? '';
-      return dispatch(req, res, () =>
-        relay.handleStream(toRequest(req), { jobId }),
-      );
+      return dispatch(req, res, () => relay.handleStream(toRequest(req), { jobId }));
     },
   };
 }

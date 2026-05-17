@@ -1,11 +1,11 @@
 import { resolve } from 'node:path';
 import { serve } from '@hono/node-server';
-import { createJobEngine, type JobStore } from '@inbrowser/resumable';
+import { type JobStore, createJobEngine } from '@inbrowser/resumable';
 import { createMemoryJobStore } from '@inbrowser/resumable/memory';
 import {
+  type TokenProvider,
   createRtdbJobStore,
   serviceAccountTokenProvider,
-  type TokenProvider,
 } from '@inbrowser/resumable/rtdb';
 import type { BriefcastEvent } from '../shared/types';
 import { createBriefcastApp } from './app';
@@ -13,9 +13,9 @@ import { createFileAudioStore } from './audio-store';
 import { createBriefcastRunner } from './briefcast-runner';
 import { createGeminiBriefcastServices } from './gemini';
 import {
+  type BriefcastIndexStore,
   createMemoryBriefcastIndexStore,
   createRtdbBriefcastIndexStore,
-  type BriefcastIndexStore,
 } from './index-store';
 
 const port = Number(process.env.BRIEFCAST_PORT ?? 8787);
@@ -25,9 +25,7 @@ const serviceAccountFile = process.env.SERVICE_ACCOUNT_FILE;
 const textModel = process.env.GEMINI_TEXT_MODEL ?? 'gemini-3.1-flash-lite';
 const ttsModel = process.env.GEMINI_TTS_MODEL ?? 'gemini-3.1-flash-tts-preview';
 const ttsVoice = process.env.GEMINI_TTS_VOICE ?? 'Kore';
-const audioStore = createFileAudioStore(
-  resolve(import.meta.dir, '../../.data/audio'),
-);
+const audioStore = createFileAudioStore(resolve(import.meta.dir, '../../.data/audio'));
 const stores = await createStores({
   rtdbUrl,
   serviceAccountFile,
@@ -91,11 +89,7 @@ async function createStores(opts: {
 
   const hasRtdbConfig = Boolean(opts.rtdbUrl && opts.serviceAccountFile);
   const mode: 'memory' | 'rtdb' =
-    requested === 'memory' || requested === 'rtdb'
-      ? requested
-      : hasRtdbConfig
-        ? 'rtdb'
-        : 'memory';
+    requested === 'memory' || requested === 'rtdb' ? requested : hasRtdbConfig ? 'rtdb' : 'memory';
 
   if (mode === 'memory') {
     if (!requested && !hasRtdbConfig) {
@@ -108,9 +102,7 @@ async function createStores(opts: {
   }
 
   if (!opts.rtdbUrl || !opts.serviceAccountFile) {
-    throw new Error(
-      'BRIEFCAST_STORE=rtdb requires RTDB_URL and SERVICE_ACCOUNT_FILE',
-    );
+    throw new Error('BRIEFCAST_STORE=rtdb requires RTDB_URL and SERVICE_ACCOUNT_FILE');
   }
 
   const auth = serviceAccountTokenProvider({ keyFile: opts.serviceAccountFile });
@@ -166,9 +158,7 @@ async function probeRtdb(url: string, auth: TokenProvider): Promise<void> {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    throw new Error(
-      `RTDB probe failed (${res.status}): ${(await res.text()).slice(0, 200)}`,
-    );
+    throw new Error(`RTDB probe failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
   }
 }
 

@@ -1,5 +1,5 @@
+import { combineWavFiles, pcmToWav, splitWriteupForTts } from '../shared/tts';
 import type { BriefcastEvent, TranscriptSegmentView } from '../shared/types';
-import { splitWriteupForTts, pcmToWav, combineWavFiles } from '../shared/tts';
 
 export interface BriefcastRunnerServices {
   fetchTranscript(url: string): Promise<TranscriptSegmentView[]>;
@@ -17,10 +17,9 @@ export interface BriefcastRunnerServices {
   ttsConcurrency?: number;
 }
 
-export function createBriefcastRunner(services: BriefcastRunnerServices): (
-  jobId: string,
-  url: string,
-) => AsyncGenerator<BriefcastEvent> {
+export function createBriefcastRunner(
+  services: BriefcastRunnerServices,
+): (jobId: string, url: string) => AsyncGenerator<BriefcastEvent> {
   return async function* runBriefcast(jobId: string, url: string) {
     const now = services.now ?? Date.now;
     const startedAt = now();
@@ -152,10 +151,7 @@ async function* synthesizeSections(opts: {
     );
   };
 
-  while (
-    nextToStart < opts.sections.length &&
-    inFlight.size < Math.max(1, opts.concurrency)
-  ) {
+  while (nextToStart < opts.sections.length && inFlight.size < Math.max(1, opts.concurrency)) {
     yield {
       kind: 'tts_segment_started',
       index: nextToStart,

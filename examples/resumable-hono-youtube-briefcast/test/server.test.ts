@@ -2,8 +2,8 @@ import { describe, expect, it } from 'bun:test';
 import { createJobEngine } from '@inbrowser/resumable';
 import { createMemoryJobStore } from '@inbrowser/resumable/memory';
 import { createBriefcastApp } from '../src/server/app';
-import { createMemoryBriefcastIndexStore } from '../src/server/index-store';
 import type { AudioStore } from '../src/server/audio-store';
+import { createMemoryBriefcastIndexStore } from '../src/server/index-store';
 import type { BriefcastEvent } from '../src/shared/types';
 
 const audioStore: AudioStore = {

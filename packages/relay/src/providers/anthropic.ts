@@ -1,3 +1,5 @@
+import { readSseDataLines } from '../sse';
+import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types';
 /**
  * Anthropic provider — talks to Anthropic's native Messages API
  * (`POST /v1/messages` with `stream: true`).
@@ -24,8 +26,6 @@
  * intentionally compact so it's easy to fork.
  */
 import type { LegacyChatMessage, LegacyToolDecl } from '../types.js';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types';
-import { readSseDataLines } from '../sse';
 
 const ENDPOINT = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -124,9 +124,7 @@ interface PendingToolUse {
   inputBuf: string;
 }
 
-export const anthropicProvider: InferenceProvider = async function* (
-  req: NormalizedRequest,
-) {
+export const anthropicProvider: InferenceProvider = async function* (req: NormalizedRequest) {
   const { system, msgs } = toAnthropic(req.messages);
   const body: AnthropicBody = {
     model: req.model,

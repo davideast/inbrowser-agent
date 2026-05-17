@@ -102,9 +102,7 @@ export type InferenceEvent =
  * the client, yield `{ kind: 'error', message }` and return — same
  * effect, but the event also flows down the stream.
  */
-export type InferenceProvider = (
-  req: NormalizedRequest,
-) => AsyncIterable<InferenceEvent>;
+export type InferenceProvider = (req: NormalizedRequest) => AsyncIterable<InferenceEvent>;
 
 /**
  * Pluggable logger — matches the `@inbrowser/resumable` `Logger` shape so

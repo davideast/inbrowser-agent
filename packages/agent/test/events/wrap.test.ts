@@ -27,9 +27,15 @@ function fakeCtx(): ToolContext {
       sandboxVersion: 0,
     },
     sandbox: {
-      async run() { return { ok: true, durationMs: 0, docsTouched: 0, errors: 0, entries: [] }; },
-      async deployRules() { return { ok: true, messages: [] }; },
-      async readState() { return {}; },
+      async run() {
+        return { ok: true, durationMs: 0, docsTouched: 0, errors: 0, entries: [] };
+      },
+      async deployRules() {
+        return { ok: true, messages: [] };
+      },
+      async readState() {
+        return {};
+      },
       reseed() {},
       dispose() {},
     },
@@ -156,7 +162,9 @@ describe('wrapMutating', () => {
         description: 'gated',
         parameters: { type: 'object' },
         available: (caps) => Boolean((caps as unknown as { flag: boolean }).flag),
-        async execute() { return { ok: true, summary: '' }; },
+        async execute() {
+          return { ok: true, summary: '' };
+        },
       };
       const wrapped = wrapMutating(handler, {
         log,

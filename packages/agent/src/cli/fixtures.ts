@@ -25,8 +25,7 @@ export function scriptedLlm(scenario: ScenarioId, marker = ''): LlmClient {
               id: `c1${marker ? `-${marker}` : ''}`,
               name: 'writeRules',
               args: {
-                source:
-                  `// ${marker || 'default'} rules\nrules_version='2';\nservice cloud.firestore {\n  match /{path=**} {\n    allow read, write: if request.auth != null;\n  }\n}\n`,
+                source: `// ${marker || 'default'} rules\nrules_version='2';\nservice cloud.firestore {\n  match /{path=**} {\n    allow read, write: if request.auth != null;\n  }\n}\n`,
               },
             };
             yield {

@@ -11,6 +11,7 @@
  * Both are pure-TS — no React, no stores, no localStorage.
  */
 
+import type { Capabilities } from './types/capabilities.js';
 import type {
   ToolCall,
   ToolContext,
@@ -19,7 +20,6 @@ import type {
   ToolRegistry,
   ToolResult,
 } from './types/tools.js';
-import type { Capabilities } from './types/capabilities.js';
 
 export function createToolRegistry(): ToolRegistry {
   const handlers = new Map<string, ToolHandler>();
@@ -51,7 +51,9 @@ export function createToolRegistry(): ToolRegistry {
       replace(handler) {
         map.set(handler.name, handler);
       },
-      unregister(name) { return map.delete(name); },
+      unregister(name) {
+        return map.delete(name);
+      },
       list(opts) {
         // No capability filter → return every registered handler.
         // With a capability filter → drop handlers whose `available`
@@ -69,7 +71,9 @@ export function createToolRegistry(): ToolRegistry {
         }
         return out;
       },
-      has(name) { return map.has(name); },
+      has(name) {
+        return map.has(name);
+      },
       fork() {
         // Fresh map cloning the current snapshot; later registrations
         // on the forked registry don't affect the parent.

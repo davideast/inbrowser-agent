@@ -23,15 +23,15 @@
 export type MutationPhase = 'plan' | 'commit' | 'rollback';
 
 export type TargetKind =
-  | 'doc'           // a single document path
-  | 'collection'    // a collection (or subcollection) path
-  | 'rules'         // ruleset release
-  | 'index'         // composite/single-field index
-  | 'service'       // a GCP service (firebasestorage, firestore, …)
-  | 'bucket'        // a Storage bucket
-  | 'hosting'       // a Hosting release
-  | 'functions'     // a Functions deploy
-  | 'workspace'     // the in-process workspace (rules/code/app)
+  | 'doc' // a single document path
+  | 'collection' // a collection (or subcollection) path
+  | 'rules' // ruleset release
+  | 'index' // composite/single-field index
+  | 'service' // a GCP service (firebasestorage, firestore, …)
+  | 'bucket' // a Storage bucket
+  | 'hosting' // a Hosting release
+  | 'functions' // a Functions deploy
+  | 'workspace' // the in-process workspace (rules/code/app)
   | 'other';
 
 export interface MutationTarget {

@@ -15,20 +15,12 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import type { ProjectContext } from '../types/project-context.js';
-import { openEventLog } from '../events/log.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { EventLog } from '../events/log-core.js';
-import {
-  generateRunId,
-  openRunLog,
-  type RunLog,
-  type RunRecord,
-} from '../metrics/runs.js';
+import { openEventLog } from '../events/log.js';
+import { type RunLog, type RunRecord, generateRunId, openRunLog } from '../metrics/runs.js';
 import type { AgentContext, AgentDefinition, AgentTool } from '../types/agent.js';
+import type { ProjectContext } from '../types/project-context.js';
 
 export interface ServeAgentsOptions {
   agents: AgentDefinition[];
@@ -67,9 +59,7 @@ export interface ServeAgentsHandle {
  * handle lets tests shut down cleanly; in production the process
  * terminates with the parent (Claude Code, etc.).
  */
-export async function serveAgentsOverStdio(
-  opts: ServeAgentsOptions,
-): Promise<ServeAgentsHandle> {
+export async function serveAgentsOverStdio(opts: ServeAgentsOptions): Promise<ServeAgentsHandle> {
   const { server, eventLog, runLog } = buildServer(opts);
   const transport = new StdioServerTransport();
   await server.connect(transport);

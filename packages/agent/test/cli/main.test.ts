@@ -4,9 +4,9 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { PassThrough } from 'node:stream';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { PassThrough } from 'node:stream';
 import { main } from '../../src/cli/main.js';
 
 function captureStream() {
@@ -109,7 +109,17 @@ describe('main — run command', () => {
     const dir = mkdtempSync(`${tmpdir()}/agent-cli-`);
     try {
       const code = await main({
-        argv: ['run', '--prompt', 'hi', '--scenario', 'echo', '--log-dir', dir, '--session-id', 'sess-1'],
+        argv: [
+          'run',
+          '--prompt',
+          'hi',
+          '--scenario',
+          'echo',
+          '--log-dir',
+          dir,
+          '--session-id',
+          'sess-1',
+        ],
         stdout: out.stream,
       });
       expect(code).toBe(0);
@@ -155,7 +165,11 @@ describe('main — run command', () => {
         .trim()
         .split('\n')
         .map((l) => JSON.parse(l));
-      expect(events.find((e) => e.type === 'error' || e.type === 'dry_run_plan' || e.type === 'session_end')).toBeDefined();
+      expect(
+        events.find(
+          (e) => e.type === 'error' || e.type === 'dry_run_plan' || e.type === 'session_end',
+        ),
+      ).toBeDefined();
     } finally {
       rmSync(dir, { recursive: true });
     }

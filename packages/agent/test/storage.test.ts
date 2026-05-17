@@ -4,12 +4,20 @@ import { createLocalStorageAdapter } from '../src/storage.js';
 function installFakeLs() {
   const store = new Map<string, string>();
   const fake = {
-    get length() { return store.size; },
+    get length() {
+      return store.size;
+    },
     getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => { store.set(k, v); },
-    removeItem: (k: string) => { store.delete(k); },
+    setItem: (k: string, v: string) => {
+      store.set(k, v);
+    },
+    removeItem: (k: string) => {
+      store.delete(k);
+    },
     key: (i: number) => Array.from(store.keys())[i] ?? null,
-    clear: () => { store.clear(); },
+    clear: () => {
+      store.clear();
+    },
   };
   // @ts-expect-error — overriding global for the test
   globalThis.localStorage = fake;
@@ -53,10 +61,18 @@ describe('createLocalStorageAdapter', () => {
   test('swallows getItem errors (private mode)', () => {
     // @ts-expect-error — overriding global
     globalThis.localStorage = {
-      getItem: () => { throw new Error('private mode'); },
-      setItem: () => { throw new Error('quota'); },
-      removeItem: () => { throw new Error('locked'); },
-      key: () => { throw new Error('x'); },
+      getItem: () => {
+        throw new Error('private mode');
+      },
+      setItem: () => {
+        throw new Error('quota');
+      },
+      removeItem: () => {
+        throw new Error('locked');
+      },
+      key: () => {
+        throw new Error('x');
+      },
       length: 0,
     };
     const s = createLocalStorageAdapter();

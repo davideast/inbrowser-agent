@@ -23,9 +23,7 @@
  *     installLifecycle: installBrowserLifecycle(),
  *   });
  */
-export function installBrowserLifecycle(): (
-  abortCurrentConnection: () => void,
-) => () => void {
+export function installBrowserLifecycle(): (abortCurrentConnection: () => void) => () => void {
   return (abortCurrentConnection) => {
     if (typeof document === 'undefined') return () => {};
     const onVisible = (): void => {

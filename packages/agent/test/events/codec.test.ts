@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  ENVELOPE_KEY,
+  type EventValueCodec,
   composeCodecs,
   defaultEventValueCodec,
-  ENVELOPE_KEY,
   identityCodec,
-  type EventValueCodec,
 } from '../../src/events/codec.js';
 
 describe('defaultEventValueCodec', () => {

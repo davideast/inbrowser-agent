@@ -12,11 +12,8 @@
  * sweep cases hit the indexed query rather than the scan fallback.
  */
 import { describe, it } from 'bun:test';
+import { createRtdbJobStore, serviceAccountTokenProvider } from '../src/store/rtdb';
 import { runJobStoreConformance } from './conformance';
-import {
-  createRtdbJobStore,
-  serviceAccountTokenProvider,
-} from '../src/store/rtdb';
 
 const url = process.env.PYRIC_RESUMABLE_TEST_RTDB_URL;
 const keyFile = process.env.PYRIC_RESUMABLE_TEST_SA_FILE;
@@ -26,15 +23,13 @@ if (url && keyFile) {
   // runs don't collide. Manual cleanup not needed — sweep cases delete
   // their own jobs; leftover roots are cheap.
   const rootPath = `test_resumable_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  runJobStoreConformance(
-    `createRtdbJobStore @ ${rootPath}`,
-    () =>
-      createRtdbJobStore<string>({
-        url,
-        auth: serviceAccountTokenProvider({ keyFile }),
-        rootPath,
-        defaultTtlMs: 1000,
-      }),
+  runJobStoreConformance(`createRtdbJobStore @ ${rootPath}`, () =>
+    createRtdbJobStore<string>({
+      url,
+      auth: serviceAccountTokenProvider({ keyFile }),
+      rootPath,
+      defaultTtlMs: 1000,
+    }),
   );
 } else {
   describe('createRtdbJobStore — skipped', () => {

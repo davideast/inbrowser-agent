@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  createDispatch,
-  createToolRegistry,
   EMPTY_RUNTIME,
   EMPTY_WORKSPACE,
   type ToolContext,
   type ToolHandler,
+  createDispatch,
+  createToolRegistry,
 } from '../src/index.js';
 
 function fakeCtx(): ToolContext {
@@ -13,11 +13,21 @@ function fakeCtx(): ToolContext {
     workspace: EMPTY_WORKSPACE,
     runtime: EMPTY_RUNTIME,
     sandbox: {
-      async run() { return { ok: true, durationMs: 0, docsTouched: 0, errors: 0, entries: [] }; },
-      async deployRules() { return { ok: true, messages: [] }; },
-      async readState() { return {}; },
-      reseed() { /* no-op */ },
-      dispose() { /* no-op */ },
+      async run() {
+        return { ok: true, durationMs: 0, docsTouched: 0, errors: 0, entries: [] };
+      },
+      async deployRules() {
+        return { ok: true, messages: [] };
+      },
+      async readState() {
+        return {};
+      },
+      reseed() {
+        /* no-op */
+      },
+      dispose() {
+        /* no-op */
+      },
     },
     lint: () => ({ warnings: [] }),
     signal: new AbortController().signal,
@@ -37,15 +47,21 @@ const stitchOnlyTool: ToolHandler = {
   name: 'create_project',
   description: 'stitch-gated',
   parameters: { type: 'object' },
-  available(caps) { return caps.stitchAvailable; },
-  async execute() { return { ok: true, summary: 'ok' }; },
+  available(caps) {
+    return caps.stitchAvailable;
+  },
+  async execute() {
+    return { ok: true, summary: 'ok' };
+  },
 };
 
 const throwerTool: ToolHandler = {
   name: 'thrower',
   description: 'always throws',
   parameters: { type: 'object' },
-  async execute() { throw new Error('boom'); },
+  async execute() {
+    throw new Error('boom');
+  },
 };
 
 describe('ToolRegistry', () => {
@@ -75,9 +91,13 @@ describe('ToolRegistry', () => {
     const r = createToolRegistry();
     r.register(echoTool);
     r.register(stitchOnlyTool);
-    const withStitch = r.list({ capabilities: { llmSupportsTools: true, stitchAvailable: true, sandboxReady: false } });
+    const withStitch = r.list({
+      capabilities: { llmSupportsTools: true, stitchAvailable: true, sandboxReady: false },
+    });
     expect(withStitch).toHaveLength(2);
-    const noStitch = r.list({ capabilities: { llmSupportsTools: true, stitchAvailable: false, sandboxReady: false } });
+    const noStitch = r.list({
+      capabilities: { llmSupportsTools: true, stitchAvailable: false, sandboxReady: false },
+    });
     expect(noStitch.map((h) => h.name)).toEqual(['echo']);
   });
 
@@ -131,7 +151,10 @@ describe('createDispatch', () => {
     const r = createToolRegistry();
     r.register(echoTool);
     const dispatch = createDispatch(r);
-    const result = await dispatch.execute({ id: '1', name: 'echo', args: { msg: 'hi' } }, fakeCtx());
+    const result = await dispatch.execute(
+      { id: '1', name: 'echo', args: { msg: 'hi' } },
+      fakeCtx(),
+    );
     expect(result.ok).toBe(true);
     expect(result.summary).toBe('hi');
     expect(result.data).toEqual({ msg: 'hi' });

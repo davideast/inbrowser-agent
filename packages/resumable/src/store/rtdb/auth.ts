@@ -62,13 +62,9 @@ export interface ServiceAccountTokenProviderOpts {
  * until `expires_in - refreshSkewMs`. Pure `fetch` + Node `crypto` —
  * no `firebase-admin` dependency.
  */
-export function serviceAccountTokenProvider(
-  opts: ServiceAccountTokenProviderOpts,
-): TokenProvider {
+export function serviceAccountTokenProvider(opts: ServiceAccountTokenProviderOpts): TokenProvider {
   if (!opts.keyFile && !opts.keyJson) {
-    throw new Error(
-      'serviceAccountTokenProvider: must supply `keyFile` OR `keyJson`',
-    );
+    throw new Error('serviceAccountTokenProvider: must supply `keyFile` OR `keyJson`');
   }
   const refreshSkewMs = opts.refreshSkewMs ?? 60_000;
   const scopes = (opts.scopes ?? DEFAULT_SCOPES).join(' ');
@@ -110,9 +106,7 @@ async function mint(
   })}`;
   const signer = createSign('RSA-SHA256');
   signer.update(signingInput);
-  const jwt = `${signingInput}.${signer
-    .sign(sa.private_key)
-    .toString('base64url')}`;
+  const jwt = `${signingInput}.${signer.sign(sa.private_key).toString('base64url')}`;
 
   const res = await fetch(tokenUri, {
     method: 'POST',

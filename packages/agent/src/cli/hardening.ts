@@ -38,11 +38,7 @@ export interface HardeningRules {
   pattern?: string;
 }
 
-export function hardenString(
-  field: string,
-  value: string,
-  rules: HardeningRules,
-): string {
+export function hardenString(field: string, value: string, rules: HardeningRules): string {
   if (rules.maxLength !== undefined && value.length > rules.maxLength) {
     throw new InputHardeningError(
       field,
@@ -65,11 +61,7 @@ export function hardenString(
     throw new InputHardeningError(field, 'contains URL query/fragment chars (? #)', value);
   }
   if (rules.pattern && !new RegExp(rules.pattern).test(value)) {
-    throw new InputHardeningError(
-      field,
-      `does not match required pattern ${rules.pattern}`,
-      value,
-    );
+    throw new InputHardeningError(field, `does not match required pattern ${rules.pattern}`, value);
   }
   return value;
 }
@@ -81,12 +73,7 @@ export function hardenString(
  * the resolved path is returned and consumers are responsible for
  * `realpath`-ing if they care.
  */
-export function hardenPath(
-  field: string,
-  raw: string,
-  rules: HardeningRules,
-  cwd: string,
-): string {
+export function hardenPath(field: string, raw: string, rules: HardeningRules, cwd: string): string {
   hardenString(field, raw, { ...rules, rejectControlChars: rules.rejectControlChars ?? true });
   return raw.startsWith('/') || /^[A-Za-z]:[\\/]/.test(raw)
     ? raw

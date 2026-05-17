@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { hardenPath, hardenString, InputHardeningError } from '../../src/cli/hardening.js';
+import { InputHardeningError, hardenPath, hardenString } from '../../src/cli/hardening.js';
 
 describe('hardenString', () => {
   it('passes through clean values', () => {
@@ -64,8 +64,8 @@ describe('hardenPath', () => {
   });
 
   it('rejects path traversal at the string layer', () => {
-    expect(() =>
-      hardenPath('p', '../escape', { rejectPathTraversal: true }, '/cwd'),
-    ).toThrow(InputHardeningError);
+    expect(() => hardenPath('p', '../escape', { rejectPathTraversal: true }, '/cwd')).toThrow(
+      InputHardeningError,
+    );
   });
 });

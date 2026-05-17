@@ -2,18 +2,13 @@ import { describe, expect, it } from 'bun:test';
 import { JSDOM } from 'jsdom';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import {
-  BriefcastDetail,
-  BriefcastList,
-} from '../src/client/App';
+import { BriefcastDetail, BriefcastList } from '../src/client/App';
 import { Markdown } from '../src/client/Markdown';
 import { createEmptyBriefcastView } from '../src/shared/reducer';
 
 describe('briefcast UI', () => {
   it('renders sidebar skeletons before list data', () => {
-    const { container } = render(
-      <BriefcastList items={null} selectedId="" onSelect={() => {}} />,
-    );
+    const { container } = render(<BriefcastList items={null} selectedId="" onSelect={() => {}} />);
     expect(container.querySelectorAll('.skeleton-row')).toHaveLength(3);
   });
 
@@ -34,9 +29,7 @@ describe('briefcast UI', () => {
     };
 
     const { container } = render(<BriefcastDetail briefcast={view} />);
-    expect(container.querySelector('.markdown')?.textContent).toContain(
-      'A generated write-up.',
-    );
+    expect(container.querySelector('.markdown')?.textContent).toContain('A generated write-up.');
     expect(container.querySelector('audio')).not.toBeNull();
     expect(container.querySelector('.audio-skeleton')).toBeNull();
   });

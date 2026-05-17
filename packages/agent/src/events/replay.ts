@@ -36,9 +36,9 @@
  *     it via replay.
  */
 
+import type { MutationEvent } from '../types/events.js';
 import type { ToolContext, ToolDispatch, ToolResult } from '../types/tools.js';
 import type { EventLog } from './log-core.js';
-import type { MutationEvent } from '../types/events.js';
 
 export interface ReplayOptions {
   /** Source log to read commits from. */
@@ -82,7 +82,11 @@ export interface ReplayOptions {
 export type ReplayProgress =
   | { type: 'plan'; event: MutationEvent }
   | { type: 'applied'; event: MutationEvent; markerId: string; result: ToolResult }
-  | { type: 'skipped'; event: MutationEvent; reason: 'already_applied' | 'tool_denied' | 'path_denied' | 'shouldapply_skip' }
+  | {
+      type: 'skipped';
+      event: MutationEvent;
+      reason: 'already_applied' | 'tool_denied' | 'path_denied' | 'shouldapply_skip';
+    }
   | { type: 'error'; event: MutationEvent; message: string }
   | { type: 'done'; total: number; applied: number; skipped: number; errors: number };
 
@@ -135,9 +139,9 @@ export async function* replayEvents(opts: ReplayOptions): AsyncIterable<ReplayPr
       // protocol — fail loudly rather than silently skipping.
       throw new ReplayInvariantError(
         `event ${event.id} has phase=commit and target.kind=${event.target.kind} but no args. ` +
-        `Commit events emitted by wrapMutating always carry args. ` +
-        `If you're appending commits manually, include args. ` +
-        `Reading log: ${opts.log.path}`,
+          `Commit events emitted by wrapMutating always carry args. ` +
+          `If you're appending commits manually, include args. ` +
+          `Reading log: ${opts.log.path}`,
       );
     }
     if (!opts.dryRun && applied.has(event.id)) {

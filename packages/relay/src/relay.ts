@@ -10,18 +10,14 @@
  * Astro) without duplicating logic.
  */
 import {
-  createJobEngine,
   type JobEngine,
   type JobStore,
   type Logger as ResumableLogger,
   type SweepSchedule,
+  createJobEngine,
 } from '@inbrowser/resumable';
-import type {
-  InferenceEvent,
-  InferenceProvider,
-  NormalizedRequest,
-} from './types';
-import { encodeSseEvent, SSE_DONE_LINE, SSE_STREAM_OPEN } from './sse';
+import { SSE_DONE_LINE, SSE_STREAM_OPEN, encodeSseEvent } from './sse';
+import type { InferenceEvent, InferenceProvider, NormalizedRequest } from './types';
 
 export interface CreateRelayOpts {
   /** Backing `JobStore` for resumable inference jobs. */
@@ -126,10 +122,7 @@ export function createRelay(opts: CreateRelayOpts): Relay {
     return json({ jobId }, 201);
   }
 
-  async function handleStream(
-    request: Request,
-    ctx: StreamCtx,
-  ): Promise<Response> {
+  async function handleStream(request: Request, ctx: StreamCtx): Promise<Response> {
     const { jobId } = ctx;
     if (!jobId) return new Response('missing job id', { status: 400 });
 
@@ -157,11 +150,7 @@ export function createRelay(opts: CreateRelayOpts): Relay {
     });
 
     const subscribeAbort = new AbortController();
-    request.signal?.addEventListener(
-      'abort',
-      () => subscribeAbort.abort(),
-      { once: true },
-    );
+    request.signal?.addEventListener('abort', () => subscribeAbort.abort(), { once: true });
 
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({

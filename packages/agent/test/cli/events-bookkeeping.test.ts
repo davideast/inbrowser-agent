@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { PassThrough } from 'node:stream';
-import { openEventLog } from '../../src/events/log.js';
 import { main } from '../../src/cli/main.js';
+import { openEventLog } from '../../src/events/log.js';
 
 function captureStream() {
   const buf: Buffer[] = [];
@@ -59,7 +59,11 @@ describe('agent events bookkeeping filter', () => {
         stdout: out.stream,
       });
       expect(code).toBe(0);
-      const lines = out.text().trim().split('\n').map((l) => JSON.parse(l));
+      const lines = out
+        .text()
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l));
       expect(lines).toHaveLength(1);
       expect(lines[0].tool).toBe('setDoc');
       expect(lines[0].target.kind).toBe('doc');
@@ -78,7 +82,11 @@ describe('agent events bookkeeping filter', () => {
         stdout: out.stream,
       });
       expect(code).toBe(0);
-      const lines = out.text().trim().split('\n').map((l) => JSON.parse(l));
+      const lines = out
+        .text()
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l));
       expect(lines).toHaveLength(3);
       const types = lines.map(
         (l) => (l.metadata as { type?: string } | undefined)?.type ?? '(none)',

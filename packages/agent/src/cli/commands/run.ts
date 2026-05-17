@@ -16,11 +16,6 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
-import { combineObservers } from '../../types/observer.js';
-import { createAgentSession } from '../../session.js';
-import { createReactLoopStrategy } from '../../strategy.js';
-import { createDispatch, createToolRegistry } from '../../tools.js';
-import { createMetricsCollector } from '../../metrics.js';
 import type {
   ChatMessage,
   LlmClient,
@@ -28,13 +23,18 @@ import type {
   SessionEvent,
   ToolContext,
 } from '../../index.js';
+import { createMetricsCollector } from '../../metrics.js';
+import { createAgentSession } from '../../session.js';
+import { createReactLoopStrategy } from '../../strategy.js';
+import { createDispatch, createToolRegistry } from '../../tools.js';
+import { combineObservers } from '../../types/observer.js';
 import { fakeSandbox, scriptedLlm, writeCodeTool, writeRulesTool } from '../fixtures.js';
 import type { ScenarioId } from '../fixtures.js';
 import { openRouterClient } from '../llm/openrouter.js';
 import type { Emitter } from '../output.js';
 import { errorEvent } from '../output.js';
-import { openSessionLog, type SessionLog } from '../session-log.js';
 import type { ParsedArgs } from '../parse.js';
+import { type SessionLog, openSessionLog } from '../session-log.js';
 import { RunView } from '../ui/RunView.js';
 
 export interface RunPayload {
@@ -209,7 +209,7 @@ async function runWithTui(input: RunWithTuiInput): Promise<number> {
   })();
 
   const renderer = await createCliRenderer({ exitOnCtrlC: true });
-  let exit = 0;
+  const exit = 0;
   // Wait for the user to press `q` / Escape AFTER the session has
   // ended. The TUI stays alive between session_end and user-quit so
   // the FinalSummary is readable — destroying immediately would flash
@@ -415,16 +415,10 @@ export async function runCommand(args: ParsedArgs, io: RunCommandIO): Promise<nu
   // easiest path. Explicit `--llm` / `--model` flags override env.
   const llmFlag = (args.options['llm'] as string | undefined) ?? 'auto';
   const modelFlag = (args.options['model'] as string | undefined) ?? undefined;
-  const reasoningFlag = args.options['reasoning'] as
-    | 'off'
-    | 'low'
-    | 'medium'
-    | 'high'
-    | undefined;
+  const reasoningFlag = args.options['reasoning'] as 'off' | 'low' | 'medium' | 'high' | undefined;
   const apiKey = process.env.OPENROUTER_API_KEY;
   const envModel = process.env.OPENROUTER_MODEL;
-  const wantOpenRouter =
-    llmFlag === 'openrouter' || (llmFlag === 'auto' && apiKey);
+  const wantOpenRouter = llmFlag === 'openrouter' || (llmFlag === 'auto' && apiKey);
 
   let llm: LlmClient;
   let llmLabel: string;
@@ -481,7 +475,8 @@ export async function runCommand(args: ParsedArgs, io: RunCommandIO): Promise<nu
       lint: () => ({ warnings: [] }),
       signal: new AbortController().signal,
     }),
-    systemPromptBuilder: (w, r) => `Headless agent. preset=${w.presetId || '(none)'} errors=${r.uiErrors.length}`,
+    systemPromptBuilder: (w, r) =>
+      `Headless agent. preset=${w.presetId || '(none)'} errors=${r.uiErrors.length}`,
     metrics,
     history: payload.history ?? [],
     id: sessionId,
@@ -499,9 +494,7 @@ export async function runCommand(args: ParsedArgs, io: RunCommandIO): Promise<nu
   // and piped-text both fall through to the existing event emitter
   // below.
   const tuiEligible =
-    emit.mode === 'text' &&
-    Boolean(process.stdout.isTTY) &&
-    !args.options['no-tui'];
+    emit.mode === 'text' && Boolean(process.stdout.isTTY) && !args.options['no-tui'];
   if (tuiEligible) {
     return await runWithTui({
       stream: session.submit(payload.prompt, AbortSignal.timeout(submitTimeoutMs)),
@@ -534,14 +527,20 @@ export async function runCommand(args: ParsedArgs, io: RunCommandIO): Promise<nu
           );
           break;
         case 'text':
-          emitBoth(
-            { type: 'text', ts: now(), sessionId, chunk: ev.chunk },
-            () => ev.chunk.trimEnd(),
+          emitBoth({ type: 'text', ts: now(), sessionId, chunk: ev.chunk }, () =>
+            ev.chunk.trimEnd(),
           );
           break;
         case 'tool_started':
           emitBoth(
-            { type: 'tool_call', ts: now(), sessionId, name: ev.name, callId: ev.callId, args: ev.args },
+            {
+              type: 'tool_call',
+              ts: now(),
+              sessionId,
+              name: ev.name,
+              callId: ev.callId,
+              args: ev.args,
+            },
             () => `[tool ${ev.name}(${ev.callId})]`,
           );
           break;
@@ -555,8 +554,7 @@ export async function runCommand(args: ParsedArgs, io: RunCommandIO): Promise<nu
               ok: ev.result.ok,
               summary: ev.result.summary,
             },
-            () =>
-              `[tool ${ev.callId} ${ev.result.ok ? 'ok' : 'fail'}] ${ev.result.summary ?? ''}`,
+            () => `[tool ${ev.callId} ${ev.result.ok ? 'ok' : 'fail'}] ${ev.result.summary ?? ''}`,
           );
           break;
         case 'workspace_changed':

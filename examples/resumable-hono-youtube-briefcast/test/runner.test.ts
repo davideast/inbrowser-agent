@@ -9,9 +9,7 @@ describe('createBriefcastRunner', () => {
       textModel: 'text-model',
       ttsModel: 'tts-model',
       ttsConcurrency: 2,
-      fetchTranscript: async () => [
-        { index: 0, startMs: 0, durationMs: 1000, text: 'Transcript' },
-      ],
+      fetchTranscript: async () => [{ index: 0, startMs: 0, durationMs: 1000, text: 'Transcript' }],
       async *streamWriteup() {
         yield [
           `First ${'a'.repeat(1000)}`,

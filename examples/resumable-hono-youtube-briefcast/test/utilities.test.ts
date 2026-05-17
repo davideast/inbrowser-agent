@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { extractWriteupMetadata, reduceBriefcastEvents } from '../src/shared/reducer';
-import type { BriefcastEvent } from '../src/shared/types';
 import { combineWavFiles, pcmToWav, splitWriteupForTts } from '../src/shared/tts';
+import type { BriefcastEvent } from '../src/shared/types';
 
 describe('splitWriteupForTts', () => {
   it('respects paragraph boundaries and max section size', () => {

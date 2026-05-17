@@ -50,13 +50,9 @@
  *     handlers follow this pattern.
  */
 
+import type { MutationEvent, MutationTarget, ReverseOp } from '../types/events.js';
 import type { ToolContext, ToolHandler, ToolResult } from '../types/tools.js';
-import type {
-  MutationEvent,
-  MutationTarget,
-  ReverseOp,
-} from '../types/events.js';
-import { HOST_AGENT_ID, buildRollbackEvent, type EventLog } from './log-core.js';
+import { type EventLog, HOST_AGENT_ID, buildRollbackEvent } from './log-core.js';
 
 export interface WrapMutatingOptions<A, D> {
   /** Where to append events. */
@@ -169,7 +165,11 @@ export function wrapMutating<A = unknown, D = unknown>(
         after: result.data,
         reversible: !!reverseOp,
         ...(reverseOp ? { reverseOp } : {}),
-        ...(reverseOp ? {} : opts.irreversibleReason ? { irreversibleReason: opts.irreversibleReason } : {}),
+        ...(reverseOp
+          ? {}
+          : opts.irreversibleReason
+            ? { irreversibleReason: opts.irreversibleReason }
+            : {}),
         metadata: {
           ...(opts.metadata ?? {}),
           planEventId: planEvent.id,

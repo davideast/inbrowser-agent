@@ -13,14 +13,7 @@
  *         `--dry-run` MUST be honored.
  */
 
-export type OptionType =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'string[]'
-  | 'enum'
-  | 'json'
-  | 'path';
+export type OptionType = 'string' | 'number' | 'boolean' | 'string[]' | 'enum' | 'json' | 'path';
 
 export interface OptionSpec {
   name: string;
@@ -80,7 +73,7 @@ const GLOBAL_OPTIONS: readonly OptionSpec[] = [
     type: 'string[]',
     description:
       'Comma-separated event field allowlist. Applies only to ndjson/json output. ' +
-      "Example: --fields ts,type,turn,name,ok",
+      'Example: --fields ts,type,turn,name,ok',
     validate: { rejectControlChars: true, maxLength: 512 },
   },
   {
@@ -112,7 +105,7 @@ const RUN_OPTIONS: readonly OptionSpec[] = [
     description:
       'Read full run payload as JSON from stdin (- or no value) or from the given file ' +
       'path. Schema: { prompt: string, scenario?: string, maxTurns?: number, sessionId?: string, history?: ChatMessage[] }. ' +
-      "Maps 1:1 to the run handler signature — no flag translation loss.",
+      'Maps 1:1 to the run handler signature — no flag translation loss.',
   },
   {
     name: '--scenario',
@@ -121,8 +114,13 @@ const RUN_OPTIONS: readonly OptionSpec[] = [
     default: 'echo',
     description:
       'Scripted LLM fixture used in headless mode. echo: echoes the prompt. ' +
-      "write-rules: emits a tool_call → text two-turn flow.",
-    validate: { rejectControlChars: true, rejectPathTraversal: true, rejectQueryChars: true, maxLength: 64 },
+      'write-rules: emits a tool_call → text two-turn flow.',
+    validate: {
+      rejectControlChars: true,
+      rejectPathTraversal: true,
+      rejectQueryChars: true,
+      maxLength: 64,
+    },
   },
   {
     name: '--max-turns',
@@ -230,8 +228,7 @@ const FLEET_OPTIONS: readonly OptionSpec[] = [
   {
     name: '--dry-run',
     type: 'boolean',
-    description:
-      'Print the planned fleet (size, member ids, scenario) without launching sessions.',
+    description: 'Print the planned fleet (size, member ids, scenario) without launching sessions.',
   },
 ];
 
@@ -241,8 +238,7 @@ const EVENTS_OPTIONS: readonly OptionSpec[] = [
     short: '-p',
     type: 'string',
     required: true,
-    description:
-      'Firebase project id. The log lives at <events-dir>/<project>/events.ndjson.',
+    description: 'Firebase project id. The log lives at <events-dir>/<project>/events.ndjson.',
     validate: {
       rejectControlChars: true,
       rejectPathTraversal: true,
@@ -278,7 +274,8 @@ const EVENTS_OPTIONS: readonly OptionSpec[] = [
   {
     name: '--agent',
     type: 'string',
-    description: "Restrict to events emitted by a single agent (e.g. 'firestore-data-modeling'). Default emitter is 'host'.",
+    description:
+      "Restrict to events emitted by a single agent (e.g. 'firestore-data-modeling'). Default emitter is 'host'.",
     validate: { rejectControlChars: true, rejectQueryChars: true, maxLength: 64 },
   },
   {
@@ -364,15 +361,13 @@ const SERVE_OPTIONS: readonly OptionSpec[] = [
   {
     name: '--events-dir',
     type: 'path',
-    description:
-      'Override the events + runs root. Default: ~/.pyric/projects. Tests use this.',
+    description: 'Override the events + runs root. Default: ~/.pyric/projects. Tests use this.',
     validate: { rejectControlChars: true, rejectQueryChars: true, maxLength: 1024 },
   },
   {
     name: '--dry-run',
     type: 'boolean',
-    description:
-      'Print the catalog (agent + tool list) without binding stdio. Exit 0.',
+    description: 'Print the catalog (agent + tool list) without binding stdio. Exit 0.',
   },
 ];
 
@@ -427,7 +422,7 @@ const DESCRIBE_OPTIONS: readonly OptionSpec[] = [
     default: 'all',
     description:
       'Which subject to describe. commands: subcommand tree. scenarios: scripted LLM fixtures. ' +
-      "events: NDJSON event types. all: a single combined object.",
+      'events: NDJSON event types. all: a single combined object.',
   },
 ];
 
@@ -447,7 +442,8 @@ export const CLI_SPEC: CliSpec = {
       options: RUN_OPTIONS,
       positional: {
         name: 'prompt',
-        description: 'Free-form prompt text. Equivalent to --prompt. Ignored when --json is supplied.',
+        description:
+          'Free-form prompt text. Equivalent to --prompt. Ignored when --json is supplied.',
       },
       examples: [
         {
@@ -479,7 +475,8 @@ export const CLI_SPEC: CliSpec = {
     },
     {
       name: 'describe',
-      description: 'Emit machine-readable descriptions of CLI subjects (commands, scenarios, events).',
+      description:
+        'Emit machine-readable descriptions of CLI subjects (commands, scenarios, events).',
       mutating: false,
       options: DESCRIBE_OPTIONS,
       examples: [
@@ -495,8 +492,14 @@ export const CLI_SPEC: CliSpec = {
       options: EVENTS_OPTIONS,
       examples: [
         { input: 'agent events --project my-app', description: 'Full log as NDJSON.' },
-        { input: 'agent events --project my-app --phase commit --tool writeRules', description: 'Just the committed writeRules events.' },
-        { input: 'agent events --project my-app --session sess-123', description: 'Audit one session end-to-end.' },
+        {
+          input: 'agent events --project my-app --phase commit --tool writeRules',
+          description: 'Just the committed writeRules events.',
+        },
+        {
+          input: 'agent events --project my-app --session sess-123',
+          description: 'Audit one session end-to-end.',
+        },
       ],
     },
     {
@@ -506,8 +509,14 @@ export const CLI_SPEC: CliSpec = {
       mutating: true,
       options: UNDO_OPTIONS,
       examples: [
-        { input: 'agent undo --project my-app --event abc123-xyz --dry-run', description: 'Plan the rollback only.' },
-        { input: 'agent undo --project my-app --event abc123-xyz', description: 'Execute the recorded reverseOp; appends a `rollback` event to the log.' },
+        {
+          input: 'agent undo --project my-app --event abc123-xyz --dry-run',
+          description: 'Plan the rollback only.',
+        },
+        {
+          input: 'agent undo --project my-app --event abc123-xyz',
+          description: 'Execute the recorded reverseOp; appends a `rollback` event to the log.',
+        },
       ],
     },
     {
@@ -524,7 +533,7 @@ export const CLI_SPEC: CliSpec = {
         {
           input: 'agent serve --project demo',
           description:
-            'Boot the MCP server. Exposes every built-in agent\'s tools flat. ' +
+            "Boot the MCP server. Exposes every built-in agent's tools flat. " +
             'Wire via Claude Code mcpServers config.',
         },
       ],
@@ -537,9 +546,19 @@ export const CLI_SPEC: CliSpec = {
       mutating: true,
       options: MIGRATE_OPTIONS,
       examples: [
-        { input: 'agent migrate --project my-app', description: 'Plan every replayable commit (NDJSON).' },
-        { input: 'agent migrate --project my-app --since-event ksx91m3-0001-a4f --tools setDoc,writeRules', description: 'Filtered plan.' },
-        { input: 'agent migrate --project my-app --record', description: 'Plan + append `migrate_intent` for host pickup.' },
+        {
+          input: 'agent migrate --project my-app',
+          description: 'Plan every replayable commit (NDJSON).',
+        },
+        {
+          input:
+            'agent migrate --project my-app --since-event ksx91m3-0001-a4f --tools setDoc,writeRules',
+          description: 'Filtered plan.',
+        },
+        {
+          input: 'agent migrate --project my-app --record',
+          description: 'Plan + append `migrate_intent` for host pickup.',
+        },
       ],
     },
     {
@@ -548,7 +567,10 @@ export const CLI_SPEC: CliSpec = {
       mutating: false,
       options: [],
       examples: [
-        { input: 'agent schema', description: 'Full schema. Stable contract for agent integrations.' },
+        {
+          input: 'agent schema',
+          description: 'Full schema. Stable contract for agent integrations.',
+        },
       ],
     },
     {

@@ -1,9 +1,9 @@
 import { GoogleGenAI } from '@google/genai';
-import { geminiProvider, type NormalizedRequest } from '@inbrowser/relay';
+import { type NormalizedRequest, geminiProvider } from '@inbrowser/relay';
 import { YoutubeTranscript } from 'youtube-transcript';
 import type { TranscriptSegmentView } from '../shared/types';
-import type { BriefcastRunnerServices } from './briefcast-runner';
 import type { AudioStore } from './audio-store';
+import type { BriefcastRunnerServices } from './briefcast-runner';
 
 export interface GeminiBriefcastServiceOpts {
   apiKey: string;
@@ -40,11 +40,7 @@ export function createGeminiBriefcastServices(
         messages: [
           {
             role: 'user',
-            text: buildWriteupPrompt(
-              input.url,
-              input.segments,
-              input.transcriptText,
-            ),
+            text: buildWriteupPrompt(input.url, input.segments, input.transcriptText),
           },
         ],
         tools: [],
@@ -86,15 +82,13 @@ export function createGeminiBriefcastServices(
         },
       });
 
-      const base64 =
-        response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (!base64) throw new Error('Gemini TTS returned no audio data');
       return new Uint8Array(Buffer.from(base64, 'base64'));
     },
 
     saveAudio: opts.audioStore.save,
-    saveCombinedAudio: (jobId, wav) =>
-      opts.audioStore.saveFile(jobId, 'combined.wav', wav),
+    saveCombinedAudio: (jobId, wav) => opts.audioStore.saveFile(jobId, 'combined.wav', wav),
   };
 }
 

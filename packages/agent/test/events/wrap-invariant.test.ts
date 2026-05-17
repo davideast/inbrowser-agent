@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { openEventLog } from '../../src/events/log.js';
-import { isWrappedHandler, wrapMutating, WRAPPED_MARKER } from '../../src/events/wrap.js';
+import { WRAPPED_MARKER, isWrappedHandler, wrapMutating } from '../../src/events/wrap.js';
 import type { ToolContext, ToolHandler } from '../../src/index.js';
 
 function freshDir(): string {
@@ -11,12 +11,31 @@ function freshDir(): string {
 
 function fakeCtx(): ToolContext {
   return {
-    workspace: { presetId: '', rules: '', code: '', appSource: '', stitch: { projectId: null, latestScreenUrl: null, brief: null } },
-    runtime: { terminal: [], runSummary: null, deploy: null, parseError: null, uiErrors: [], sandboxVersion: 0 },
+    workspace: {
+      presetId: '',
+      rules: '',
+      code: '',
+      appSource: '',
+      stitch: { projectId: null, latestScreenUrl: null, brief: null },
+    },
+    runtime: {
+      terminal: [],
+      runSummary: null,
+      deploy: null,
+      parseError: null,
+      uiErrors: [],
+      sandboxVersion: 0,
+    },
     sandbox: {
-      async run() { return { ok: true, durationMs: 0, docsTouched: 0, errors: 0, entries: [] }; },
-      async deployRules() { return { ok: true, messages: [] }; },
-      async readState() { return {}; },
+      async run() {
+        return { ok: true, durationMs: 0, docsTouched: 0, errors: 0, entries: [] };
+      },
+      async deployRules() {
+        return { ok: true, messages: [] };
+      },
+      async readState() {
+        return {};
+      },
       reseed() {},
       dispose() {},
     },

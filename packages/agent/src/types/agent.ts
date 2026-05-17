@@ -14,9 +14,9 @@
  *     via planHash, not framework-level.
  */
 
-import type { ProjectContext } from './project-context.js';
 import type { EventLog } from '../events/log-core.js';
 import type { JsonSchema } from './llm.js';
+import type { ProjectContext } from './project-context.js';
 import type { SandboxHandle } from './tools.js';
 
 /**

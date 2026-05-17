@@ -71,8 +71,7 @@ describe('createJobEngine + createMemoryJobStore', () => {
 
     const events = await collect(engine.subscribe(jobId));
     const terminal = events.find(
-      (e): e is Extract<JobEvent<StrEvent>, { kind: 'terminal' }> =>
-        e.kind === 'terminal',
+      (e): e is Extract<JobEvent<StrEvent>, { kind: 'terminal' }> => e.kind === 'terminal',
     );
     expect(terminal?.status).toBe('error');
     expect(terminal?.reason).toBe('boom');
@@ -109,9 +108,12 @@ describe('createJobEngine + createMemoryJobStore', () => {
     const store = createMemoryJobStore<StrEvent>();
     const engine = createJobEngine({ store });
 
-    const { jobId } = await engine.start(async function* () {
-      yield 'one';
-    }, { data: { tag: 'unit' } });
+    const { jobId } = await engine.start(
+      async function* () {
+        yield 'one';
+      },
+      { data: { tag: 'unit' } },
+    );
 
     // Drain to terminal.
     await collect(engine.subscribe(jobId));

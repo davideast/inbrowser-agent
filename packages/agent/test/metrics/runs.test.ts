@@ -1,11 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import {
-  generateRunId,
-  openRunLog,
-  type RunRecord,
-} from '../../src/metrics/runs.js';
+import { type RunRecord, generateRunId, openRunLog } from '../../src/metrics/runs.js';
 
 function freshDir(): string {
   return mkdtempSync(`${tmpdir()}/runs-`);

@@ -7,12 +7,12 @@
  * surface stays stable; only the internals change.
  */
 
-import type { Workspace } from './workspace.js';
-import type { RuntimeState } from './runtime.js';
 import type { ChatMessage, TurnDetails } from './chat.js';
 import type { LlmClient, RawUsage } from './llm.js';
-import type { ToolDispatch, ToolHandler, ToolContext, ToolResult } from './tools.js';
+import type { RuntimeState } from './runtime.js';
+import type { ToolContext, ToolDispatch, ToolHandler, ToolResult } from './tools.js';
 import type { Tracer } from './trace.js';
+import type { Workspace } from './workspace.js';
 
 export interface AgentStrategy {
   readonly id: string;

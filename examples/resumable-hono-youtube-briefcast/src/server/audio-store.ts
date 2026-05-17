@@ -17,21 +17,14 @@ export function createFileAudioStore(rootDir: string): AudioStore {
     return join(root, jobId, fileName);
   }
 
-  async function saveFile(
-    jobId: string,
-    fileName: string,
-    wav: Uint8Array,
-  ): Promise<string> {
+  async function saveFile(jobId: string, fileName: string, wav: Uint8Array): Promise<string> {
     const filePath = filePathFor(jobId, fileName);
     await mkdir(join(root, jobId), { recursive: true });
     await writeFile(filePath, wav);
     return `/audio/${encodeURIComponent(jobId)}/${fileName}`;
   }
 
-  async function readStoredFile(
-    jobId: string,
-    fileName: string,
-  ): Promise<Uint8Array | null> {
+  async function readStoredFile(jobId: string, fileName: string): Promise<Uint8Array | null> {
     try {
       return await readFile(filePathFor(jobId, fileName));
     } catch {

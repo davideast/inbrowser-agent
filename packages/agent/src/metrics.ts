@@ -12,12 +12,8 @@
  * no API to introspect them.
  */
 
-import type {
-  MetricsCollector,
-  RecordTurnInput,
-  SessionTotals,
-} from './types/metrics.js';
 import type { TurnMetrics } from './types/llm.js';
+import type { MetricsCollector, RecordTurnInput, SessionTotals } from './types/metrics.js';
 
 interface PricingRow {
   /** USD per million input tokens. */
@@ -33,9 +29,9 @@ interface PricingRow {
  * to avoid collisions when two providers ship a same-named model.
  */
 const PRICING: Record<string, PricingRow> = {
-  'gemini:gemini-3.1-pro-preview':  { input: 2.50, output: 20.00, cacheRead: 0.625 },
-  'gemini:gemini-3-flash-preview':  { input: 0.50, output:  4.00, cacheRead: 0.125 },
-  'gemini:gemini-3.1-flash-lite':   { input: 0.15, output:  0.60, cacheRead: 0.0375 },
+  'gemini:gemini-3.1-pro-preview': { input: 2.5, output: 20.0, cacheRead: 0.625 },
+  'gemini:gemini-3-flash-preview': { input: 0.5, output: 4.0, cacheRead: 0.125 },
+  'gemini:gemini-3.1-flash-lite': { input: 0.15, output: 0.6, cacheRead: 0.0375 },
   // OpenRouter quotes cost on the response — we don't need a row.
   // Ollama is local — no cost.
   // Nano is on-device — no cost.

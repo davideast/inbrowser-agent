@@ -163,9 +163,7 @@ export function runJobStoreConformance(
           // ending with a terminal status. We don't require an exact
           // count (the store may coalesce snapshots) — just monotonicity.
           for (let i = 1; i < snaps.length; i++) {
-            expect(snaps[i]!.events.length).toBeGreaterThanOrEqual(
-              snaps[i - 1]!.events.length,
-            );
+            expect(snaps[i]!.events.length).toBeGreaterThanOrEqual(snaps[i - 1]!.events.length);
           }
           const last = snaps.at(-1)!;
           expect(last.events).toEqual(['one', 'two']);

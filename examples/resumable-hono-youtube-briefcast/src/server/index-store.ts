@@ -1,6 +1,6 @@
 import type { TokenProvider } from '@inbrowser/resumable/rtdb';
-import type { BriefcastEvent, BriefcastIndexEntry } from '../shared/types';
 import { applyEventToIndex } from '../shared/reducer';
+import type { BriefcastEvent, BriefcastIndexEntry } from '../shared/types';
 
 export interface BriefcastIndexStore {
   list(): Promise<BriefcastIndexEntry[]>;
@@ -37,10 +37,7 @@ export function createRtdbBriefcastIndexStore(opts: {
 }): BriefcastIndexStore {
   const rootPath = trimSlashes(opts.rootPath ?? 'briefcast_index');
 
-  async function request<T>(
-    path: string,
-    init?: RequestInit,
-  ): Promise<T | null> {
+  async function request<T>(path: string, init?: RequestInit): Promise<T | null> {
     const token = await opts.auth.getToken();
     const url = `${trimRight(opts.url)}/${trimSlashes(path)}.json`;
     const headers = new Headers(init?.headers);

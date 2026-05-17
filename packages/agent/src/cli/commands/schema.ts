@@ -8,10 +8,7 @@ import type { Emitter } from '../output.js';
 import { CLI_SPEC } from '../spec.js';
 
 export function schemaCommand(emit: Emitter): number {
-  emit.event(
-    { type: 'schema', ...CLI_SPEC },
-    () => JSON.stringify(CLI_SPEC, null, 2),
-  );
+  emit.event({ type: 'schema', ...CLI_SPEC }, () => JSON.stringify(CLI_SPEC, null, 2));
   emit.finish();
   return 0;
 }

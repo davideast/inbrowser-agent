@@ -8,10 +8,10 @@
  * share a stateless dispatcher.
  */
 
-import type { JsonSchema } from './llm.js';
-import type { Workspace, StitchContext } from './workspace.js';
-import type { RuntimeState } from './runtime.js';
 import type { Capabilities } from './capabilities.js';
+import type { JsonSchema } from './llm.js';
+import type { RuntimeState } from './runtime.js';
+import type { StitchContext, Workspace } from './workspace.js';
 
 export interface ToolHandler<A = unknown, D = unknown> {
   name: string;
@@ -53,7 +53,10 @@ export interface ToolContext {
  * can stub it without pulling in the whole sandbox package.
  */
 export interface SandboxHandle {
-  run(code: string, signal?: AbortSignal): Promise<{
+  run(
+    code: string,
+    signal?: AbortSignal,
+  ): Promise<{
     ok: boolean;
     durationMs: number;
     docsTouched: number;
@@ -62,7 +65,12 @@ export interface SandboxHandle {
   }>;
   deployRules(source: string): Promise<{
     ok: boolean;
-    messages: { severity: 'info' | 'warn' | 'error'; text: string; line?: number; column?: number }[];
+    messages: {
+      severity: 'info' | 'warn' | 'error';
+      text: string;
+      line?: number;
+      column?: number;
+    }[];
   }>;
   readState(opts?: { path?: string; maxDepth?: number }): Promise<unknown>;
   reseed(opts: { presetId: string }): void;

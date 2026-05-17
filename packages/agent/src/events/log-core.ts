@@ -41,10 +41,7 @@ export const DEFAULT_MAX_EVENT_BYTES = 64 * 1024;
  * random suffix, which can flip ordering — a real bug for
  * `replayEvents`'s sinceEventId cursor.
  */
-export function generateEventId(
-  now: () => number = Date.now,
-  sequence?: number,
-): string {
+export function generateEventId(now: () => number = Date.now, sequence?: number): string {
   const ts = now().toString(36).padStart(9, '0');
   const seq = sequence !== undefined ? `-${sequence.toString(36).padStart(4, '0')}` : '';
   const rand = Math.random().toString(36).slice(2, 6);
@@ -60,9 +57,9 @@ export class EventTooLargeError extends Error {
   ) {
     super(
       `event for tool=${tool} is ${bytes} bytes, exceeds cap ${cap}. ` +
-      `Atomic append is not guaranteed above this size; concurrent writers can interleave. ` +
-      `Raise via openEventLog({ maxEventBytes }) only if you accept the loss of atomicity guarantees, ` +
-      `or shrink the payload (truncate before/after snapshots, omit large args).`,
+        `Atomic append is not guaranteed above this size; concurrent writers can interleave. ` +
+        `Raise via openEventLog({ maxEventBytes }) only if you accept the loss of atomicity guarantees, ` +
+        `or shrink the payload (truncate before/after snapshots, omit large args).`,
     );
   }
 }

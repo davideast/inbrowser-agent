@@ -15,13 +15,8 @@
  * to land atomically.
  */
 
-import type {
-  ChatEvent,
-  ChatRequest,
-  LlmClient,
-  RawUsage,
-} from './types/llm.js';
 import type { TurnDetails } from './types/chat.js';
+import type { ChatEvent, ChatRequest, LlmClient, RawUsage } from './types/llm.js';
 
 /**
  * Minimal external surface the adapter expects. Matches the shape
@@ -141,13 +136,14 @@ async function* drive(
   const callbacks: LegacyChatCallbacks = {
     onText: (chunk) => push({ kind: 'text', chunk }),
     onThinking: (chunk) => push({ kind: 'thinking', chunk }),
-    onToolCall: (call) => push({
-      kind: 'tool_call',
-      id: call.callId,
-      name: call.name,
-      args: call.args,
-      signature: call.signature,
-    }),
+    onToolCall: (call) =>
+      push({
+        kind: 'tool_call',
+        id: call.callId,
+        name: call.name,
+        args: call.args,
+        signature: call.signature,
+      }),
     signal,
   };
 
@@ -190,7 +186,9 @@ async function* drive(
 
   while (!done || queue.length > 0) {
     if (queue.length === 0) {
-      await new Promise<void>((r) => { resolver = r; });
+      await new Promise<void>((r) => {
+        resolver = r;
+      });
     }
     const next = queue.shift();
     if (next) yield next;

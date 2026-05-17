@@ -1,6 +1,7 @@
+import type { JobEngine, JobEvent } from '@inbrowser/resumable';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
-import type { JobEngine, JobEvent } from '@inbrowser/resumable';
+import { reduceBriefcastEvents, titleFromUrl } from '../shared/reducer';
 import type {
   BriefcastEvent,
   BriefcastHealthResponse,
@@ -9,15 +10,11 @@ import type {
   BriefcastSnapshotResponse,
   BriefcastStartResponse,
 } from '../shared/types';
-import { reduceBriefcastEvents, titleFromUrl } from '../shared/reducer';
 import type { AudioStore } from './audio-store';
 import type { BriefcastIndexStore } from './index-store';
 
 export interface BriefcastAppDeps {
-  engine: Pick<
-    JobEngine<BriefcastEvent>,
-    'start' | 'subscribe' | 'get'
-  >;
+  engine: Pick<JobEngine<BriefcastEvent>, 'start' | 'subscribe' | 'get'>;
   indexStore: BriefcastIndexStore;
   audioStore: AudioStore;
   runBriefcast: (jobId: string, url: string) => AsyncIterable<BriefcastEvent>;
@@ -44,10 +41,7 @@ export function createBriefcastApp(deps: BriefcastAppDeps): Hono {
       const items = await deps.indexStore.list();
       return c.json({ items } satisfies BriefcastListResponse);
     } catch (e) {
-      return c.json(
-        { error: setupError('Briefcast index unavailable', e) },
-        503,
-      );
+      return c.json({ error: setupError('Briefcast index unavailable', e) }, 503);
     }
   });
 
@@ -87,10 +81,7 @@ export function createBriefcastApp(deps: BriefcastAppDeps): Hono {
       );
       jobId = started.jobId;
     } catch (e) {
-      return c.json(
-        { error: setupError('Briefcast job store unavailable', e) },
-        503,
-      );
+      return c.json({ error: setupError('Briefcast job store unavailable', e) }, 503);
     }
 
     const entry: BriefcastIndexEntry = {
@@ -108,10 +99,7 @@ export function createBriefcastApp(deps: BriefcastAppDeps): Hono {
         await deps.indexStore.applyEvent(jobId, event);
       }
     } catch (e) {
-      return c.json(
-        { error: setupError('Briefcast index unavailable', e) },
-        503,
-      );
+      return c.json({ error: setupError('Briefcast index unavailable', e) }, 503);
     }
     return c.json({ jobId } satisfies BriefcastStartResponse, 201);
   });
@@ -122,20 +110,14 @@ export function createBriefcastApp(deps: BriefcastAppDeps): Hono {
     try {
       snap = await deps.engine.get(jobId);
     } catch (e) {
-      return c.json(
-        { error: setupError('Briefcast job store unavailable', e) },
-        503,
-      );
+      return c.json({ error: setupError('Briefcast job store unavailable', e) }, 503);
     }
     if (!snap) return c.json({ error: 'Briefcast not found' }, 404);
     let index: BriefcastIndexEntry | null;
     try {
       index = await deps.indexStore.get(jobId);
     } catch (e) {
-      return c.json(
-        { error: setupError('Briefcast index unavailable', e) },
-        503,
-      );
+      return c.json({ error: setupError('Briefcast index unavailable', e) }, 503);
     }
     const briefcast = reduceBriefcastEvents(jobId, snap.events, {
       index,
@@ -151,10 +133,7 @@ export function createBriefcastApp(deps: BriefcastAppDeps): Hono {
     try {
       snap = await deps.engine.get(jobId);
     } catch (e) {
-      return c.json(
-        { error: setupError('Briefcast job store unavailable', e) },
-        503,
-      );
+      return c.json({ error: setupError('Briefcast job store unavailable', e) }, 503);
     }
     if (!snap) return c.json({ error: 'Briefcast not found' }, 404);
     const from = parseFrom(c.req.query('from'));

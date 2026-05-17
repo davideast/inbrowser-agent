@@ -8,14 +8,14 @@
  * (`./strategy.ts`).
  */
 
-import type { Workspace } from './workspace.js';
-import type { RuntimeState } from './runtime.js';
 import type { ChatMessage, TurnDetails, TurnMetrics } from './chat.js';
 import type { LlmClient } from './llm.js';
-import type { ToolDispatch, ToolHandler, ToolResult, ToolContext } from './tools.js';
-import type { AgentStrategy } from './strategy.js';
 import type { MetricsCollector } from './metrics.js';
+import type { RuntimeState } from './runtime.js';
+import type { AgentStrategy } from './strategy.js';
+import type { ToolContext, ToolDispatch, ToolHandler, ToolResult } from './tools.js';
 import type { Tracer } from './trace.js';
+import type { Workspace } from './workspace.js';
 
 export interface AgentSessionConfig {
   /** Pluggable inference algorithm. See `./strategy.ts`. */
@@ -59,7 +59,14 @@ export type SessionEvent =
   | { kind: 'turn_started'; turnId: string }
   | { kind: 'text'; turnId: string; chunk: string }
   | { kind: 'thinking'; turnId: string; chunk: string }
-  | { kind: 'tool_started'; turnId: string; callId: string; name: string; args: unknown; signature?: string }
+  | {
+      kind: 'tool_started';
+      turnId: string;
+      callId: string;
+      name: string;
+      args: unknown;
+      signature?: string;
+    }
   | { kind: 'tool_finished'; turnId: string; callId: string; result: ToolResult }
   | { kind: 'workspace_changed'; workspace: Workspace }
   | { kind: 'runtime_changed'; runtime: RuntimeState }

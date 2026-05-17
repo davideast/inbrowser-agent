@@ -9,7 +9,7 @@
  * or stream the whole file for a full replay.
  */
 
-import { existsSync, mkdirSync, openSync, writeSync, closeSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, writeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname } from 'node:path';
 

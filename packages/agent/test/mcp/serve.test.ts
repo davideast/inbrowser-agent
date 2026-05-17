@@ -1,11 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { buildServer } from '../../src/mcp/serve.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
 import type { RunRecord } from '../../src/metrics/runs.js';
 import type {
   AgentContext,

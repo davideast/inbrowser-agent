@@ -18,8 +18,12 @@ export interface Storage {
 /** No-op storage. Useful for tests + the headless CLI's default. */
 export const noopStorage: Storage = Object.freeze({
   get: () => null,
-  set: () => { /* ignored */ },
-  remove: () => { /* ignored */ },
+  set: () => {
+    /* ignored */
+  },
+  remove: () => {
+    /* ignored */
+  },
   keys: () => [],
 });
 
@@ -28,8 +32,12 @@ export function createMemoryStorage(seed?: Record<string, string>): Storage {
   const map = new Map<string, string>(seed ? Object.entries(seed) : []);
   return {
     get: (k) => map.get(k) ?? null,
-    set: (k, v) => { map.set(k, v); },
-    remove: (k) => { map.delete(k); },
+    set: (k, v) => {
+      map.set(k, v);
+    },
+    remove: (k) => {
+      map.delete(k);
+    },
     keys: (prefix) => {
       const out: string[] = [];
       for (const k of map.keys()) {

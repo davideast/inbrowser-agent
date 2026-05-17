@@ -1,17 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  type ChatEvent,
+  EMPTY_RUNTIME,
+  EMPTY_WORKSPACE,
+  type LlmClient,
+  type SessionEvent,
+  type ToolContext,
+  type ToolHandler,
   createAgentSession,
   createDispatch,
   createMetricsCollector,
   createReactLoopStrategy,
   createToolRegistry,
-  EMPTY_RUNTIME,
-  EMPTY_WORKSPACE,
-  type ChatEvent,
-  type LlmClient,
-  type SessionEvent,
-  type ToolContext,
-  type ToolHandler,
 } from '../src/index.js';
 
 function fakeLlm(scripts: ChatEvent[][]): LlmClient {
@@ -22,7 +22,9 @@ function fakeLlm(scripts: ChatEvent[][]): LlmClient {
     chat() {
       const events = scripts[turn] ?? [];
       turn += 1;
-      return (async function* () { for (const ev of events) yield ev; })();
+      return (async function* () {
+        for (const ev of events) yield ev;
+      })();
     },
   };
 }
@@ -32,9 +34,15 @@ function fakeCtx(): ToolContext {
     workspace: EMPTY_WORKSPACE,
     runtime: EMPTY_RUNTIME,
     sandbox: {
-      async run() { return { ok: true, durationMs: 0, docsTouched: 0, errors: 0, entries: [] }; },
-      async deployRules() { return { ok: true, messages: [] }; },
-      async readState() { return {}; },
+      async run() {
+        return { ok: true, durationMs: 0, docsTouched: 0, errors: 0, entries: [] };
+      },
+      async deployRules() {
+        return { ok: true, messages: [] };
+      },
+      async readState() {
+        return {};
+      },
       reseed() {},
       dispose() {},
     },
@@ -53,10 +61,16 @@ describe('createAgentSession', () => {
   test('emits turn_started → text → turn_completed → completed for a no-tool prompt', async () => {
     const session = createAgentSession({
       strategy: createReactLoopStrategy(),
-      llm: fakeLlm([[
-        { kind: 'text', chunk: 'hi back' },
-        { kind: 'turn_complete', usage: { promptTokens: 1, completionTokens: 1 }, details: { requestedModel: 'fake' } },
-      ]]),
+      llm: fakeLlm([
+        [
+          { kind: 'text', chunk: 'hi back' },
+          {
+            kind: 'turn_complete',
+            usage: { promptTokens: 1, completionTokens: 1 },
+            details: { requestedModel: 'fake' },
+          },
+        ],
+      ]),
       tools: createDispatch(createToolRegistry()),
       toolList: [],
       toolContext: fakeCtx,
@@ -92,12 +106,25 @@ describe('createAgentSession', () => {
       strategy: createReactLoopStrategy(),
       llm: fakeLlm([
         [
-          { kind: 'tool_call', id: 'c1', name: 'writeRules', args: { source: 'rules_version="2"' } },
-          { kind: 'turn_complete', usage: { promptTokens: 1, completionTokens: 1 }, details: { requestedModel: 'fake' } },
+          {
+            kind: 'tool_call',
+            id: 'c1',
+            name: 'writeRules',
+            args: { source: 'rules_version="2"' },
+          },
+          {
+            kind: 'turn_complete',
+            usage: { promptTokens: 1, completionTokens: 1 },
+            details: { requestedModel: 'fake' },
+          },
         ],
         [
           { kind: 'text', chunk: 'done' },
-          { kind: 'turn_complete', usage: { promptTokens: 1, completionTokens: 1 }, details: { requestedModel: 'fake' } },
+          {
+            kind: 'turn_complete',
+            usage: { promptTokens: 1, completionTokens: 1 },
+            details: { requestedModel: 'fake' },
+          },
         ],
       ]),
       tools: createDispatch(registry),
@@ -117,10 +144,16 @@ describe('createAgentSession', () => {
   test('cancel() short-circuits the loop with an aborted error', async () => {
     const session = createAgentSession({
       strategy: createReactLoopStrategy(),
-      llm: fakeLlm([[
-        { kind: 'text', chunk: 'will be cancelled' },
-        { kind: 'turn_complete', usage: { promptTokens: 1, completionTokens: 1 }, details: { requestedModel: 'fake' } },
-      ]]),
+      llm: fakeLlm([
+        [
+          { kind: 'text', chunk: 'will be cancelled' },
+          {
+            kind: 'turn_complete',
+            usage: { promptTokens: 1, completionTokens: 1 },
+            details: { requestedModel: 'fake' },
+          },
+        ],
+      ]),
       tools: createDispatch(createToolRegistry()),
       toolList: [],
       toolContext: fakeCtx,

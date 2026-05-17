@@ -5,7 +5,7 @@
  * (already structured for NDJSON emission).
  */
 
-import { hardenPath, hardenString, InputHardeningError } from './hardening.js';
+import { InputHardeningError, hardenPath, hardenString } from './hardening.js';
 import type { CommandSpec, OptionSpec } from './spec.js';
 import { CLI_SPEC, findCommand } from './spec.js';
 
@@ -19,7 +19,10 @@ export interface ParsedArgs {
 
 export class UsageError extends Error {
   override readonly name = 'UsageError';
-  constructor(message: string, readonly hint?: string) {
+  constructor(
+    message: string,
+    readonly hint?: string,
+  ) {
     super(message);
   }
 }
@@ -29,15 +32,24 @@ function optionByFlag(flags: string, cmd: CommandSpec | undefined): OptionSpec |
   return all.find((o) => o.name === flags || o.short === flags);
 }
 
-function coerceValue(spec: OptionSpec, raw: string | true, field: string, cwd: string): string | number | boolean | string[] {
+function coerceValue(
+  spec: OptionSpec,
+  raw: string | true,
+  field: string,
+  cwd: string,
+): string | number | boolean | string[] {
   if (spec.type === 'boolean') return raw === true ? true : raw !== 'false';
   if (raw === true) {
-    throw new UsageError(`${field} requires a value`, `Pass it as --${spec.name.replace(/^--/, '')} <value>`);
+    throw new UsageError(
+      `${field} requires a value`,
+      `Pass it as --${spec.name.replace(/^--/, '')} <value>`,
+    );
   }
   switch (spec.type) {
     case 'number': {
       const n = Number(raw);
-      if (!Number.isFinite(n)) throw new UsageError(`${field} expects a number, got ${JSON.stringify(raw)}`);
+      if (!Number.isFinite(n))
+        throw new UsageError(`${field} expects a number, got ${JSON.stringify(raw)}`);
       return n;
     }
     case 'enum': {
@@ -49,7 +61,10 @@ function coerceValue(spec: OptionSpec, raw: string | true, field: string, cwd: s
       return raw;
     }
     case 'string[]': {
-      const items = raw.split(',').map((s) => s.trim()).filter(Boolean);
+      const items = raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       for (const item of items) {
         if (spec.validate) hardenString(field, item, spec.validate);
       }
@@ -63,7 +78,12 @@ function coerceValue(spec: OptionSpec, raw: string | true, field: string, cwd: s
       // Hardening for path-likeness applies, but we don't *resolve* — the
       // command handler decides whether to read stdin or open a file.
       if (raw === '-') return '-';
-      return hardenPath(field, raw, { rejectControlChars: true, rejectQueryChars: true, maxLength: 1024 }, cwd);
+      return hardenPath(
+        field,
+        raw,
+        { rejectControlChars: true, rejectQueryChars: true, maxLength: 1024 },
+        cwd,
+      );
     }
     case 'string':
     default: {

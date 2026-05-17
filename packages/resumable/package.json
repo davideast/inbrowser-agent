@@ -23,11 +23,7 @@
       "import": "./dist/testing.js"
     }
   },
-  "files": [
-    "dist",
-    "README.md",
-    "docs"
-  ],
+  "files": ["dist", "README.md", "docs"],
   "scripts": {
     "build": "tsc",
     "test": "bun test",

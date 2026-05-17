@@ -11,12 +11,7 @@
  * `JobStore` implementation through the same scenarios — passing the
  * suite *is* the correctness bar for a new store.
  */
-import type {
-  JobMeta,
-  JobSnapshot,
-  JobStatus,
-  TerminalStatus,
-} from '../types.js';
+import type { JobMeta, JobSnapshot, JobStatus, TerminalStatus } from '../types.js';
 
 /**
  * Result of a sweep run. `scanned` is the number of candidate jobs the

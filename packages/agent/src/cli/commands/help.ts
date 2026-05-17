@@ -20,7 +20,8 @@ function renderTextHelp(commandName?: string): string {
     const lines: string[] = [];
     lines.push(`agent ${cmd.name} — ${cmd.description}`);
     lines.push('');
-    if (cmd.positional) lines.push(`Positional: <${cmd.positional.name}> — ${cmd.positional.description}`);
+    if (cmd.positional)
+      lines.push(`Positional: <${cmd.positional.name}> — ${cmd.positional.description}`);
     if (cmd.options.length > 0) {
       lines.push('Options:');
       for (const o of cmd.options) {
@@ -77,10 +78,7 @@ export function helpCommand(args: ParsedArgs, emit: Emitter): number {
       emit.finish();
       return 64;
     }
-    emit.event(
-      { type: 'help', command: cmd },
-      () => renderTextHelp(subject),
-    );
+    emit.event({ type: 'help', command: cmd }, () => renderTextHelp(subject));
     emit.finish();
     return 0;
   }
@@ -89,7 +87,11 @@ export function helpCommand(args: ParsedArgs, emit: Emitter): number {
     {
       type: 'help',
       cli: { name: CLI_SPEC.name, version: CLI_SPEC.version, description: CLI_SPEC.description },
-      commands: CLI_SPEC.commands.map((c) => ({ name: c.name, description: c.description, mutating: c.mutating })),
+      commands: CLI_SPEC.commands.map((c) => ({
+        name: c.name,
+        description: c.description,
+        mutating: c.mutating,
+      })),
       globalOptions: CLI_SPEC.globalOptions,
     },
     () => renderTextHelp(),

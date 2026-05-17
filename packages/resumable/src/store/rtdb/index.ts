@@ -1,3 +1,4 @@
+import { type IdGenerator, defaultGenerateId } from '../../ids.js';
 /**
  * Firebase Realtime Database — production `JobStore` implementation.
  * Backed by RTDB REST + SSE for tailing. Built directly from the
@@ -26,12 +27,7 @@
  * just less efficiently).
  */
 import type { JobMeta, JobSnapshot, TerminalStatus } from '../../types.js';
-import type {
-  JobStore,
-  SweepOpts,
-  SweepResult,
-} from '../contract.js';
-import { defaultGenerateId, type IdGenerator } from '../../ids.js';
+import type { JobStore, SweepOpts, SweepResult } from '../contract.js';
 import type { TokenProvider } from './auth.js';
 import { createRtdbClient } from './rest.js';
 
@@ -72,9 +68,7 @@ interface RawJob {
   events?: unknown;
 }
 
-export function createRtdbJobStore<TEvent>(
-  opts: CreateRtdbJobStoreOpts,
-): JobStore<TEvent> {
+export function createRtdbJobStore<TEvent>(opts: CreateRtdbJobStoreOpts): JobStore<TEvent> {
   const client = createRtdbClient({ url: opts.url, auth: opts.auth });
   const rootPath = opts.rootPath ?? 'resumable_jobs';
   const now = opts.now ?? Date.now;
@@ -128,11 +122,7 @@ export function createRtdbJobStore<TEvent>(
       await client.patch(jobPath(jobId), { updatedAt: now() });
     },
 
-    async finish(
-      jobId: string,
-      status: TerminalStatus,
-      reason?: string,
-    ): Promise<void> {
+    async finish(jobId: string, status: TerminalStatus, reason?: string): Promise<void> {
       // Read the current job to compute expiresAt from ttlMs we
       // stashed at create() (the contract doesn't carry the TTL
       // through to finish(), and re-passing it would be a foot-gun).
@@ -175,9 +165,7 @@ export function createRtdbJobStore<TEvent>(
         id: jobId,
         status,
         reason,
-        events: [...events.entries()]
-          .sort((a, b) => a[0] - b[0])
-          .map(([, e]) => e),
+        events: [...events.entries()].sort((a, b) => a[0] - b[0]).map(([, e]) => e),
         data: { ...data },
         createdAt,
         updatedAt,
@@ -276,10 +264,7 @@ export function createRtdbJobStore<TEvent>(
           scanned++;
           if (!raw || raw.status === 'running') continue;
           if (!raw.status || !filter.has(raw.status)) continue;
-          if (
-            typeof raw.expiresAt !== 'number' ||
-            raw.expiresAt > sweepOpts.olderThan
-          ) {
+          if (typeof raw.expiresAt !== 'number' || raw.expiresAt > sweepOpts.olderThan) {
             continue;
           }
           await client.delete(`${rootPath}/${id}/events`);
@@ -303,10 +288,7 @@ function eventEntries<TEvent>(raw: unknown): Array<[number, TEvent]> {
       );
   return pairs
     .filter(([seq, value]) => Number.isFinite(seq) && typeof value === 'string')
-    .map(
-      ([seq, value]) =>
-        [seq, JSON.parse(value as string) as TEvent] as [number, TEvent],
-    )
+    .map(([seq, value]) => [seq, JSON.parse(value as string) as TEvent] as [number, TEvent])
     .sort((a, b) => a[0] - b[0]);
 }
 

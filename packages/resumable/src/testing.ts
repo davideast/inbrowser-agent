@@ -26,9 +26,9 @@
  * RTDB stores naturally share data via the URL + rootPath, so two
  * `createRtdbJobStore({…})` calls with matching config pass.
  */
-import { createJobEngine, type JobEngine } from './engine.js';
-import type { JobEvent } from './types.js';
+import { type JobEngine, createJobEngine } from './engine.js';
 import type { JobStore } from './store/contract.js';
+import type { JobEvent } from './types.js';
 
 export interface DurabilityProbeOpts<TEvent> {
   /**
@@ -169,9 +169,7 @@ export interface SweepProbeOpts<TEvent> {
  * Verify that a terminal job with `ttlMs` is swept after its TTL
  * (Probe C), and that a running job is NEVER swept (Probe D).
  */
-export async function probeSweepTtl<TEvent>(
-  opts: SweepProbeOpts<TEvent>,
-): Promise<ProbeResult> {
+export async function probeSweepTtl<TEvent>(opts: SweepProbeOpts<TEvent>): Promise<ProbeResult> {
   const t0 = Date.now();
   const steps: ProbeResult['steps'] = [];
   const ttlMs = opts.ttlMs ?? 50;
@@ -179,9 +177,12 @@ export async function probeSweepTtl<TEvent>(
   const engine = createJobEngine({ store: opts.store });
 
   // Probe C — terminal job swept.
-  const cJob = await engine.start(async function* () {
-    yield opts.makeEvent(0);
-  }, { ttlMs });
+  const cJob = await engine.start(
+    async function* () {
+      yield opts.makeEvent(0);
+    },
+    { ttlMs },
+  );
   await collectEvents(engine, cJob.jobId);
   await new Promise((r) => setTimeout(r, waitMs));
   const cSweep = await opts.store.sweepExpired({ olderThan: Date.now() });
@@ -211,10 +212,13 @@ export async function probeSweepTtl<TEvent>(
   const released = new Promise<void>((r) => {
     release = r;
   });
-  const dJob = await engine.start(async function* () {
-    yield opts.makeEvent(0);
-    await released;
-  }, { ttlMs });
+  const dJob = await engine.start(
+    async function* () {
+      yield opts.makeEvent(0);
+      await released;
+    },
+    { ttlMs },
+  );
 
   await new Promise((r) => setTimeout(r, Math.max(20, ttlMs / 2)));
   await opts.store.sweepExpired({ olderThan: Date.now() + 1_000_000 });

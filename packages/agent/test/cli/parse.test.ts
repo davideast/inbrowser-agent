@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { InputHardeningError, parseArgs, UsageError } from '../../src/cli/parse.js';
+import { InputHardeningError, UsageError, parseArgs } from '../../src/cli/parse.js';
 
 describe('parseArgs — happy path', () => {
   it('parses a bare command', () => {

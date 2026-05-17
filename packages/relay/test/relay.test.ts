@@ -25,9 +25,7 @@ const failingProvider: InferenceProvider = async function* () {
   yield { kind: 'error', message: 'simulated upstream failure' };
 };
 
-async function readSseEvents(
-  res: Response,
-): Promise<{ events: unknown[]; sawDone: boolean }> {
+async function readSseEvents(res: Response): Promise<{ events: unknown[]; sawDone: boolean }> {
   const events: unknown[] = [];
   let sawDone = false;
   const text = await res.text();
@@ -121,10 +119,9 @@ describe('createRelay', () => {
 
     // Drain once.
     await readSseEvents(
-      await relay.handleStream(
-        new Request(`http://localhost/api/inference/job/${jobId}/stream`),
-        { jobId },
-      ),
+      await relay.handleStream(new Request(`http://localhost/api/inference/job/${jobId}/stream`), {
+        jobId,
+      }),
     );
 
     // Resume from seq 2 — should yield only the usage event + DONE.
@@ -157,15 +154,16 @@ describe('createRelay', () => {
     const store = createMemoryJobStore<InferenceEvent>();
     const relay = createRelay({ store, providers: { fail: failingProvider } });
 
-    const { jobId } = (await (await relay.handleStart(makeStartRequest({ provider: 'fail' }))).json()) as {
+    const { jobId } = (await (
+      await relay.handleStart(makeStartRequest({ provider: 'fail' }))
+    ).json()) as {
       jobId: string;
     };
 
     const { events, sawDone } = await readSseEvents(
-      await relay.handleStream(
-        new Request(`http://localhost/api/inference/job/${jobId}/stream`),
-        { jobId },
-      ),
+      await relay.handleStream(new Request(`http://localhost/api/inference/job/${jobId}/stream`), {
+        jobId,
+      }),
     );
     expect(sawDone).toBe(true);
     expect(events.find((e) => (e as { kind: string }).kind === 'error')).toEqual({
@@ -180,15 +178,16 @@ describe('createRelay', () => {
     const store = createMemoryJobStore<InferenceEvent>();
     const relay = createRelay({ store, providers: { fake: fakeProvider } });
 
-    const { jobId } = (await (await relay.handleStart(makeStartRequest({ model: 'special' }))).json()) as {
+    const { jobId } = (await (
+      await relay.handleStart(makeStartRequest({ model: 'special' }))
+    ).json()) as {
       jobId: string;
     };
 
     await readSseEvents(
-      await relay.handleStream(
-        new Request(`http://localhost/api/inference/job/${jobId}/stream`),
-        { jobId },
-      ),
+      await relay.handleStream(new Request(`http://localhost/api/inference/job/${jobId}/stream`), {
+        jobId,
+      }),
     );
 
     const snap = await relay.engine.get(jobId);

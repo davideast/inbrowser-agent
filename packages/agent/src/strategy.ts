@@ -17,13 +17,9 @@
  * `AgentStrategy` interface, different control flow.
  */
 
-import type {
-  AgentStrategy,
-  StrategyEvent,
-  StrategyRunInput,
-} from './types/strategy.js';
-import type { ChatEvent, ChatRequest, RawUsage } from './types/llm.js';
 import type { NormalizedMessage, TurnDetails } from './types/chat.js';
+import type { ChatEvent, ChatRequest, RawUsage } from './types/llm.js';
+import type { AgentStrategy, StrategyEvent, StrategyRunInput } from './types/strategy.js';
 import type { ToolResult } from './types/tools.js';
 
 interface ReactLoopOptions {
@@ -82,7 +78,8 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
           });
         }
 
-        let pendingToolCalls: { id: string; name: string; args: unknown; signature?: string }[] = [];
+        const pendingToolCalls: { id: string; name: string; args: unknown; signature?: string }[] =
+          [];
         let turnUsage: RawUsage | undefined;
         let turnDetails: TurnDetails | undefined;
         let assistantText = '';
@@ -156,7 +153,10 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
         }
       }
 
-      yield { kind: 'error', message: `react-loop: exceeded maxTurns (${maxTurns}) without settling` };
+      yield {
+        kind: 'error',
+        message: `react-loop: exceeded maxTurns (${maxTurns}) without settling`,
+      };
     },
   };
 }
@@ -167,12 +167,13 @@ function buildMessages(input: StrategyRunInput): NormalizedMessage[] {
   for (const m of input.history) {
     if (m.role === 'system') continue; // already emitted
     if (m.role === 'assistant') {
-      const tc = m.toolCalls?.map((c) => ({
-        callId: c.id,
-        name: c.name,
-        args: safeParse(c.argsJson),
-        ...(c.signature ? { signature: c.signature } : {}),
-      })) ?? [];
+      const tc =
+        m.toolCalls?.map((c) => ({
+          callId: c.id,
+          name: c.name,
+          args: safeParse(c.argsJson),
+          ...(c.signature ? { signature: c.signature } : {}),
+        })) ?? [];
       out.push({
         role: 'assistant',
         text: m.text,
@@ -198,7 +199,11 @@ function buildMessages(input: StrategyRunInput): NormalizedMessage[] {
 }
 
 function safeParse(s: string): unknown {
-  try { return JSON.parse(s); } catch { return s; }
+  try {
+    return JSON.parse(s);
+  } catch {
+    return s;
+  }
 }
 
 function safeSerializable(value: ToolResult): unknown {

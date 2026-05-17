@@ -15,9 +15,9 @@
  * phases.
  */
 
-import { useEffect, useReducer } from 'react';
 import { RGBA, SyntaxStyle } from '@opentui/core';
 import { useKeyboard } from '@opentui/react';
+import { useEffect, useReducer } from 'react';
 import type { SessionEvent } from '../../types/session.js';
 
 /**
@@ -379,18 +379,16 @@ function Header({ state }: { state: ViewState }) {
   return (
     <box style={{ border: true, padding: 1, flexDirection: 'column' }}>
       <text>
-        <text fg="#888">session  </text>
+        <text fg="#888">session </text>
         {state.sessionId}
       </text>
       <text>
-        <text fg="#888">llm      </text>
+        <text fg="#888">llm </text>
         {state.llmLabel}
       </text>
-      {state.llmFallbackReason ? (
-        <text fg="#888">         ({state.llmFallbackReason})</text>
-      ) : null}
+      {state.llmFallbackReason ? <text fg="#888"> ({state.llmFallbackReason})</text> : null}
       <text>
-        <text fg="#888">prompt   </text>
+        <text fg="#888">prompt </text>
         {state.promptPreview}
       </text>
     </box>
@@ -411,8 +409,8 @@ function ThinkingSection({
   dispatch: React.Dispatch<Action>;
 }) {
   void dispatch; // dispatch isn't used here directly — the `t` keyboard
-                  // handler in RunView owns toggling. Accepted as a prop
-                  // for future affordances (clickable header, etc.).
+  // handler in RunView owns toggling. Accepted as a prop
+  // for future affordances (clickable header, etc.).
   if (state.thinking.length === 0) return null;
   const collapsed = state.thinkingCollapsed;
   return (
@@ -439,7 +437,7 @@ function ThinkingSection({
  */
 function OutputSection({ state }: { state: ViewState }) {
   if (state.output.length === 0) {
-    return <text fg="#888">  ⠹ waiting for output…</text>;
+    return <text fg="#888"> ⠹ waiting for output…</text>;
   }
   return (
     <box style={{ flexDirection: 'column' }}>
@@ -461,21 +459,12 @@ function ToolsSection({ state }: { state: ViewState }) {
     <box style={{ flexDirection: 'column' }}>
       <text fg="#888">Tools</text>
       {state.tools.map((t) => (
-        <box
-          key={t.callId}
-          style={{ border: true, padding: 1, flexDirection: 'column' }}
-        >
+        <box key={t.callId} style={{ border: true, padding: 1, flexDirection: 'column' }}>
           <text>
             {t.result ? (t.result.ok ? '✓' : '✗') : '⠹'} {t.name}
-            {t.result?.summary ? (
-              <text fg="#aaa"> · {t.result.summary}</text>
-            ) : null}
+            {t.result?.summary ? <text fg="#aaa"> · {t.result.summary}</text> : null}
           </text>
-          <code
-            content={safeStringify(t.args)}
-            filetype="json"
-            syntaxStyle={SYNTAX_STYLE}
-          />
+          <code content={safeStringify(t.args)} filetype="json" syntaxStyle={SYNTAX_STYLE} />
         </box>
       ))}
     </box>
@@ -489,12 +478,7 @@ function ToolsSection({ state }: { state: ViewState }) {
  * frozen state obvious so the user knows the run is over.
  */
 function Footer({ state }: { state: ViewState }) {
-  const statusColor =
-    state.status === 'error'
-      ? '#f55'
-      : state.status === 'done'
-        ? '#5f5'
-        : '#aaa';
+  const statusColor = state.status === 'error' ? '#f55' : state.status === 'done' ? '#5f5' : '#aaa';
   return (
     <box style={{ border: true, padding: 1, flexDirection: 'column' }}>
       <text>
@@ -508,9 +492,7 @@ function Footer({ state }: { state: ViewState }) {
         <text fg="#888"> · </text>
         {(state.elapsedMs / 1000).toFixed(1)}s
       </text>
-      {state.errorMessage ? (
-        <text fg="#f55">error: {state.errorMessage}</text>
-      ) : null}
+      {state.errorMessage ? <text fg="#f55">error: {state.errorMessage}</text> : null}
     </box>
   );
 }
@@ -537,13 +519,16 @@ function FinalSummary({ state }: { state: ViewState }) {
       </text>
       <text> </text>
       <text>
-        <text fg="#888">turns      </text>
+        <text fg="#888">turns </text>
         {state.currentTurn || 0}
       </text>
       <text>
-        <text fg="#888">tokens     </text>
+        <text fg="#888">tokens </text>
         {formatNum(tokensTotal)}
-        <text fg="#888"> (in {formatNum(state.tokensIn)} · out {formatNum(state.tokensOut)}</text>
+        <text fg="#888">
+          {' '}
+          (in {formatNum(state.tokensIn)} · out {formatNum(state.tokensOut)}
+        </text>
         {state.tokensCached > 0 ? (
           <text fg="#888"> · cached {formatNum(state.tokensCached)}</text>
         ) : null}
@@ -553,22 +538,19 @@ function FinalSummary({ state }: { state: ViewState }) {
         <text fg="#888">)</text>
       </text>
       <text>
-        <text fg="#888">cost       </text>
-        ${state.costUsd.toFixed(6)}
+        <text fg="#888">cost </text>${state.costUsd.toFixed(6)}
       </text>
       <text>
-        <text fg="#888">elapsed    </text>
+        <text fg="#888">elapsed </text>
         {(state.elapsedMs / 1000).toFixed(1)}s
       </text>
       {state.logPath ? (
         <text>
-          <text fg="#888">log        </text>
+          <text fg="#888">log </text>
           {state.logPath}
         </text>
       ) : null}
-      {state.errorMessage ? (
-        <text fg="#f55">error: {state.errorMessage}</text>
-      ) : null}
+      {state.errorMessage ? <text fg="#f55">error: {state.errorMessage}</text> : null}
       <text> </text>
       <text fg="#666">Press q or Esc to exit · t to toggle thinking</text>
     </box>

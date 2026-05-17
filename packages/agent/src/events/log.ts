@@ -28,28 +28,16 @@
  *     `EventValueCodec` on append + decoded on read.
  */
 
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-} from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import type {
-  MutationEvent,
-  MutationEventFilter,
-  ReverseOp,
-} from '../types/events.js';
+import type { MutationEvent, MutationEventFilter, ReverseOp } from '../types/events.js';
+import { type EventValueCodec, defaultEventValueCodec } from './codec.js';
 import {
-  defaultEventValueCodec,
-  type EventValueCodec,
-} from './codec.js';
-import {
+  type AppendDraft,
   DEFAULT_MAX_EVENT_BYTES,
+  type EventLog,
   EventTooLargeError,
   generateEventId,
-  type AppendDraft,
-  type EventLog,
 } from './log-core.js';
 
 // Convenience re-exports — Node-side callers can grab everything
@@ -145,9 +133,7 @@ export function openEventLog(opts: OpenEventLogOptions): EventLog {
       ...(draft.after !== undefined ? { after: codec.encode(draft.after) } : {}),
       reversible: draft.reversible,
       ...(draft.irreversibleReason ? { irreversibleReason: draft.irreversibleReason } : {}),
-      ...(draft.reverseOp
-        ? { reverseOp: encodeReverseOp(draft.reverseOp, codec) }
-        : {}),
+      ...(draft.reverseOp ? { reverseOp: encodeReverseOp(draft.reverseOp, codec) } : {}),
       ...(draft.metadata ? { metadata: draft.metadata } : {}),
     };
     const line = JSON.stringify(event) + '\n';
@@ -182,9 +168,7 @@ export function openEventLog(opts: OpenEventLogOptions): EventLog {
         ...(parsed.args !== undefined ? { args: codec.decode(parsed.args) } : {}),
         ...(parsed.before !== undefined ? { before: codec.decode(parsed.before) } : {}),
         ...(parsed.after !== undefined ? { after: codec.decode(parsed.after) } : {}),
-        ...(parsed.reverseOp
-          ? { reverseOp: decodeReverseOp(parsed.reverseOp, codec) }
-          : {}),
+        ...(parsed.reverseOp ? { reverseOp: decodeReverseOp(parsed.reverseOp, codec) } : {}),
       };
       if (filter && !matches(decoded, filter)) continue;
       out.push(decoded);

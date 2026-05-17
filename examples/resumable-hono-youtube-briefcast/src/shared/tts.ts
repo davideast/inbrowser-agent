@@ -1,7 +1,4 @@
-export function splitWriteupForTts(
-  markdown: string,
-  maxChars = 1500,
-): string[] {
+export function splitWriteupForTts(markdown: string, maxChars = 1500): string[] {
   const paragraphs = markdown
     .split(/\n{2,}/)
     .map((part) => part.trim())
@@ -133,11 +130,7 @@ function parseWav(wav: Uint8Array): {
   bitsPerSample: number;
   data: Uint8Array;
 } {
-  if (
-    wav.byteLength < 44 ||
-    ascii(wav, 0, 4) !== 'RIFF' ||
-    ascii(wav, 8, 4) !== 'WAVE'
-  ) {
+  if (wav.byteLength < 44 || ascii(wav, 0, 4) !== 'RIFF' || ascii(wav, 8, 4) !== 'WAVE') {
     throw new Error('Invalid WAV file');
   }
 

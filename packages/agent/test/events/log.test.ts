@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { ENVELOPE_KEY, defaultEventValueCodec, identityCodec } from '../../src/events/codec.js';
 import {
-  buildRollbackEvent,
-  generateEventId,
-  HOST_AGENT_ID,
-  openEventLog,
-  defaultProjectLogDir,
   EventTooLargeError,
+  HOST_AGENT_ID,
+  buildRollbackEvent,
+  defaultProjectLogDir,
+  generateEventId,
+  openEventLog,
 } from '../../src/events/log.js';
-import { defaultEventValueCodec, identityCodec, ENVELOPE_KEY } from '../../src/events/codec.js';
 import type { MutationEvent } from '../../src/types/events.js';
 
 function freshDir(): string {

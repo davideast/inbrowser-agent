@@ -9,13 +9,13 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { openEventLog } from '../../src/events/log.js';
-import { replayEvents, ReplayInvariantError } from '../../src/events/replay.js';
+import { ReplayInvariantError, replayEvents } from '../../src/events/replay.js';
 import type {
   MutationEvent,
+  ReplayProgress,
   ToolContext,
   ToolDispatch,
   ToolResult,
-  ReplayProgress,
 } from '../../src/index.js';
 
 function freshDir(): string {
@@ -55,9 +55,15 @@ const fakeCtx = (): ToolContext => ({
     sandboxVersion: 0,
   },
   sandbox: {
-    async run() { return { ok: true, durationMs: 0, docsTouched: 0, errors: 0, entries: [] }; },
-    async deployRules() { return { ok: true, messages: [] }; },
-    async readState() { return {}; },
+    async run() {
+      return { ok: true, durationMs: 0, docsTouched: 0, errors: 0, entries: [] };
+    },
+    async deployRules() {
+      return { ok: true, messages: [] };
+    },
+    async readState() {
+      return {};
+    },
     reseed() {},
     dispose() {},
   },
@@ -102,9 +108,7 @@ describe('replayEvents', () => {
       seed(log);
       const { dispatch, calls } = stubDispatch({});
 
-      const events = await collect(
-        replayEvents({ log, dispatch, toolContext: fakeCtx }),
-      );
+      const events = await collect(replayEvents({ log, dispatch, toolContext: fakeCtx }));
 
       const applied = events.filter((e) => e.type === 'applied');
       expect(applied).toHaveLength(2);
@@ -155,9 +159,7 @@ describe('replayEvents', () => {
       const firstCount = calls.length;
 
       // Second replay — should be a no-op.
-      const events2 = await collect(
-        replayEvents({ log, dispatch, toolContext: fakeCtx }),
-      );
+      const events2 = await collect(replayEvents({ log, dispatch, toolContext: fakeCtx }));
       expect(calls.length).toBe(firstCount);
       const skipped = events2.filter((e) => e.type === 'skipped');
       expect(skipped).toHaveLength(2);
@@ -203,9 +205,7 @@ describe('replayEvents', () => {
       const cutoff = all[1]!.id; // second commit
       const { dispatch, calls } = stubDispatch({});
 
-      await collect(
-        replayEvents({ log, dispatch, toolContext: fakeCtx, sinceEventId: cutoff }),
-      );
+      await collect(replayEvents({ log, dispatch, toolContext: fakeCtx, sinceEventId: cutoff }));
       expect(calls).toHaveLength(1);
       expect(calls[0]!.name).toBe('setDoc');
       log.close();
@@ -298,9 +298,7 @@ describe('replayEvents', () => {
         setDoc: { ok: false, summary: 'permission-denied' } satisfies ToolResult,
       });
 
-      const events = await collect(
-        replayEvents({ log, dispatch, toolContext: fakeCtx }),
-      );
+      const events = await collect(replayEvents({ log, dispatch, toolContext: fakeCtx }));
       const errors = events.filter((e) => e.type === 'error');
       expect(errors).toHaveLength(1);
       if (errors[0]!.type === 'error') expect(errors[0]!.message).toBe('permission-denied');
@@ -324,19 +322,23 @@ describe('replayEvents', () => {
       seed(sourceLog);
       const { dispatch } = stubDispatch({});
 
-      await collect(
-        replayEvents({ log: sourceLog, dispatch, toolContext: fakeCtx, targetLog }),
-      );
+      await collect(replayEvents({ log: sourceLog, dispatch, toolContext: fakeCtx, targetLog }));
 
       // Source log should NOT have markers.
       const sourceMarkers = sourceLog
         .read()
-        .filter((e: MutationEvent) => (e.metadata as { type?: string } | undefined)?.type === 'migrate_applied');
+        .filter(
+          (e: MutationEvent) =>
+            (e.metadata as { type?: string } | undefined)?.type === 'migrate_applied',
+        );
       expect(sourceMarkers).toHaveLength(0);
       // Target log should have 2 markers.
       const targetMarkers = targetLog
         .read()
-        .filter((e: MutationEvent) => (e.metadata as { type?: string } | undefined)?.type === 'migrate_applied');
+        .filter(
+          (e: MutationEvent) =>
+            (e.metadata as { type?: string } | undefined)?.type === 'migrate_applied',
+        );
       expect(targetMarkers).toHaveLength(2);
       sourceLog.close();
       targetLog.close();

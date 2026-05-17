@@ -18,13 +18,8 @@
  * pricing table for OpenRouter-served models.
  */
 
-import type {
-  ChatEvent,
-  ChatRequest,
-  LlmClient,
-  RawUsage,
-} from '../../types/llm.js';
 import type { NormalizedMessage, TurnDetails } from '../../types/chat.js';
+import type { ChatEvent, ChatRequest, LlmClient, RawUsage } from '../../types/llm.js';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -50,16 +45,17 @@ export function openRouterClient(config: OpenRouterConfig): LlmClient {
 
     async *chat(req: ChatRequest, signal: AbortSignal): AsyncIterable<ChatEvent> {
       const messages = toOaiMessages(req.messages);
-      const tools = req.toolUseEnabled && req.tools.length > 0
-        ? req.tools.map((t) => ({
-            type: 'function' as const,
-            function: {
-              name: t.name,
-              description: t.description,
-              parameters: t.parameters,
-            },
-          }))
-        : undefined;
+      const tools =
+        req.toolUseEnabled && req.tools.length > 0
+          ? req.tools.map((t) => ({
+              type: 'function' as const,
+              function: {
+                name: t.name,
+                description: t.description,
+                parameters: t.parameters,
+              },
+            }))
+          : undefined;
 
       const body: Record<string, unknown> = {
         model: config.model,

@@ -7,11 +7,11 @@ import { describe, expect, test } from 'bun:test';
 import {
   EMPTY_RUNTIME,
   EMPTY_WORKSPACE,
+  type SandboxEvent,
   combineObservers,
   createMemoryStorage,
   noopObserver,
   noopStorage,
-  type SandboxEvent,
 } from '../src/index.js';
 
 describe('EMPTY_WORKSPACE', () => {
@@ -63,19 +63,33 @@ describe('Storage helpers', () => {
 
 describe('SandboxObserver helpers', () => {
   test('noopObserver swallows events', () => {
-    expect(() => noopObserver.onEvent({
-      kind: 'denial',
-      timestamp: Date.now(),
-      detail: 'test',
-    })).not.toThrow();
+    expect(() =>
+      noopObserver.onEvent({
+        kind: 'denial',
+        timestamp: Date.now(),
+        detail: 'test',
+      }),
+    ).not.toThrow();
   });
 
   test('combineObservers fans out to all', () => {
     const received: SandboxEvent[][] = [[], [], []];
     const composed = combineObservers(
-      { onEvent: (e) => { received[0]!.push(e); } },
-      { onEvent: (e) => { received[1]!.push(e); } },
-      { onEvent: (e) => { received[2]!.push(e); } },
+      {
+        onEvent: (e) => {
+          received[0]!.push(e);
+        },
+      },
+      {
+        onEvent: (e) => {
+          received[1]!.push(e);
+        },
+      },
+      {
+        onEvent: (e) => {
+          received[2]!.push(e);
+        },
+      },
     );
     composed.onEvent({ kind: 'denial', timestamp: 1, detail: 'x' });
     expect(received.every((r) => r.length === 1)).toBe(true);
@@ -85,14 +99,24 @@ describe('SandboxObserver helpers', () => {
   test('combineObservers continues when one observer throws', () => {
     const received: SandboxEvent[] = [];
     const composed = combineObservers(
-      { onEvent: () => { throw new Error('bad'); } },
-      { onEvent: (e) => { received.push(e); } },
+      {
+        onEvent: () => {
+          throw new Error('bad');
+        },
+      },
+      {
+        onEvent: (e) => {
+          received.push(e);
+        },
+      },
     );
-    expect(() => composed.onEvent({
-      kind: 'denial',
-      timestamp: 1,
-      detail: 'y',
-    })).not.toThrow();
+    expect(() =>
+      composed.onEvent({
+        kind: 'denial',
+        timestamp: 1,
+        detail: 'y',
+      }),
+    ).not.toThrow();
     expect(received).toHaveLength(1);
   });
 });

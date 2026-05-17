@@ -91,10 +91,7 @@ export function createRtdbClient(config: RtdbClientConfig): RtdbClient {
       await request('DELETE', path);
     },
 
-    async *streamEvents(
-      path: string,
-      signal: AbortSignal,
-    ): AsyncGenerator<RtdbStreamEvent> {
+    async *streamEvents(path: string, signal: AbortSignal): AsyncGenerator<RtdbStreamEvent> {
       const headers = { ...(await authHeader()), Accept: 'text/event-stream' };
       const res = await fetch(pathUrl(path), { headers, signal });
       if (!res.ok || !res.body) {
@@ -125,13 +122,10 @@ export function createRtdbClient(config: RtdbClientConfig): RtdbClient {
             } catch {
               parsed = null;
             }
-            const wrapped =
-              parsed !== null && typeof parsed === 'object' && 'path' in parsed;
+            const wrapped = parsed !== null && typeof parsed === 'object' && 'path' in parsed;
             yield {
               event: eventName,
-              path: wrapped
-                ? (parsed as { path?: string }).path
-                : undefined,
+              path: wrapped ? (parsed as { path?: string }).path : undefined,
               data: wrapped ? (parsed as { data?: unknown }).data : parsed,
             };
           }

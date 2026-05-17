@@ -1,3 +1,4 @@
+import { createMemoryJobStore } from '../src/store/memory';
 /**
  * Run the shared `JobStore` conformance suite against every store
  * implementation that ships in this package. New stores are added
@@ -5,7 +6,6 @@
  * own file importing the same suite).
  */
 import { runJobStoreConformance } from './conformance';
-import { createMemoryJobStore } from '../src/store/memory';
 
 runJobStoreConformance('createMemoryJobStore (no default TTL)', () =>
   createMemoryJobStore<string>(),

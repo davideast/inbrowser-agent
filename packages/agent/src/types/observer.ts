@@ -19,12 +19,7 @@
  */
 
 export interface ObserverEvent {
-  kind:
-    | 'denial'
-    | 'snapshot_error'
-    | 'transaction_conflict'
-    | 'runtime_error'
-    | 'lint_warning';
+  kind: 'denial' | 'snapshot_error' | 'transaction_conflict' | 'runtime_error' | 'lint_warning';
   timestamp: number;
   /** Stable identifier for the originating operation. */
   operationId?: string;
@@ -57,5 +52,7 @@ export function combineObservers(...observers: SandboxObserver[]): SandboxObserv
 
 /** No-op observer — the default when no host subscribes. */
 export const noopObserver: SandboxObserver = Object.freeze({
-  onEvent: () => { /* intentionally empty */ },
+  onEvent: () => {
+    /* intentionally empty */
+  },
 });

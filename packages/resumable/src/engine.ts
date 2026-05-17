@@ -1,3 +1,4 @@
+import type { JobStore, SweepResult } from './store/contract.js';
 /**
  * `createJobEngine` — composes a producer-driving `start()`, a tail-
  * with-resume `subscribe()`, and a snapshot `get()`. The engine is the
@@ -19,7 +20,6 @@ import type {
   TerminalStatus,
 } from './types.js';
 import { silentLogger } from './types.js';
-import type { JobStore, SweepResult } from './store/contract.js';
 
 export interface SubscribeOpts {
   /** Seq of the last event the consumer has already seen. The engine
@@ -59,9 +59,7 @@ export interface CreateJobEngineOpts<TEvent> {
   now?: () => number;
 }
 
-export function createJobEngine<TEvent>(
-  opts: CreateJobEngineOpts<TEvent>,
-): JobEngine<TEvent> {
+export function createJobEngine<TEvent>(opts: CreateJobEngineOpts<TEvent>): JobEngine<TEvent> {
   const { store, sweep } = opts;
   const logger = opts.logger ?? silentLogger;
   const now = opts.now ?? Date.now;
@@ -106,10 +104,7 @@ export function createJobEngine<TEvent>(
     }
   }
 
-  async function driveProducer(
-    jobId: string,
-    producer: Producer<TEvent>,
-  ): Promise<void> {
+  async function driveProducer(jobId: string, producer: Producer<TEvent>): Promise<void> {
     const ac = new AbortController();
     let seq = 0;
     try {
@@ -126,20 +121,14 @@ export function createJobEngine<TEvent>(
       } catch (finishErr) {
         logger.error('finish-after-error also failed', {
           jobId,
-          error:
-            finishErr instanceof Error
-              ? finishErr.message
-              : String(finishErr),
+          error: finishErr instanceof Error ? finishErr.message : String(finishErr),
         });
       }
     }
   }
 
   return {
-    async start(
-      producer: Producer<TEvent>,
-      meta?: JobMeta,
-    ): Promise<{ jobId: string }> {
+    async start(producer: Producer<TEvent>, meta?: JobMeta): Promise<{ jobId: string }> {
       if (stopped) throw new Error('engine stopped');
       const { jobId } = await store.create(meta ?? {});
       logger.info('job started', { jobId });
@@ -150,10 +139,7 @@ export function createJobEngine<TEvent>(
       return { jobId };
     },
 
-    async *subscribe(
-      jobId: string,
-      opts?: SubscribeOpts,
-    ): AsyncIterable<JobEvent<TEvent>> {
+    async *subscribe(jobId: string, opts?: SubscribeOpts): AsyncIterable<JobEvent<TEvent>> {
       const from = opts?.from ?? 0;
       let nextSeq = from;
       let yieldedTerminal = false;

@@ -12,20 +12,20 @@
  *     text when it is, overridden by --output.
  */
 
-import { runCommand } from './commands/run.js';
-import { fleetCommand } from './commands/fleet.js';
-import { describeCommand } from './commands/describe.js';
-import { schemaCommand } from './commands/schema.js';
-import { helpCommand, versionCommand } from './commands/help.js';
-import { eventsCommand } from './commands/events.js';
-import { undoCommand } from './commands/undo.js';
-import { serveCommand } from './commands/serve.js';
-import { migrateCommand } from './commands/migrate.js';
-import { createEmitter, errorEvent, pickMode } from './output.js';
-import type { OutputMode } from './output.js';
-import { InputHardeningError, parseArgs, UsageError } from './parse.js';
 import type { AgentDefinition } from '../types/agent.js';
 import type { ProjectContext } from '../types/project-context.js';
+import { describeCommand } from './commands/describe.js';
+import { eventsCommand } from './commands/events.js';
+import { fleetCommand } from './commands/fleet.js';
+import { helpCommand, versionCommand } from './commands/help.js';
+import { migrateCommand } from './commands/migrate.js';
+import { runCommand } from './commands/run.js';
+import { schemaCommand } from './commands/schema.js';
+import { serveCommand } from './commands/serve.js';
+import { undoCommand } from './commands/undo.js';
+import { createEmitter, errorEvent, pickMode } from './output.js';
+import type { OutputMode } from './output.js';
+import { InputHardeningError, UsageError, parseArgs } from './parse.js';
 
 export interface MainOptions {
   argv?: readonly string[];

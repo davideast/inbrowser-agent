@@ -27,9 +27,7 @@ export async function fetchHealth(): Promise<BriefcastHealthResponse> {
   return (await res.json()) as BriefcastHealthResponse;
 }
 
-export async function fetchBriefcast(
-  jobId: string,
-): Promise<BriefcastSnapshotResponse> {
+export async function fetchBriefcast(jobId: string): Promise<BriefcastSnapshotResponse> {
   const res = await fetch(`/api/briefcasts/${encodeURIComponent(jobId)}`);
   if (!res.ok) {
     throw await apiError(res, `Briefcast fetch failed: ${res.status}`);

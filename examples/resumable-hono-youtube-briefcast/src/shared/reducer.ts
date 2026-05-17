@@ -1,9 +1,4 @@
-import type {
-  BriefcastEvent,
-  BriefcastIndexEntry,
-  BriefcastStatus,
-  BriefcastView,
-} from './types';
+import type { BriefcastEvent, BriefcastIndexEntry, BriefcastStatus, BriefcastView } from './types';
 
 export function titleFromUrl(url: string): string {
   try {
@@ -37,10 +32,7 @@ export function createEmptyBriefcastView(
   };
 }
 
-export function reduceBriefcastEvent(
-  view: BriefcastView,
-  event: BriefcastEvent,
-): BriefcastView {
+export function reduceBriefcastEvent(view: BriefcastView, event: BriefcastEvent): BriefcastView {
   const updatedAt = Date.now();
 
   switch (event.kind) {
@@ -164,8 +156,7 @@ export function reduceBriefcastEvents(
   } = {},
 ): BriefcastView {
   const firstAccepted = events.find(
-    (event): event is Extract<BriefcastEvent, { kind: 'accepted' }> =>
-      event.kind === 'accepted',
+    (event): event is Extract<BriefcastEvent, { kind: 'accepted' }> => event.kind === 'accepted',
   );
   let view = createEmptyBriefcastView(
     jobId,
@@ -179,8 +170,7 @@ export function reduceBriefcastEvents(
 
   const nextSeq = events.length;
   const indexTitleIsPlaceholder =
-    opts.index?.title === undefined ||
-    opts.index.title === titleFromUrl(opts.index.url);
+    opts.index?.title === undefined || opts.index.title === titleFromUrl(opts.index.url);
   return {
     ...view,
     title: indexTitleIsPlaceholder ? view.title : opts.index!.title,
@@ -220,10 +210,7 @@ export function applyEventToIndex(
       return {
         ...entry,
         status: 'fetching_transcript',
-        transcriptSegmentCount: Math.max(
-          entry.transcriptSegmentCount ?? 0,
-          event.index + 1,
-        ),
+        transcriptSegmentCount: Math.max(entry.transcriptSegmentCount ?? 0, event.index + 1),
         updatedAt: now,
       };
     case 'transcript_ready':
@@ -300,16 +287,20 @@ function extractTitle(markdown: string): string {
 }
 
 function cleanupTitle(title: string): string {
-  return title
-    .replace(/^\s*briefcast\s*:\s*/i, '')
-    .replace(/\*\*/g, '')
-    .trim() || 'Generated briefcast';
+  return (
+    title
+      .replace(/^\s*briefcast\s*:\s*/i, '')
+      .replace(/\*\*/g, '')
+      .trim() || 'Generated briefcast'
+  );
 }
 
 function extractDescription(markdown: string): string | undefined {
   const summaryStart = markdown.search(/^#{2,4}\s+summary\s*$/im);
   const source =
-    summaryStart >= 0 ? markdown.slice(summaryStart).replace(/^#{2,4}\s+summary\s*$/im, '') : markdown;
+    summaryStart >= 0
+      ? markdown.slice(summaryStart).replace(/^#{2,4}\s+summary\s*$/im, '')
+      : markdown;
   const paragraph = source
     .split(/\n\s*\n/)
     .map((part) => part.replace(/^#{1,6}\s+.*/gm, '').trim())
@@ -319,9 +310,5 @@ function extractDescription(markdown: string): string | undefined {
 }
 
 function oneLine(value: string): string {
-  return value
-    .replace(/\*\*/g, '')
-    .replace(/`/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return value.replace(/\*\*/g, '').replace(/`/g, '').replace(/\s+/g, ' ').trim();
 }

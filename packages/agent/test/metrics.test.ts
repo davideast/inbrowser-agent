@@ -4,7 +4,9 @@ import { computeTurnMetrics, createMetricsCollector, findPricing } from '../src/
 describe('findPricing', () => {
   test('returns a row for known (provider, model) pair', () => {
     expect(findPricing('gemini', 'gemini-3.1-flash-lite')).toEqual({
-      input: 0.15, output: 0.60, cacheRead: 0.0375,
+      input: 0.15,
+      output: 0.6,
+      cacheRead: 0.0375,
     });
   });
 
@@ -72,11 +74,15 @@ describe('createMetricsCollector', () => {
   test('aggregates totals across turns', () => {
     const c = createMetricsCollector();
     c.recordTurn({
-      llmId: 'gemini', model: 'gemini-3.1-flash-lite', durationMs: 100,
+      llmId: 'gemini',
+      model: 'gemini-3.1-flash-lite',
+      durationMs: 100,
       rawUsage: { promptTokens: 1000, completionTokens: 200 },
     });
     c.recordTurn({
-      llmId: 'gemini', model: 'gemini-3.1-flash-lite', durationMs: 100,
+      llmId: 'gemini',
+      model: 'gemini-3.1-flash-lite',
+      durationMs: 100,
       rawUsage: { promptTokens: 500, completionTokens: 100 },
     });
     const totals = c.totals();
@@ -90,7 +96,9 @@ describe('createMetricsCollector', () => {
   test('reset clears totals', () => {
     const c = createMetricsCollector();
     c.recordTurn({
-      llmId: 'gemini', model: 'gemini-3.1-flash-lite', durationMs: 100,
+      llmId: 'gemini',
+      model: 'gemini-3.1-flash-lite',
+      durationMs: 100,
       rawUsage: { promptTokens: 1000, completionTokens: 200 },
     });
     c.reset();

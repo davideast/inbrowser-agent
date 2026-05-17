@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { PassThrough } from 'node:stream';
-import { openEventLog } from '../../src/events/log.js';
 import { main } from '../../src/cli/main.js';
+import { openEventLog } from '../../src/events/log.js';
 
 function captureStream() {
   const buf: Buffer[] = [];
@@ -58,7 +58,11 @@ describe('agent migrate', () => {
         stdout: out.stream,
       });
       expect(code).toBe(0);
-      const lines = out.text().trim().split('\n').map((l) => JSON.parse(l));
+      const lines = out
+        .text()
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l));
       const plans = lines.filter((l) => l.type === 'migrate_plan');
       expect(plans).toHaveLength(2); // legacy skipped
       const summary = lines.find((l) => l.type === 'migrate_summary');
@@ -95,7 +99,9 @@ describe('agent migrate', () => {
         .read()
         .filter((e) => (e.metadata as { type?: string } | undefined)?.type === 'migrate_intent');
       expect(intents).toHaveLength(1);
-      expect((intents[0]!.metadata as { plannedEventIds: string[] }).plannedEventIds).toHaveLength(2);
+      expect((intents[0]!.metadata as { plannedEventIds: string[] }).plannedEventIds).toHaveLength(
+        2,
+      );
       log.close();
     } finally {
       rmSync(dir, { recursive: true });

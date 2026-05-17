@@ -1,3 +1,5 @@
+import { readSseDataLines } from '../sse';
+import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types';
 /**
  * OpenRouter provider — talks to /api/v1/chat/completions with
  * streaming SSE. Environment-agnostic: runs unchanged page-side and
@@ -9,8 +11,6 @@
  * reasoning-token pass-through.
  */
 import type { LegacyChatMessage, LegacyToolDecl } from '../types.js';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types';
-import { readSseDataLines } from '../sse';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -113,9 +113,7 @@ export const openrouterProvider: InferenceProvider = async function* (req: Norma
           reasoning: { effort, summary: 'auto' },
           include_reasoning: true,
         }),
-    ...(req.tools.length > 0
-      ? { tools: toOaiTools(req.tools), tool_choice: 'auto' as const }
-      : {}),
+    ...(req.tools.length > 0 ? { tools: toOaiTools(req.tools), tool_choice: 'auto' as const } : {}),
   };
 
   let response: Response;

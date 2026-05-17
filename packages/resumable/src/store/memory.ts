@@ -1,3 +1,4 @@
+import { type IdGenerator, defaultGenerateId } from '../ids.js';
 /**
  * In-memory `JobStore` — zero dependencies, the default for tests and
  * local development.
@@ -18,17 +19,8 @@
  *     `meta.ttlMs` per job. `sweepExpired` deletes terminal jobs
  *     whose `expiresAt <= olderThan`.
  */
-import type {
-  JobMeta,
-  JobSnapshot,
-  TerminalStatus,
-} from '../types.js';
-import type {
-  JobStore,
-  SweepOpts,
-  SweepResult,
-} from './contract.js';
-import { defaultGenerateId, type IdGenerator } from '../ids.js';
+import type { JobMeta, JobSnapshot, TerminalStatus } from '../types.js';
+import type { JobStore, SweepOpts, SweepResult } from './contract.js';
 
 interface MemoryJob<TEvent> {
   id: string;
@@ -157,11 +149,7 @@ export function createMemoryJobStore<TEvent>(
       bump(job);
     },
 
-    async finish(
-      jobId: string,
-      status: TerminalStatus,
-      reason?: string,
-    ): Promise<void> {
+    async finish(jobId: string, status: TerminalStatus, reason?: string): Promise<void> {
       const job = getOrThrow(jobId);
       // Idempotent — a double-finish (e.g. producer throws AFTER
       // already finishing cleanly) keeps the first terminal state.
@@ -219,9 +207,7 @@ export function createMemoryJobStore<TEvent>(
 
     async sweepExpired(opts: SweepOpts): Promise<SweepResult> {
       const t0 = now();
-      const filter = new Set<TerminalStatus>(
-        opts.statusFilter ?? ['done', 'error', 'cancelled'],
-      );
+      const filter = new Set<TerminalStatus>(opts.statusFilter ?? ['done', 'error', 'cancelled']);
       const batchSize = opts.batchSize ?? 200;
       let scanned = 0;
       let deleted = 0;

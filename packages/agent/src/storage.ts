@@ -15,16 +15,25 @@ import type { Storage } from './types/storage.js';
 export function createLocalStorageAdapter(): Storage {
   return {
     get(key) {
-      try { return globalThis.localStorage?.getItem(key) ?? null; }
-      catch { return null; }
+      try {
+        return globalThis.localStorage?.getItem(key) ?? null;
+      } catch {
+        return null;
+      }
     },
     set(key, value) {
-      try { globalThis.localStorage?.setItem(key, value); }
-      catch { /* quota / private-mode */ }
+      try {
+        globalThis.localStorage?.setItem(key, value);
+      } catch {
+        /* quota / private-mode */
+      }
     },
     remove(key) {
-      try { globalThis.localStorage?.removeItem(key); }
-      catch { /* ignored */ }
+      try {
+        globalThis.localStorage?.removeItem(key);
+      } catch {
+        /* ignored */
+      }
     },
     keys(prefix) {
       try {
@@ -38,7 +47,9 @@ export function createLocalStorageAdapter(): Storage {
           }
         }
         return out;
-      } catch { return []; }
+      } catch {
+        return [];
+      }
     },
   };
 }

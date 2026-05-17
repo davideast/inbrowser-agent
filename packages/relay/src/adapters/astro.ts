@@ -28,9 +28,7 @@ type AstroLikeContext = {
   params: Record<string, string | undefined>;
 };
 
-type AstroLikeRoute = (
-  context: AstroLikeContext,
-) => Response | Promise<Response>;
+type AstroLikeRoute = (context: AstroLikeContext) => Response | Promise<Response>;
 
 export interface AstroRoutes {
   /** Plug into `src/pages/api/inference/job.ts` as `export const POST`. */
@@ -50,10 +48,7 @@ export interface CreateAstroRoutesOpts {
   jobIdParam?: string;
 }
 
-export function createAstroRoutes(
-  relay: Relay,
-  opts: CreateAstroRoutesOpts = {},
-): AstroRoutes {
+export function createAstroRoutes(relay: Relay, opts: CreateAstroRoutesOpts = {}): AstroRoutes {
   const jobIdParam = opts.jobIdParam ?? 'id';
   return {
     start: ({ request }: AstroLikeContext) => relay.handleStart(request),

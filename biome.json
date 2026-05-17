@@ -24,7 +24,44 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "complexity": {
+        "useLiteralKeys": "off",
+        "noUselessSwitchCase": "off",
+        "useOptionalChain": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "off",
+        "useTemplate": "off",
+        "noUnusedTemplateLiteral": "off"
+      },
+      "suspicious": {
+        "noAssignInExpressions": "off",
+        "noControlCharactersInRegex": "off",
+        "noExplicitAny": "off",
+        "noImplicitAnyLet": "off"
+      },
+      "performance": {
+        "noDelete": "off"
+      }
     }
-  }
+  },
+  "overrides": [
+    {
+      "include": ["examples/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noArrayIndexKey": "off"
+          },
+          "correctness": {
+            "noSwitchDeclarations": "off"
+          },
+          "a11y": {
+            "useMediaCaption": "off"
+          }
+        }
+      }
+    }
+  ]
 }

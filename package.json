@@ -2,10 +2,7 @@
   "name": "inbrowser-monorepo",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "packages/*",
-    "examples/*"
-  ],
+  "workspaces": ["packages/*", "examples/*"],
   "scripts": {
     "build": "bun run build:resumable && bun run build:relay && bun run build:agent",
     "build:resumable": "bun run --cwd packages/resumable build",

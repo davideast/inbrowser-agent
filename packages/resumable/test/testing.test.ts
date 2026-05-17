@@ -4,8 +4,8 @@
  * memory store (memoized so the two engines share state).
  */
 import { describe, expect, it } from 'bun:test';
-import { probeStoreDurability, probeSweepTtl } from '../src/testing';
 import { createMemoryJobStore } from '../src/store/memory';
+import { probeStoreDurability, probeSweepTtl } from '../src/testing';
 
 describe('probeStoreDurability', () => {
   it('passes when the two engines share store data', async () => {
@@ -25,7 +25,8 @@ describe('probeStoreDurability', () => {
     // meaningful step breakdown rather than hanging.
     let i = 0;
     const result = await probeStoreDurability({
-      makeStore: () => (i++ === 0 ? createMemoryJobStore<string>() : createMemoryJobStore<string>()),
+      makeStore: () =>
+        i++ === 0 ? createMemoryJobStore<string>() : createMemoryJobStore<string>(),
       makeEvent: (n) => `e${n}`,
       eventCount: 3,
     });

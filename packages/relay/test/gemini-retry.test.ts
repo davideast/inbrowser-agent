@@ -77,9 +77,7 @@ describe('geminiProvider retry', () => {
       // 2nd call: real text + usage.
       makeSseResponse([
         {
-          candidates: [
-            { content: { parts: [{ text: 'hello' }] }, finishReason: 'STOP' },
-          ],
+          candidates: [{ content: { parts: [{ text: 'hello' }] }, finishReason: 'STOP' }],
         },
         { usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 1 } },
       ]),
@@ -100,16 +98,12 @@ describe('geminiProvider retry', () => {
       // 1st call: thinking only, NO finishReason — stream truncated.
       makeSseResponse([
         {
-          candidates: [
-            { content: { parts: [{ text: 'starting', thought: true }] } },
-          ],
+          candidates: [{ content: { parts: [{ text: 'starting', thought: true }] } }],
         },
       ]),
       makeSseResponse([
         {
-          candidates: [
-            { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
-          ],
+          candidates: [{ content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' }],
         },
         { usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 1 } },
       ]),
@@ -138,9 +132,7 @@ describe('geminiProvider retry', () => {
       ]),
       makeSseResponse([
         {
-          candidates: [
-            { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
-          ],
+          candidates: [{ content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' }],
         },
         { usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 1 } },
       ]),
