@@ -16,9 +16,11 @@
  * one — incur zero cost.
  *
  * Phase 1 captures `llm_request` only (the priority the playground
- * needs to ship a prompt visualizer). `llm_response` shape is
- * defined here so consumers can write against the full union from
- * day one; emit-site wiring lands in Phase 2.
+ * needs to ship a prompt visualizer). `llm_response` and
+ * `turn_dispatch_complete` complete the per-iteration wall-clock
+ * triple — request-dispatched, response-completed, tool-dispatch-
+ * completed — that the eval harness uses to split language-model
+ * time from tool-dispatch time.
  */
 
 import type { NormalizedMessage } from './chat.js';
@@ -38,7 +40,12 @@ export interface LlmRequestTrace {
   turnId: string;
   /** 0-indexed ReAct iteration within this turn. */
   iteration: number;
-  /** Wall-clock ms at the moment the request was about to dispatch. */
+  /** Wall-clock ms captured immediately before the strategy hands
+   *  the request to `LlmClient.chat()`. Pair with
+   *  `LlmResponseTrace.ts` (response completed) and
+   *  `TurnDispatchCompleteTrace.ts` (tool dispatch completed) to
+   *  derive the language-model vs tool-dispatch wall-clock split for
+   *  this iteration. */
   ts: number;
   /** The system-prompt string the strategy received from
    *  `StrategyRunInput.systemPrompt`. Captured verbatim. */
@@ -73,15 +80,21 @@ export interface ToolDeclarationView {
 }
 
 /**
- * Response-side snapshot. Defined now so consumers can switch on
- * `TraceEvent.kind` and handle the full union from the start. The
- * emit-site in `strategy.ts` lands in Phase 2 — strategies are free
- * to emit it earlier when the data is available.
+ * Response-side snapshot. Emitted once per ReAct iteration, paired
+ * one-to-one with `LlmRequestTrace` via `requestId`. Captures the
+ * full assistant output and the timestamp at which the chat()
+ * iterator drained — `ts - LlmRequestTrace.ts` is the iteration's
+ * language-model wall-clock segment.
  */
 export interface LlmResponseTrace {
   /** Same id as the matching `LlmRequestTrace.requestId`. */
   requestId: string;
-  /** Wall-clock ms when the chat() iterator completed. */
+  /** Wall-clock ms captured immediately after the `chat()` iterator
+   *  has yielded its terminal event for this iteration (typically
+   *  `turn_complete`, or `error` on a streaming failure). Not
+   *  emitted on mid-stream error — callers should treat a missing
+   *  `llm_response` as "language-model time unknown for this
+   *  iteration." */
   ts: number;
   /** Full assistant text emitted this iteration. */
   text: string;
@@ -100,9 +113,45 @@ export interface LlmResponseTrace {
   usage?: { promptTokens: number; outputTokens: number; cachedTokens?: number };
 }
 
+/**
+ * End-of-iteration tool-dispatch marker. Emitted once per ReAct
+ * iteration that actually ran tool calls, immediately after the
+ * per-turn dispatch loop drained. Paired one-to-one with
+ * `LlmResponseTrace` via `requestId`. NOT emitted for the final
+ * assistant turn (no tool calls → no dispatch segment to close).
+ *
+ * `ts - LlmResponseTrace.ts` is the iteration's tool-dispatch
+ * wall-clock segment; `ts - LlmRequestTrace.ts` is the iteration's
+ * total wall-clock from request dispatch through tool-result append.
+ *
+ * Only the aggregate is captured. Per-tool wall-clock can be added
+ * later — the existing `tool_call`/`tool_result` events on the
+ * strategy event stream are the right place for that, not the
+ * trace.
+ */
+export interface TurnDispatchCompleteTrace {
+  /** Same id as the matching `LlmRequestTrace.requestId`. */
+  requestId: string;
+  /** Mirror of `LlmRequestTrace.turnId`, carried for grouping
+   *  consumers that key by turn rather than by iteration. */
+  turnId: string;
+  /** 0-indexed ReAct iteration within the turn. Mirrors
+   *  `LlmRequestTrace.iteration`. */
+  iteration: number;
+  /** Wall-clock ms captured immediately after the last tool result
+   *  for this iteration was appended to the messages array, before
+   *  the loop steps to the next iteration. */
+  ts: number;
+  /** Number of tool calls executed in this iteration. Always >= 1
+   *  in practice (an iteration with zero tool calls does not emit
+   *  this event). */
+  toolCallCount: number;
+}
+
 export type TraceEvent =
   | { kind: 'llm_request'; data: LlmRequestTrace }
-  | { kind: 'llm_response'; data: LlmResponseTrace };
+  | { kind: 'llm_response'; data: LlmResponseTrace }
+  | { kind: 'turn_dispatch_complete'; data: TurnDispatchCompleteTrace };
 
 /**
  * Pluggable trace sink. Hosts implement `emit()` to push events to a

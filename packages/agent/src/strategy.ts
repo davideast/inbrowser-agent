@@ -57,12 +57,13 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
         // when the session passed a `turnId`; otherwise we synthesize
         // a per-iteration id so the trace stays consistent for
         // standalone strategy callers (CLI, eval harness).
+        const turnIdForReq = input.turnId ?? 'turn-anon';
+        const requestId = `${turnIdForReq}#${turn}`;
         if (input.tracer) {
-          const turnIdForReq = input.turnId ?? 'turn-anon';
           input.tracer.emit({
             kind: 'llm_request',
             data: {
-              requestId: `${turnIdForReq}#${turn}`,
+              requestId,
               turnId: turnIdForReq,
               iteration: turn,
               ts: Date.now(),
@@ -83,6 +84,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
         let turnUsage: RawUsage | undefined;
         let turnDetails: TurnDetails | undefined;
         let assistantText = '';
+        let assistantThinking = '';
 
         // Stream the model's reply.
         for await (const ev of input.llm.chat(chatRequest, signal) as AsyncIterable<ChatEvent>) {
@@ -90,6 +92,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
             assistantText += ev.chunk;
             yield { kind: 'text', chunk: ev.chunk };
           } else if (ev.kind === 'thinking') {
+            assistantThinking += ev.chunk;
             yield { kind: 'thinking', chunk: ev.chunk };
           } else if (ev.kind === 'tool_call') {
             pendingToolCalls.push({
@@ -112,6 +115,38 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
             yield { kind: 'error', message: ev.message };
             return;
           }
+        }
+
+        // Pair with the `llm_request` emitted above. Captures the
+        // moment the chat() iterator drained — the closing endpoint
+        // of this iteration's language-model wall-clock segment.
+        if (input.tracer) {
+          input.tracer.emit({
+            kind: 'llm_response',
+            data: {
+              requestId,
+              ts: Date.now(),
+              text: assistantText,
+              thinking: assistantThinking,
+              toolCalls: pendingToolCalls.map((tc) => ({
+                id: tc.id,
+                name: tc.name,
+                args: tc.args,
+                ...(tc.signature ? { signature: tc.signature } : {}),
+              })),
+              ...(turnUsage
+                ? {
+                    usage: {
+                      promptTokens: turnUsage.promptTokens,
+                      outputTokens: turnUsage.completionTokens,
+                      ...(turnUsage.cachedTokens !== undefined
+                        ? { cachedTokens: turnUsage.cachedTokens }
+                        : {}),
+                    },
+                  }
+                : {}),
+            },
+          });
         }
 
         // No tool calls → final assistant turn, emit turn_complete + done.
@@ -145,6 +180,21 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
             name: call.name,
             resultJson: JSON.stringify(safeSerializable(result)),
             text: '',
+          });
+        }
+        // Close the tool-dispatch segment for this iteration. Pair
+        // with the `llm_response` emitted above; `ts` delta is the
+        // dispatch wall-clock the eval harness consumes.
+        if (input.tracer) {
+          input.tracer.emit({
+            kind: 'turn_dispatch_complete',
+            data: {
+              requestId,
+              turnId: turnIdForReq,
+              iteration: turn,
+              ts: Date.now(),
+              toolCallCount: pendingToolCalls.length,
+            },
           });
         }
         // Loop to next turn.
