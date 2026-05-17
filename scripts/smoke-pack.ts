@@ -15,10 +15,10 @@
  *      to prove the browser sub-export has no Node API references
  */
 
-import { $ } from 'bun';
-import { existsSync, mkdtempSync, rmSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { $ } from 'bun';
 
 const ROOT = resolve(import.meta.dir, '..');
 const PACK_OUT = mkdtempSync(join(tmpdir(), 'inbrowser-pack-'));
@@ -116,7 +116,8 @@ async function verifyTarball(spec: PackSpec, tarball: string): Promise<void> {
   }
   for (const forbid of spec.forbidFiles) {
     const hits = contents.filter((c) => forbid.test(c));
-    if (hits.length > 0) fail(`forbidden in tarball: ${forbid} (${hits.length} hits, e.g. ${hits[0]})`);
+    if (hits.length > 0)
+      fail(`forbidden in tarball: ${forbid} (${hits.length} hits, e.g. ${hits[0]})`);
     ok(`no ${forbid}`);
   }
 }
