@@ -1,0 +1,46 @@
+{
+  "name": "@inbrowser/resumable",
+  "version": "0.1.0",
+  "description": "Resumable streaming-job engine: a pluggable JobStore contract + JobEngine that lets producers stream events into a durable log a subscriber can tail and resume. Backend-agnostic, with memory and Firebase RTDB stores plus durability and TTL probes.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./memory": {
+      "types": "./dist/store/memory.d.ts",
+      "import": "./dist/store/memory.js"
+    },
+    "./rtdb": {
+      "types": "./dist/store/rtdb/index.d.ts",
+      "import": "./dist/store/rtdb/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davideast/inbrowser-agent.git",
+    "directory": "packages/resumable"
+  },
+  "license": "MIT"
+}

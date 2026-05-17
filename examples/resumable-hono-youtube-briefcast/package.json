@@ -1,0 +1,33 @@
+{
+  "name": "resumable-hono-youtube-briefcast",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run dev:server & vite --host 0.0.0.0 --port 5174",
+    "dev:server": "bun --watch src/server/index.ts",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "test": "bun test",
+    "start": "bun src/server/index.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.0.0",
+    "@hono/node-server": "^1.19.6",
+    "@inbrowser/relay": "workspace:*",
+    "@inbrowser/resumable": "workspace:*",
+    "hono": "^4.10.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "youtube-transcript": "^1.2.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/jsdom": "^21.1.7",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^27.2.0",
+    "typescript": "^5.7.0",
+    "vite": "^7.0.0"
+  }
+}

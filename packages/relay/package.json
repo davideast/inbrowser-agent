@@ -1,0 +1,78 @@
+{
+  "name": "@inbrowser/relay",
+  "version": "0.1.0",
+  "description": "Resumable LLM inference relay. Pre-wires @inbrowser/resumable with NormalizedRequest/InferenceEvent types, a pluggable InferenceProvider contract, built-in Gemini/OpenRouter/Anthropic providers, Web-standard handlers, Astro/Express adapters, and a reconnecting browser client.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./sse": {
+      "types": "./dist/sse.d.ts",
+      "import": "./dist/sse.js"
+    },
+    "./providers/gemini": {
+      "types": "./dist/providers/gemini.d.ts",
+      "import": "./dist/providers/gemini.js"
+    },
+    "./providers/openrouter": {
+      "types": "./dist/providers/openrouter.d.ts",
+      "import": "./dist/providers/openrouter.js"
+    },
+    "./providers/anthropic": {
+      "types": "./dist/providers/anthropic.d.ts",
+      "import": "./dist/providers/anthropic.js"
+    },
+    "./adapters/astro": {
+      "types": "./dist/adapters/astro.d.ts",
+      "import": "./dist/adapters/astro.js"
+    },
+    "./adapters/express": {
+      "types": "./dist/adapters/express.d.ts",
+      "import": "./dist/adapters/express.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
+    "./client/browser": {
+      "types": "./dist/client/browser.d.ts",
+      "import": "./dist/client/browser.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@inbrowser/resumable": "workspace:*"
+  },
+  "peerDependencies": {
+    "astro": "^5.0.0",
+    "express": "^4.0.0 || ^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "astro": { "optional": true },
+    "express": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/express": "^5.0.0",
+    "typescript": "^5.7.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davideast/inbrowser-agent.git",
+    "directory": "packages/relay"
+  },
+  "license": "MIT"
+}
