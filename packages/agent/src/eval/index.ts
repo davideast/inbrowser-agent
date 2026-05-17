@@ -19,6 +19,15 @@ export { defaultSystemPromptBuilder, runFixture, runFixtures } from './runner.js
 export type { RunSnapshot, SpecFn, SpecRegistry, SpecResult } from './spec-framework.js';
 export { createSpecRegistry, evaluateSpec } from './spec-framework.js';
 
+export type {
+  AggregateStat,
+  AggregatedMetrics,
+  CollectMetricsInput,
+  MetricsTable,
+  TrialMetrics,
+} from './metric-collector.js';
+export { aggregateTrials, collectMetrics, extractTrialMetrics } from './metric-collector.js';
+
 export {
   SPEC_FINAL_RULES_EXCLUDES_LITERAL,
   SPEC_FINAL_RULES_INCLUDES_LITERAL,
