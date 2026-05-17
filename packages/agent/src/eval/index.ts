@@ -20,9 +20,12 @@ export type { RunSnapshot, SpecFn, SpecRegistry, SpecResult } from './spec-frame
 export { createSpecRegistry, evaluateSpec } from './spec-framework.js';
 
 export {
+  CUSTOM_SPEC_NAMES,
   SPEC_FINAL_RULES_EXCLUDES_LITERAL,
   SPEC_FINAL_RULES_INCLUDES_LITERAL,
   SPEC_FINAL_RUNTIME_RUN_SUMMARY_OK,
+  SPEC_GAME_RULES_SIMULATOR_ACCEPTS_POSITIVE_AND_REJECTS_CHEAT,
+  SPEC_PYRIC_AGENTS_LINT_CLEAN_AND_RULE_REJECTS_CHEAT,
   SPEC_REPORT_MENTIONS_ALL_OF,
   SPEC_REPORT_MENTIONS_AT_LEAST_ONE_OF,
   SPEC_TRACE_CONTAINS_TOOL_CALL_BY_NAME,
@@ -30,6 +33,10 @@ export {
   finalRulesExcludesLiteral,
   finalRulesIncludesLiteral,
   finalRuntimeRunSummaryOk,
+  gameRulesSimulatorAcceptsPositiveAndRejectsCheat,
+  pyricAgentsLintCleanAndRuleRejectsCheat,
+  registerAllSpecs,
+  registerCustomSpecs,
   registerStarterSpecs,
   reportMentionsAllOf,
   reportMentionsAtLeastOneOf,
