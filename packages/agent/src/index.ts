@@ -104,6 +104,14 @@ export type { PlanStep, SkillCatalog, SkillCatalogEntry } from './skill-catalog.
 export { SKILL_CATALOG, getSkillEntry, listSkillNames } from './skill-catalog.js';
 
 export type {
+  PlannerExecutorOptions,
+  SkillRouter,
+  SkillRouterDecision,
+  SkillRouterMatch,
+} from './planner-executor.js';
+export { createPlannerExecutorStrategy, defaultKeywordRouter } from './planner-executor.js';
+
+export type {
   Tracer,
   TraceEvent,
   LlmRequestTrace,
