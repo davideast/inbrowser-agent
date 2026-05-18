@@ -34,17 +34,23 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@huggingface/transformers": "^3.0.0",
+    "@huggingface/transformers": "^3.0.0 || ^4.0.0",
     "@inbrowser/agent": "workspace:*",
     "@inbrowser/relay": "workspace:*"
   },
   "peerDependenciesMeta": {
-    "@huggingface/transformers": { "optional": false },
-    "@inbrowser/agent": { "optional": true },
-    "@inbrowser/relay": { "optional": true }
+    "@huggingface/transformers": {
+      "optional": false
+    },
+    "@inbrowser/agent": {
+      "optional": true
+    },
+    "@inbrowser/relay": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "@huggingface/transformers": "^3.0.0",
+    "@huggingface/transformers": "^4.2.0",
     "@inbrowser/agent": "workspace:*",
     "@inbrowser/relay": "workspace:*",
     "@types/bun": "latest",
