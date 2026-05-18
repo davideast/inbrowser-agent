@@ -1,7 +1,7 @@
 {
   "name": "@inbrowser/relay",
-  "version": "0.1.0",
-  "description": "Resumable LLM inference relay. Pre-wires @inbrowser/resumable with NormalizedRequest/InferenceEvent types, a pluggable InferenceProvider contract, built-in Gemini/OpenRouter/Anthropic providers, Web-standard handlers, Astro/Express adapters, and a reconnecting browser client.",
+  "version": "0.2.0",
+  "description": "Resumable LLM inference relay. Pre-wires @inbrowser/resumable with NormalizedRequest/InferenceEvent types, a pluggable InferenceProvider contract, built-in Gemini/OpenRouter/Anthropic/Ollama providers, Web-standard handlers, Astro/Express adapters, and a reconnecting browser client.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,6 +25,10 @@
     "./providers/anthropic": {
       "types": "./dist/providers/anthropic.d.ts",
       "import": "./dist/providers/anthropic.js"
+    },
+    "./providers/ollama": {
+      "types": "./dist/providers/ollama.d.ts",
+      "import": "./dist/providers/ollama.js"
     },
     "./adapters/astro": {
       "types": "./dist/adapters/astro.d.ts",

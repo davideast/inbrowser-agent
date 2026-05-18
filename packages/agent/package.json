@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Agent runtime + CLI. Library exports AgentSession, AgentStrategy, ToolRegistry, LlmClient, MetricsCollector, SandboxObserver. Ships an `agent` binary with NDJSON output, --json stdin, --dry-run, schema introspection, and inverse-mode MCP serve. Domain-agnostic — hosts wire their own AgentDefinitions.",
   "type": "module",
   "main": "./dist/index.js",
