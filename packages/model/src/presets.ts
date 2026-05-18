@@ -43,3 +43,26 @@ export const gemma4_E4B: ModelPreset = definePreset({
   backend: 'auto',
   capabilities: GEMMA_4_CAPS,
 });
+
+/**
+ * SmolLM2 360M Instruct. ~180MB on-device download at q4f16.
+ *
+ * Demo + verification preset — small enough to fit ORT-Web's WASM
+ * backend on headless setups (no GPU required), and well under
+ * WebGPU's 1 GiB `maxBufferSize` cap. Cold-loads in seconds, decodes
+ * a token stream end-to-end without specialized hardware.
+ *
+ * Reference: https://huggingface.co/onnx-community/SmolLM2-360M-Instruct
+ */
+export const smollm2_360m: ModelPreset = definePreset({
+  model: { modelId: 'HuggingFaceTB/SmolLM2-360M-Instruct' },
+  dtype: 'q4f16',
+  backend: 'auto',
+  capabilities: {
+    supportsTools: false,
+    supportsVision: false,
+    supportsAudio: false,
+    contextWindow: 8_192,
+    supportsThinking: false,
+  },
+});
