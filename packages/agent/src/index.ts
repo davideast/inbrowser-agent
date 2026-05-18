@@ -100,6 +100,9 @@ export type {
 } from './types/strategy.js';
 export { createReactLoopStrategy } from './strategy.js';
 
+export type { PlanStep, SkillCatalog, SkillCatalogEntry } from './skill-catalog.js';
+export { SKILL_CATALOG, getSkillEntry, listSkillNames } from './skill-catalog.js';
+
 export type {
   Tracer,
   TraceEvent,
