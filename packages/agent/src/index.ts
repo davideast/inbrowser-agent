@@ -107,6 +107,14 @@ export type { RouterDecision, RouterMatch, RouterOptions } from './skill-router.
 export { routeSkill } from './skill-router.js';
 
 export type {
+  PlannerExecutorOptions,
+  SkillRouter,
+  SkillRouterDecision,
+  SkillRouterMatch,
+} from './planner-executor.js';
+export { createPlannerExecutorStrategy, defaultKeywordRouter } from './planner-executor.js';
+
+export type {
   Tracer,
   TraceEvent,
   LlmRequestTrace,
