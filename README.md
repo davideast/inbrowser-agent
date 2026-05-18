@@ -7,6 +7,7 @@ In-browser agent toolkit. Three packages:
 | [`@inbrowser/agent`](./packages/agent) | Agent runtime, types, CLI, observability |
 | [`@inbrowser/relay`](./packages/relay) | Resumable LLM relay — providers, server adapters, reconnecting browser client |
 | [`@inbrowser/resumable`](./packages/resumable) | Backend-agnostic streaming-job engine |
+| [`@inbrowser/model`](./packages/model) | On-device LLM engine — Transformers.js + ONNX presets, adapters into relay/agent (POC) |
 
 Dep graph:
 
@@ -16,6 +17,9 @@ Dep graph:
 @inbrowser/relay       (depends on resumable)
 
 @inbrowser/agent       (independent — does not import relay or resumable)
+
+@inbrowser/model       (independent root; subpath adapters take relay
+                        or agent as optional peer deps)
 ```
 
 ## Development

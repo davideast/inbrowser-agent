@@ -1,0 +1,59 @@
+{
+  "name": "@inbrowser/model",
+  "version": "0.1.0",
+  "description": "On-device LLM engine. Wraps @huggingface/transformers + ONNX Runtime Web behind a narrow Engine surface. Presets ship Gemma 4 (E2B/E4B) configurations. Adapters in subpaths satisfy @inbrowser/relay's InferenceProvider and @inbrowser/agent's LlmClient so a local model is a drop-in replacement for a cloud provider. Worker subpath hosts the engine in a Worker with an identical interface on the main thread.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./presets": {
+      "types": "./dist/presets.d.ts",
+      "import": "./dist/presets.js"
+    },
+    "./relay": {
+      "types": "./dist/adapters/relay.d.ts",
+      "import": "./dist/adapters/relay.js"
+    },
+    "./agent": {
+      "types": "./dist/adapters/agent.d.ts",
+      "import": "./dist/adapters/agent.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "import": "./dist/worker.js"
+    }
+  },
+  "files": ["dist", "README.md", "AGENTS.md"],
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "@huggingface/transformers": "^3.0.0",
+    "@inbrowser/agent": "workspace:*",
+    "@inbrowser/relay": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@huggingface/transformers": { "optional": false },
+    "@inbrowser/agent": { "optional": true },
+    "@inbrowser/relay": { "optional": true }
+  },
+  "devDependencies": {
+    "@huggingface/transformers": "^3.0.0",
+    "@inbrowser/agent": "workspace:*",
+    "@inbrowser/relay": "workspace:*",
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davideast/inbrowser-agent.git",
+    "directory": "packages/model"
+  },
+  "license": "MIT"
+}
