@@ -2,11 +2,12 @@
 
 ## Repo shape
 
-Three packages under `packages/`:
+Four packages under `packages/`:
 
-- `@inbrowser/agent` — runtime + CLI. Independent; no internal deps on the other two.
+- `@inbrowser/agent` — runtime + CLI. Independent; no internal deps on the others.
 - `@inbrowser/relay` — resumable LLM relay. Depends on `@inbrowser/resumable`.
 - `@inbrowser/resumable` — pure streaming-job engine. No internal deps.
+- `@inbrowser/model` — on-device LLM engine (POC). Independent root; adapter subpaths take `@inbrowser/relay` or `@inbrowser/agent` as optional peer deps.
 
 ## Conventions
 
