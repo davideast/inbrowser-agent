@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gemma 4 — On-Device (Local POC)</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 2rem;
+        max-width: 56rem;
+        margin-inline: auto;
+        line-height: 1.5;
+      }
+      h1 { font-weight: 600; margin-bottom: 0.25rem; }
+      .sub { color: #666; margin-bottom: 1.5rem; font-size: 0.9rem; }
+      .row { display: grid; gap: 0.5rem; margin-bottom: 1rem; }
+      .status {
+        padding: 0.75rem 1rem;
+        background: rgba(120, 120, 120, 0.1);
+        border-radius: 8px;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.875rem;
+        white-space: pre-wrap;
+      }
+      .status.error { background: rgba(220, 60, 60, 0.15); color: #b30000; }
+      progress { width: 100%; height: 6px; }
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        font: inherit;
+        padding: 0.75rem;
+        border: 1px solid rgba(120, 120, 120, 0.4);
+        border-radius: 8px;
+        min-height: 5rem;
+      }
+      button {
+        align-self: start;
+        font: inherit;
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 8px;
+        background: #0a7;
+        color: white;
+        cursor: pointer;
+      }
+      button:disabled { background: #999; cursor: not-allowed; }
+      pre.output {
+        background: rgba(120, 120, 120, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        min-height: 8rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.875rem;
+      }
+      .usage { color: #666; font-size: 0.8rem; margin-top: 0.25rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Gemma 4 — On-Device</h1>
+    <p class="sub">
+      <code>@inbrowser/model</code> + <code>@huggingface/transformers</code>.
+      First load fetches ~500 MB into the Cache API; subsequent reloads are instant.
+    </p>
+
+    <div class="row">
+      <label>Status</label>
+      <div id="status" class="status">idle</div>
+      <progress id="progress" value="0" max="100" hidden></progress>
+    </div>
+
+    <div class="row">
+      <label for="prompt">Prompt</label>
+      <textarea id="prompt" placeholder="Ask Gemma anything…">Explain WebGPU in one paragraph.</textarea>
+      <button id="generate" disabled>Load model</button>
+    </div>
+
+    <div class="row">
+      <label>Output</label>
+      <pre id="output" class="output"></pre>
+      <div id="usage" class="usage"></div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -27,10 +27,9 @@
 
 import {
   AutoModelForCausalLM,
-  AutoProcessor,
+  AutoTokenizer,
   TextStreamer,
   type ProgressInfo,
-  type Processor,
   type PreTrainedModel,
   type PreTrainedTokenizer,
 } from '@huggingface/transformers';
@@ -55,7 +54,7 @@ export function createEngine(opts: CreateEngineOpts): Engine {
 
   let state: EngineState = 'idle';
   let loadPromise: Promise<void> | null = null;
-  let processor: Processor | null = null;
+  let tokenizer: PreTrainedTokenizer | null = null;
   let llm: PreTrainedModel | null = null;
 
   const stateSubs = new Set<(s: EngineState) => void>();
@@ -102,7 +101,12 @@ export function createEngine(opts: CreateEngineOpts): Engine {
 
     setState('loading');
     loadPromise = (async () => {
-      processor = await AutoProcessor.from_pretrained(model.modelId, {
+      // AutoTokenizer (not AutoProcessor): text-only models like
+      // SmolLM2 ship no preprocessor_config.json and AutoProcessor
+      // 404s on them. Multimodal models (e.g., Gemma 4 audio) still
+      // resolve via AutoTokenizer because their text tokenizer is
+      // the same file — we just don't expose the audio path yet.
+      tokenizer = await AutoTokenizer.from_pretrained(model.modelId, {
         ...(model.revision ? { revision: model.revision } : {}),
         progress_callback: progressCallback,
       });
@@ -155,26 +159,16 @@ export function createEngine(opts: CreateEngineOpts): Engine {
       return;
     }
 
-    if (!processor || !llm) {
+    if (!tokenizer || !llm) {
       yield { kind: 'error', message: 'engine not ready', recoverable: false };
       return;
     }
 
-    const tokenizer = processor.tokenizer as PreTrainedTokenizer | undefined;
-    if (!tokenizer) {
-      yield {
-        kind: 'error',
-        message: 'processor exposes no tokenizer — model not a CausalLM',
-        recoverable: false,
-      };
-      return;
-    }
-
     // ── Build prompt ──────────────────────────────────────────────
-    const renderedPrompt = applyChatTemplate(processor, messages, opts.chatTemplate);
-    // `processor(string)` forwards to the tokenizer; returns
-    // { input_ids, attention_mask, ... } as Tensors.
-    const inputs = (await processor(renderedPrompt)) as Record<string, unknown>;
+    const renderedPrompt = applyChatTemplate(tokenizer, messages, opts.chatTemplate);
+    // Calling the tokenizer as a function returns a BatchEncoding
+    // (`{ input_ids, attention_mask, ... }`) of Tensors.
+    const inputs = (await tokenizer(renderedPrompt)) as Record<string, unknown>;
     const promptTokens = countTokens(inputs.input_ids);
 
     // ── Set up streaming queue ────────────────────────────────────
@@ -270,7 +264,7 @@ export function createEngine(opts: CreateEngineOpts): Engine {
     loadSubs.clear();
     // Transformers.js doesn't expose a public dispose; dropping
     // references lets GC reclaim the wasm/webgpu sessions.
-    processor = null;
+    tokenizer = null;
     llm = null;
   }
 
@@ -308,7 +302,7 @@ function toDeviceOption(backend: Backend): 'auto' | 'webgpu' | 'wasm' {
 }
 
 function applyChatTemplate(
-  processor: Processor,
+  tokenizer: PreTrainedTokenizer,
   messages: ReadonlyArray<EngineMessage>,
   override?: (m: ReadonlyArray<EngineMessage>) => string,
 ): string {
@@ -319,7 +313,7 @@ function applyChatTemplate(
     role: m.role,
     content: m.text,
   }));
-  const rendered = processor.apply_chat_template(conversation, {
+  const rendered = tokenizer.apply_chat_template(conversation, {
     add_generation_prompt: true,
     tokenize: false,
   });
