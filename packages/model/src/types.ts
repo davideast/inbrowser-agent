@@ -60,17 +60,27 @@ export interface EngineCapabilities {
    * via `GenerateOpts.enableThinking`, the model emits reasoning
    * inside these tags. Models vary:
    *
-   *   - DeepSeek R1 / R1 Distill: `<think>…</think>` (literal text)
-   *   - Gemma 4 / Gemma 3n: `<|channel>thought\n…\n<channel|>`
-   *     (special tokens — engine must set `skip_special_tokens: false`)
+   *   - DeepSeek R1 / R1 Distill: `<think>…</think>` (literal text).
+   *     The model emits both open and close tags during generation.
+   *   - Gemma 4 / Gemma 3n: only `<channel|>` is emitted (close).
+   *     The chat template's `add_generation_prompt` pre-fills the
+   *     `<|channel>thought\n` open marker into the prompt, so
+   *     generation starts inside thinking. Configure with
+   *     `implicitOpen: true`. The Gemma end-of-turn marker `<turn|>`
+   *     leaks when `skip_special_tokens: false` is set; strip via
+   *     `stripTokens: ['<turn|>']`.
    *
    * Consumers thread these into `splitThinking()` to route reasoning
-   * to a dedicated UI surface. Default tag in `splitThinking` is the
-   * DeepSeek format; set this when the model uses a different one.
+   * to a dedicated UI surface. The full shape matches
+   * `ThinkingSplitOpts` so the preset can be spread directly.
    */
   thinkingTags?: {
     openTag: string;
     closeTag: string;
+    /** When true, the stream starts inside thinking (no open tag in output). */
+    implicitOpen?: boolean;
+    /** Literal substrings to strip from `token` events (structural leak tokens). */
+    stripTokens?: ReadonlyArray<string>;
   };
 }
 
