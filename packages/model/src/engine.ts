@@ -201,7 +201,19 @@ export function createEngine(opts: CreateEngineOpts): Engine {
 
     // ── Build prompt ──────────────────────────────────────────────
     const tools = useTools ? (genOpts.tools as ReadonlyArray<ToolSpec>) : undefined;
-    const renderedPrompt = applyChatTemplate(tokenizer, messages, opts.chatTemplate, tools);
+    // Thinking mode: opt-in via GenerateOpts.enableThinking, gated on
+    // capabilities.supportsThinking. The chat template renders its
+    // thinking preamble; for models like Gemma 4 that use special
+    // tokens for the thinking channel, we also need to STOP stripping
+    // them from the TextStreamer output (see below).
+    const useThinking = capabilities.supportsThinking && genOpts.enableThinking === true;
+    const renderedPrompt = applyChatTemplate(
+      tokenizer,
+      messages,
+      opts.chatTemplate,
+      tools,
+      useThinking,
+    );
     // Calling the tokenizer as a function returns a BatchEncoding
     // (`{ input_ids, attention_mask, ... }`) of Tensors.
     const inputs = (await tokenizer(renderedPrompt)) as Record<string, unknown>;
@@ -225,8 +237,19 @@ export function createEngine(opts: CreateEngineOpts): Engine {
       wakeIterator();
     };
 
+    // When the active preset uses *special tokens* to delimit its
+    // thinking channel (Gemma 4: `<|channel>` id 100, `<channel|>`
+    // id 101), the default `skip_special_tokens: true` swallows the
+    // markers and the reasoning becomes indistinguishable from the
+    // answer. Set false in that case so the channel boundaries
+    // survive into the text stream where `splitThinking` can find
+    // them. Models that use literal-text tags (DeepSeek `<think>`)
+    // don't need this and stay with the default for cleaner output
+    // (otherwise BOS/EOS would leak too).
+    const preserveSpecialTokens = useThinking && capabilities.thinkingTags !== undefined;
     const streamer = new TextStreamer(tokenizer, {
       skip_prompt: true,
+      ...(preserveSpecialTokens ? { skip_special_tokens: false } : {}),
       callback_function: (text: string) => {
         if (text.length === 0) return;
         pushEvent({ kind: 'token', text });
@@ -341,6 +364,7 @@ function applyChatTemplate(
   messages: ReadonlyArray<EngineMessage>,
   override?: (m: ReadonlyArray<EngineMessage>) => string,
   tools?: ReadonlyArray<ToolSpec>,
+  enableThinking?: boolean,
 ): string {
   if (override) return override(messages);
   // EngineMessage's media field is dropped here — text-only path
@@ -354,10 +378,19 @@ function applyChatTemplate(
   // `<tools>`; DeepSeek R1 uses a different block). Transformers.js
   // forwards the `tools` array to the underlying Jinja template
   // unchanged — the OAI function-call shape is the canonical input.
+  //
+  // `enable_thinking` is a Gemma 3/4 / Qwen 3 convention — passing it
+  // true makes the model's template render its thinking-mode preamble
+  // (Gemma 4: "Inject Thinking token at the very top of the FIRST
+  // system turn"). Templates that don't know about it ignore the
+  // unknown key — Jinja is permissive about undeclared vars.
   const rendered = tokenizer.apply_chat_template(conversation, {
     add_generation_prompt: true,
     tokenize: false,
     ...(tools && tools.length > 0 ? { tools: tools as unknown[] } : {}),
+    ...(enableThinking ? { enable_thinking: true } : {}),
+  } as Parameters<typeof tokenizer.apply_chat_template>[1] & {
+    enable_thinking?: boolean;
   });
   if (typeof rendered !== 'string') {
     throw new Error('apply_chat_template returned non-string with tokenize:false');
