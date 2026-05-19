@@ -53,7 +53,7 @@
     },
     "packages/agent": {
       "name": "@inbrowser/agent",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "bin": {
         "agent": "./bin/agent.ts",
       },
@@ -91,7 +91,7 @@
     },
     "packages/relay": {
       "name": "@inbrowser/relay",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "@inbrowser/resumable": "workspace:*",
       },
@@ -111,7 +111,7 @@
     },
     "packages/resumable": {
       "name": "@inbrowser/resumable",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "devDependencies": {
         "@types/bun": "latest",
         "typescript": "^5.7.0",
