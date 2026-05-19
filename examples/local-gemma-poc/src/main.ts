@@ -46,6 +46,46 @@ function pickPreset(): { name: string; preset: ModelPreset } {
 }
 
 /**
+ * Decode-length cap. Default 2048 — generous enough that natural
+ * EOS stops most replies before this kicks in, but bounded so a
+ * runaway generation can't hold the tab forever. Override via
+ * `?maxTokens=N` for code-heavy prompts that legitimately need more.
+ *
+ * A higher cap doesn't force the model to talk longer; the model
+ * emits its own EOS token when it thinks it's done. This only
+ * raises the ceiling.
+ */
+function pickMaxTokens(): number {
+  const raw = new URLSearchParams(window.location.search).get('maxTokens');
+  if (!raw) return 2048;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 2048;
+}
+
+/**
+ * Sampling temperature. Returns `undefined` (omit the option, engine
+ * stays in greedy/deterministic decode) by default — matches what
+ * the demo did before this knob existed. Override with
+ * `?temperature=N`:
+ *
+ *   0     deterministic (greedy)
+ *   0.2   focused — good for code / structured output
+ *   0.7   balanced (most chat-UI defaults)
+ *   1.0+  creative / divergent
+ *
+ * Setting any value enables sampling on the engine side. Returning
+ * `undefined` instead of `0` is intentional: the engine treats
+ * "explicit 0" and "omitted" differently in some Transformers.js
+ * code paths, and "omitted" is what the previous behavior assumed.
+ */
+function pickTemperature(): number | undefined {
+  const raw = new URLSearchParams(window.location.search).get('temperature');
+  if (raw === null) return undefined;
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+/**
  * Backend selection precedence:
  *   1. ?backend=webgpu|wasm|auto query param (verification + debugging override)
  *   2. webgpu when `navigator.gpu` is present
@@ -149,14 +189,23 @@ buttonEl.addEventListener('click', async () => {
     buttonEl.textContent = 'Generating…';
     outputEl.textContent = '';
     usageEl.textContent = '';
-    setStatus(`decoding (${engine.capabilities.contextWindow.toLocaleString()} ctx)`);
+
+    const maxTokens = pickMaxTokens();
+    const temperature = pickTemperature();
+    const sampling = temperature === undefined ? 'greedy' : `temp=${temperature}`;
+    setStatus(
+      `decoding (${engine.capabilities.contextWindow.toLocaleString()} ctx, ${sampling}, maxTokens=${maxTokens})`,
+    );
 
     const messages = [
       { role: 'user' as const, text: promptEl.value },
     ];
 
     const startedAt = performance.now();
-    for await (const evt of engine.generate(messages, { maxNewTokens: 512 })) {
+    for await (const evt of engine.generate(messages, {
+      maxNewTokens: maxTokens,
+      ...(temperature !== undefined ? { temperature } : {}),
+    })) {
       if (evt.kind === 'token') {
         outputEl.textContent += evt.text;
         continue;
@@ -164,7 +213,12 @@ buttonEl.addEventListener('click', async () => {
       if (evt.kind === 'usage') {
         const elapsed = ((performance.now() - startedAt) / 1000).toFixed(2);
         const tps = (evt.outputTokens / (evt.decodeMs / 1000)).toFixed(1);
-        usageEl.textContent = `${evt.promptTokens} in / ${evt.outputTokens} out — ${elapsed}s wall (${tps} tok/s decode)`;
+        // If outputTokens hit the cap, the decode was truncated rather
+        // than terminated by an EOS token. Surface that visually so
+        // the user knows to retry with a higher maxTokens.
+        const truncated = evt.outputTokens >= maxTokens;
+        const cap = truncated ? ` ⚠️ hit ${maxTokens}-token cap — append ?maxTokens=N to extend` : '';
+        usageEl.textContent = `${evt.promptTokens} in / ${evt.outputTokens} out — ${elapsed}s wall (${tps} tok/s decode)${cap}`;
         continue;
       }
       if (evt.kind === 'error') {

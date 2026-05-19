@@ -14,6 +14,8 @@ verification. Written for future-us when one of these gotchas bites again.
 | Threaded WASM needs COOP/COEP | Multi-thread ORT-Web init | `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp` on the dev server |
 | Gemma 4 E2B is ~3 GB at q4f16, not 500 MB | Documentation, capacity planning | Read the actual `*.onnx_data` file sizes from the HF Hub manifest; never trust prose claims |
 | Real-GPU-only models still need a verifiable surrogate | CI / on-the-go testing | Ship a small preset (`smollm2_360m`) that exercises every code path on headless WASM |
+| Hardcoded `maxNewTokens: 512` truncates real prompts silently | Demo UX — looked like a model defect | Default 2048; `?maxTokens=N` URL override; visible `⚠️ hit cap` marker when reached |
+| Vite 7 `allowedHosts` blocks non-localhost Host headers | Tailscale / LAN access to dev server | `server.allowedHosts: true` on the dev server (never carry into production) |
 
 ## Findings in detail
 
@@ -191,6 +193,41 @@ Every layer of `@inbrowser/model` got exercised. This is the "is the engine
 broken?" canary; Gemma 4 is the "is the model fast enough?" benchmark.
 Different questions, different tools.
 
+### 7. Silent decode truncation looks like a model bug
+
+**Symptom:** Gemma 4 E2B on real WebGPU, prompt "Write fibonacci in
+TypeScript". Output cut off mid-line at `a = b;` inside an iterative loop.
+Usage line: `15 in / 512 out — 16.34s wall (31.4 tok/s decode)`.
+
+**Cause:** the example UI hardcoded `maxNewTokens: 512`. Gemma's reply for
+that prompt typically wants ~700–1500 tokens (code blocks + commentary on
+two approaches). The model didn't stop because it was done; it stopped
+because we capped it. The `512`-exact `outputTokens` was the only
+visible signal.
+
+**Fix:** three layered, all in `examples/local-gemma-poc/src/main.ts`.
+
+1. **Bumped default** from 512 → 2048 (covers most realistic prompts).
+2. **`?maxTokens=N` URL override** for code-heavy prompts that need more.
+3. **Truncation indicator** appended to the usage line when
+   `outputTokens >= maxTokens`: `⚠️ hit N-token cap — append ?maxTokens=N
+   to extend`. Silent truncation was the actual UX bug, not the cap value.
+
+The same pass also wired **`?temperature=N`** through to `GenerateOpts`.
+Default behavior (omitted) leaves the engine in greedy decode — matches
+prior runs. Setting `?temperature=0.2` (or any non-negative number) flips
+on sampling. Surfaced in the status line as `temp=0.2` / `greedy` so the
+mode is visible per-run.
+
+**General lesson:** any bounded budget in the demo — token cap, time cap,
+buffer cap — needs a visible cue when it bites. Otherwise the bound looks
+like a model defect. Cheap to add (`evt.outputTokens >= maxTokens` is a
+one-liner), high signal.
+
+Engine fields wired engine-side but not yet exposed in the UI:
+`topP`, `topK`, `stop`, `signal`. Stop sequences + mid-decode cancellation
+still need engine-level work — see "Open follow-ups."
+
 ## Debugging methodology that worked
 
 The session's most useful discipline was **one variable per probe**. Each
@@ -223,22 +260,30 @@ Specific probes that paid for themselves in 5 lines of code each:
 The `@inbrowser/model` POC is verifiably end-to-end working on:
 
 - ✅ Headless Chromium + WASM + small models (SmolLM2 360M tested)
+- ✅ Real desktop Chrome + WebGPU + Gemma 4 E2B (user-confirmed; 31.4 tok/s
+  decode with greedy sampling)
 - 🟡 Headless Chromium + WebGPU — blocked by SwiftShader caps; needs real GPU
-- 🟡 Headless Chromium + WASM + large models (Gemma 4) — fetches/caches fine,
-  ORT init hangs; needs threading + more investigation, or just use real GPU
+- 🟡 Headless Chromium + WASM + large models (Gemma 4, Qwen 1.5B+) —
+  fetches/caches fine; ORT-Web hits buffer-reuse bugs or `std::bad_alloc`
+  at the ~1 GB scale; needs real GPU
 
 Untested but reasonably expected to work:
 
-- Real browsers (Chrome desktop / Edge) with real GPUs — the original target
 - Service-worker-hosted engine via `@inbrowser/model/worker` (stub only today)
+- Qwen 2.5 Coder 1.5B + Qwen 3 1.7B on real WebGPU (smaller embedding tables
+  than Gemma 4; should run on more GPUs)
 
 ## Files touched in this session
 
 - `packages/model/src/engine.ts` — `AutoProcessor` → `AutoTokenizer`
-- `packages/model/src/presets.ts` — new `smollm2_360m` preset
+- `packages/model/src/presets.ts` — `smollm2_360m`, `qwen2_5_coder_1_5b`,
+  `qwen3_1_7b` presets
 - `examples/local-gemma-poc/` — entire example app (UI, Vite config, README)
 - `examples/local-gemma-poc/scripts/verify.ts` — Playwright headless verifier
-- `examples/local-gemma-poc/vite.config.ts` — COOP/COEP headers added
+- `examples/local-gemma-poc/vite.config.ts` — COOP/COEP, `allowedHosts: true`
+  for Tailscale, `strictPort: true`
+- `examples/local-gemma-poc/src/main.ts` — `?preset`, `?backend`,
+  `?maxTokens`, `?temperature` URL overrides; truncation indicator
 
 ## Open follow-ups
 

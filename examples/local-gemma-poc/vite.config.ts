@@ -9,6 +9,15 @@ export default defineConfig({
     exclude: ['@huggingface/transformers'],
   },
   server: {
+    host: '0.0.0.0',
+    port: 5175,
+    strictPort: true,
+    // Vite 7 rejects non-localhost Host headers by default
+    // (DNS-rebind hardening). `true` disables the check entirely,
+    // accepting any Host header — needed for Tailscale + LAN access
+    // without enumerating every hostname/IP up front. Acceptable on a
+    // dev server; never carry this into production.
+    allowedHosts: true,
     // Unlock `SharedArrayBuffer` (and therefore ONNX Runtime Web's
     // multi-threaded WASM backend) by making the page
     // cross-origin-isolated. Without these headers, ORT-Web's
