@@ -3,13 +3,20 @@
 End-to-end demo of `@inbrowser/model` — loads a local LLM in the
 browser via WebGPU (or WASM) and streams a response from a prompt.
 
-Two paths through the demo:
+## Available presets
 
-1. **SmolLM2 360M (default)** — fast, works headless, no GPU required.
-   The right pick for verification and CI.
-2. **Gemma 4 E2B** — needs a real desktop browser with a real GPU.
-   The "real" demo of on-device inference; see the dedicated section
-   below.
+| Preset | Download (q4f16) | Headless WASM | Real-GPU WebGPU | Notes |
+|---|---|---|---|---|
+| `smollm2_360m` | ~180 MB | ✅ verified end-to-end | ✅ | Default. The verification canary. |
+| `qwen2_5_coder_1_5b` | ~1.28 GB | ❌ ORT shape bug | ✅ | Code/FIM focus; Qwen2.5 lineage |
+| `qwen3_1_7b` | ~1.36 GB | ❌ WASM heap OOM | ✅ | Current frontier-for-size general model |
+| `gemma4_e2b` | ~3 GB | ❌ hangs | ✅ (with caveats) | Multimodal-capable; needs 1.2 GiB `maxBufferSize` + `shader-f16` |
+| `gemma4_e4b` | ~6 GB | ❌ | ✅ (real discrete GPU) | Bigger Gemma; same constraints, 2× the budget |
+
+**Headless WASM ceiling** is around ~500 MB at q4f16 on this Playwright
+setup. Models above that load fine but ORT-Web hits buffer-reuse bugs or
+the V8 WASM heap (~4 GB) during session creation. Everything ≥1 GB
+needs a real GPU + real browser.
 
 ## Quick start (SmolLM2)
 
@@ -20,6 +27,53 @@ bun run --cwd examples/local-gemma-poc dev
 
 Open <http://localhost:5175>, click Load + generate. Expect ~180 MB
 download, ~8s to first token on first run, near-instant on reloads.
+
+## Testing Qwen presets in a real browser
+
+The Qwen presets (`qwen2_5_coder_1_5b`, `qwen3_1_7b`) need a real GPU
+because of the headless-WASM ceiling described above — not because of
+WebGPU feature gaps. Their embedding tables fit under the 1 GiB
+`maxBufferSize` cap (Qwen uses a 152K vocabulary, much smaller than
+Gemma 4's 256K), so they run on a much broader range of GPUs than
+Gemma 4 does.
+
+### Hardware bar (Qwen presets)
+
+| Resource | Minimum | Notes |
+|---|---|---|
+| GPU | ~2 GB VRAM | Integrated GPUs from ~2020+ usually qualify |
+| GPU features | `shader-f16` | Same f16-shader requirement as Gemma; required for q4f16 |
+| `maxBufferSize` | ≥600 MiB | Most modern GPUs ship with ≥1 GiB |
+| Disk | ~1.5 GB free | Per preset |
+
+### Run
+
+```bash
+# Coder model — `?prompt=` not supported on the page; type your prompt
+# in the textarea. Suggested first prompt: a small coding question.
+bun run --cwd examples/local-gemma-poc dev
+# → open http://localhost:5175/?preset=qwen2_5_coder_1_5b&backend=webgpu
+
+# Qwen 3 general
+# → open http://localhost:5175/?preset=qwen3_1_7b&backend=webgpu
+```
+
+Expected first-load timings on real hardware:
+
+- **Fetch**: 1.3 GB at network rate (cached for subsequent runs).
+- **ORT init**: a few seconds (WebGPU shader compilation).
+- **First token**: typically <1s after init on discrete GPUs, 1–3s on integrated.
+- **Decode**: 25–60 tok/s on Apple Silicon / RTX 30xx+, 10–25 tok/s on integrated.
+
+For Qwen 2.5 Coder, prompts that exercise the strength of the model:
+
+> "Write a TypeScript function that debounces another function with a configurable wait."
+>
+> "Given this Python function, identify the bug:\n```py\ndef sum_evens(nums):\n  return sum(n for n in nums if n % 2)\n```"
+
+For Qwen 3, the "thinking mode" is off by default in our preset; flip
+it on by spreading a custom `chatTemplate` (passes `enable_thinking: true`
+to `apply_chat_template`) if you want to compare modes.
 
 ## Testing Gemma 4 in a real browser
 
@@ -168,20 +222,26 @@ Cache API and won't re-download.
 
 ### Reproducible verification (Playwright)
 
-The same end-to-end test can be run headless via the verify script —
-but as noted, it can't actually decode Gemma 4 because headless
-WebGPU on Linux is feature-poor. It's useful for verifying everything
-*up to* the inference call:
+The same end-to-end test can be run headless via the verify script.
+Headless WebGPU on Linux is feature-poor, so verify defaults to
+WASM. The WASM backend has its own size ceiling around ~500 MB at
+q4f16, so only `smollm2_360m` runs end-to-end headless today.
 
 ```bash
-# Verify SmolLM2 end-to-end (works headless)
+# Verify SmolLM2 end-to-end (works headless, ~8s wall)
 bun run --cwd examples/local-gemma-poc verify
 
-# Verify Gemma 4 fetch + cache (will hit GPU limits at inference)
-bun run --cwd examples/local-gemma-poc verify --preset gemma4_e2b --backend wasm
+# Verify a larger preset's fetch + cache + load path (will fail at
+# the inference step due to the WASM size ceiling — useful for
+# regression-testing the fetch/storage/load layers)
+bun run --cwd examples/local-gemma-poc verify --preset qwen2_5_coder_1_5b
+bun run --cwd examples/local-gemma-poc verify --preset qwen3_1_7b
+bun run --cwd examples/local-gemma-poc verify --preset gemma4_e2b
 ```
 
-See `scripts/verify.ts` for the report shape.
+Each run reports outcome (`SUCCESS` / `ERROR` / `TIMEOUT`) with
+distinct exit codes (0 / 1 / 3) for CI. See `scripts/verify.ts` for
+the report shape and what each phase exercises.
 
 ## What's wired
 

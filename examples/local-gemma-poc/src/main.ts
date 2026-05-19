@@ -16,12 +16,20 @@ import {
   type LoadProgress,
   type ModelPreset,
 } from '@inbrowser/model';
-import { gemma4_E2B, gemma4_E4B, smollm2_360m } from '@inbrowser/model/presets';
+import {
+  gemma4_E2B,
+  gemma4_E4B,
+  qwen2_5_coder_1_5b,
+  qwen3_1_7b,
+  smollm2_360m,
+} from '@inbrowser/model/presets';
 
 const PRESETS: Record<string, ModelPreset> = {
   gemma4_e2b: gemma4_E2B,
   gemma4_e4b: gemma4_E4B,
   smollm2_360m,
+  qwen2_5_coder_1_5b,
+  qwen3_1_7b,
 };
 
 /**
