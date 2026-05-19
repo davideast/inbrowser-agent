@@ -16,6 +16,7 @@
  */
 
 export { createEngine, definePreset } from './engine.js';
+export { parseToolCalls, type ToolCallParseOpts } from './parse-tool-calls.js';
 export { splitThinking, type ThinkingSplitOpts } from './think.js';
 
 export type {
@@ -34,4 +35,5 @@ export type {
   MediaPart,
   ModelPreset,
   ModelRef,
+  ToolSpec,
 } from './types.js';

@@ -36,7 +36,7 @@ async function* drive(
     yield {
       kind: 'error',
       message:
-        'engine does not natively support tools — wrap with withToolUsePolyfill before passing to the agent runtime',
+        'engine does not natively support tools — pick a tools-capable preset (see capabilities.supportsTools)',
     };
     return;
   }
@@ -45,7 +45,18 @@ async function* drive(
   let promptTokens = 0;
   let completionTokens = 0;
 
-  for await (const evt of engine.generate(messages, { signal })) {
+  // Forward `req.tools` only when the request opts into tool use.
+  // The engine itself gates on `capabilities.supportsTools`; passing
+  // tools to a non-tools-capable engine is a no-op.
+  const tools =
+    req.toolUseEnabled && req.tools.length > 0
+      ? req.tools.map((t) => ({
+          type: 'function' as const,
+          function: { name: t.name, description: t.description, parameters: t.parameters },
+        }))
+      : undefined;
+
+  for await (const evt of engine.generate(messages, { signal, ...(tools ? { tools } : {}) })) {
     if (evt.kind === 'token') {
       yield { kind: 'text', chunk: evt.text };
       continue;
@@ -55,6 +66,15 @@ async function* drive(
       // engine only emits this when the caller wrapped with
       // splitThinking() upstream.
       yield { kind: 'thinking', chunk: evt.text };
+      continue;
+    }
+    if (evt.kind === 'tool_call') {
+      yield {
+        kind: 'tool_call',
+        id: evt.id,
+        name: evt.name,
+        args: evt.args,
+      };
       continue;
     }
     if (evt.kind === 'usage') {
