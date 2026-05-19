@@ -32,9 +32,8 @@ function resolveEndpoint(apiKey: string): string {
   // The playground passes the baseUrl through req.apiKey. Trim
   // trailing slashes so `/v1/chat/completions` concatenates cleanly.
   // Fall back to the documented default when the slot is empty.
-  const baseUrl = apiKey && /^https?:\/\//.test(apiKey)
-    ? apiKey.replace(/\/+$/, '')
-    : DEFAULT_BASE_URL;
+  const baseUrl =
+    apiKey && /^https?:\/\//.test(apiKey) ? apiKey.replace(/\/+$/, '') : DEFAULT_BASE_URL;
   return `${baseUrl}/v1/chat/completions`;
 }
 
