@@ -90,7 +90,11 @@ export const qwen2_5_coder_1_5b: ModelPreset = definePreset({
   dtype: 'q4f16',
   backend: 'auto',
   capabilities: {
-    supportsTools: false,
+    // Qwen 2.5's chat template includes tool slots and the model is
+    // trained to emit <tool_call>...</tool_call> envelopes. The engine
+    // threads `tools` into apply_chat_template and parses output with
+    // parseToolCalls() when this is true.
+    supportsTools: true,
     supportsVision: false,
     supportsAudio: false,
     contextWindow: 32_768,
@@ -120,7 +124,11 @@ export const qwen3_1_7b: ModelPreset = definePreset({
   dtype: 'q4f16',
   backend: 'auto',
   capabilities: {
-    supportsTools: false,
+    // Qwen 3 family ships with first-class tool calling in its chat
+    // template. The engine threads `tools` through apply_chat_template
+    // and parses <tool_call>{...}</tool_call> envelopes from the
+    // output stream via parseToolCalls() when set.
+    supportsTools: true,
     supportsVision: false,
     supportsAudio: false,
     contextWindow: 32_768,
