@@ -18,35 +18,27 @@ const GEMMA_4_CAPS = {
   supportsVision: false,
   supportsAudio: true,
   contextWindow: 128_000,
-  // Gemma 4 / 3n templates accept `enable_thinking: true` and render
-  // reasoning inside `<|channel>thought\n…\n<channel|>` markers. The
-  // markers are SPECIAL TOKENS (id 100 / 101), so the engine flips
-  // `skip_special_tokens: false` on the TextStreamer when this is
-  // engaged. Confirmed against `onnx-community/gemma-4-E2B-it-ONNX`
-  // tokenizer.json (added_tokens includes `<|channel>` and `<channel|>`)
-  // and the chat template's `enable_thinking` + `<|channel>thought`
-  // emission pattern.
+  // Gemma 4 / 3n templates accept `enable_thinking: true` and the
+  // engine still passes it through — the model will think before
+  // answering. We deliberately DO NOT set `thinkingTags`:
+  //
+  // Observed E2B + E4B output formats are inconsistent:
+  //   - E2B sometimes emits content without any opening marker
+  //   - E4B emits `<|channel>thought\n` opener
+  //   - Close marker `<channel|>` is sometimes emitted, sometimes
+  //     replaced by literal `Output\n`, sometimes omitted entirely
+  //   - End-of-turn `<turn|>` token sometimes leaks
+  //
+  // A text-based parser can't reliably separate thinking from answer
+  // with that variance. Forcing it produces worse UX than just
+  // showing the model's reasoning inline.
+  //
+  // Without `thinkingTags`, the engine keeps the default
+  // `skip_special_tokens: true`, so all structural tokens
+  // (`<|channel>`, `<channel|>`, `<turn|>`) are stripped automatically.
+  // The user sees plain-text reasoning followed by the answer in the
+  // main output pane. Mixed content, but clean.
   supportsThinking: true,
-  thinkingTags: {
-    // Empirically observed Gemma 4 emission pattern (verified end-to-end
-    // against gemma4_e2b on real WebGPU):
-    //
-    //   [thinking content — no opening marker, prompt primed us inside]
-    //   <channel|>
-    //   [answer content]
-    //   <turn|>
-    //
-    // So the engine sees no opening tag at generation time. The opening
-    // `<|channel>thought\n` lives in the prompt only (chat template's
-    // `add_generation_prompt`). We start in "inside" mode and let the
-    // close marker switch us back to normal output. The end-of-turn
-    // marker `<turn|>` leaks because `skip_special_tokens: false` is
-    // engaged to expose `<channel|>` — strip it.
-    openTag: '<|channel>thought\n',
-    closeTag: '<channel|>',
-    implicitOpen: true,
-    stripTokens: ['<turn|>'],
-  },
 } as const;
 
 /**
