@@ -3,6 +3,12 @@
 End-to-end demo of `@inbrowser/model` — loads a local LLM in the
 browser via WebGPU (or WASM) and streams a response from a prompt.
 
+> **See also:** [`docs/bundling.md`](./docs/bundling.md) — the
+> end-to-end bundling guide. Capability check, preset selection,
+> error-by-error diagnostic ladder, headless CI setup, and what's
+> verified vs. predicted. Start there if your demo "isn't working"
+> and you don't know why.
+
 ## Available presets
 
 | Preset | Download (q4f16) | Headless WASM | Real-GPU WebGPU | Notes |
