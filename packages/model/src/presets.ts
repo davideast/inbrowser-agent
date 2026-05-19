@@ -18,7 +18,19 @@ const GEMMA_4_CAPS = {
   supportsVision: false,
   supportsAudio: true,
   contextWindow: 128_000,
-  supportsThinking: false,
+  // Gemma 4 / 3n templates accept `enable_thinking: true` and render
+  // reasoning inside `<|channel>thought\n…\n<channel|>` markers. The
+  // markers are SPECIAL TOKENS (id 100 / 101), so the engine flips
+  // `skip_special_tokens: false` on the TextStreamer when this is
+  // engaged. Confirmed against `onnx-community/gemma-4-E2B-it-ONNX`
+  // tokenizer.json (added_tokens includes `<|channel>` and `<channel|>`)
+  // and the chat template's `enable_thinking` + `<|channel>thought`
+  // emission pattern.
+  supportsThinking: true,
+  thinkingTags: {
+    openTag: '<|channel>thought\n',
+    closeTag: '\n<channel|>',
+  },
 } as const;
 
 /**
@@ -166,5 +178,14 @@ export const deepseek_r1_qwen_1_5b: ModelPreset = definePreset({
     supportsAudio: false,
     contextWindow: 131_072,
     supportsThinking: true,
+    // DeepSeek's literal-text tags — same as `splitThinking`'s default
+    // when no tags are passed, but declaring them on the preset lets
+    // consumers be model-agnostic: `splitThinking(stream, preset.capabilities.thinkingTags)`
+    // works for both DeepSeek and Gemma 4 without consumer-side
+    // model-family branching.
+    thinkingTags: {
+      openTag: '<think>',
+      closeTag: '</think>',
+    },
   },
 });

@@ -216,15 +216,25 @@ buttonEl.addEventListener('click', async () => {
 
     const startedAt = performance.now();
     // Wrap the raw token stream with splitThinking only when the
-    // active preset claims to emit `<think>` blocks. For non-thinking
-    // models the wrapper would still work (no tags = pass-through)
-    // but adds a layer of buffering for no benefit; skipping it
-    // keeps the simpler path tight.
+    // active preset declares it can emit reasoning blocks. For
+    // non-thinking models the wrapper would still work (no tags =
+    // pass-through) but adds a layer of buffering for no benefit;
+    // skipping it keeps the simpler path tight.
+    //
+    // Tag format is preset-declared (DeepSeek: `<think>...</think>`;
+    // Gemma 4: `<|channel>thought\n...\n<channel|>`). When the
+    // preset declares `enableThinking` via opts, the engine ALSO
+    // passes `enable_thinking: true` to the chat template and
+    // preserves the model's channel-marker special tokens in the
+    // output stream so splitThinking can see them.
     const rawStream = engine.generate(messages, {
       maxNewTokens: maxTokens,
       ...(temperature !== undefined ? { temperature } : {}),
+      ...(thinkingMode ? { enableThinking: true } : {}),
     });
-    const stream = thinkingMode ? splitThinking(rawStream) : rawStream;
+    const stream = thinkingMode
+      ? splitThinking(rawStream, engine.capabilities.thinkingTags ?? {})
+      : rawStream;
     for await (const evt of stream) {
       if (evt.kind === 'token') {
         outputEl.textContent += evt.text;

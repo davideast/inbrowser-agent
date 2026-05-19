@@ -53,8 +53,25 @@ export interface EngineCapabilities {
   supportsAudio: boolean;
   /** Context window in tokens. */
   contextWindow: number;
-  /** Whether the model emits thinking traces (Gemma 4: no). */
+  /** Whether the model emits thinking traces when prompted. */
   supportsThinking: boolean;
+  /**
+   * When `supportsThinking` is true and the consumer enables thinking
+   * via `GenerateOpts.enableThinking`, the model emits reasoning
+   * inside these tags. Models vary:
+   *
+   *   - DeepSeek R1 / R1 Distill: `<think>…</think>` (literal text)
+   *   - Gemma 4 / Gemma 3n: `<|channel>thought\n…\n<channel|>`
+   *     (special tokens — engine must set `skip_special_tokens: false`)
+   *
+   * Consumers thread these into `splitThinking()` to route reasoning
+   * to a dedicated UI surface. Default tag in `splitThinking` is the
+   * DeepSeek format; set this when the model uses a different one.
+   */
+  thinkingTags?: {
+    openTag: string;
+    closeTag: string;
+  };
 }
 
 /**
@@ -132,6 +149,25 @@ export interface GenerateOpts {
    * events are emitted when the model invokes a tool.
    */
   tools?: ReadonlyArray<ToolSpec>;
+  /**
+   * Opt into the model's thinking mode. Only honored when the active
+   * preset declares `capabilities.supportsThinking: true`. When set:
+   *
+   * 1. The engine passes `enable_thinking: true` to
+   *    `apply_chat_template` so the model's template renders its
+   *    thinking-mode preamble.
+   * 2. When the preset also declares `capabilities.thinkingTags`,
+   *    the engine sets `skip_special_tokens: false` on the
+   *    TextStreamer so the channel markers reach the output stream
+   *    (Gemma 4 family uses special tokens for this; DeepSeek uses
+   *    literal text).
+   *
+   * The reasoning text is still emitted as `kind: 'token'` events
+   * from the engine. Consumers wrap with `splitThinking()` (using
+   * `capabilities.thinkingTags` when present) to route it to a
+   * dedicated UI surface.
+   */
+  enableThinking?: boolean;
 }
 
 /**
