@@ -1,18 +1,25 @@
 #!/usr/bin/env bun
 /**
- * Pack-and-import smoke test for `@inbrowser/{resumable,relay,agent}`.
+ * Pack-and-import smoke test for `@inbrowser/{resumable,relay,agent,model}`.
  *
- * Per the extraction plan's Phase 3, this script:
+ * Per the extraction plan's Phase 3 (extended to cover model when the
+ * package landed), this script:
  *   1. builds each package
  *   2. `npm pack`s each → tarball
  *   3. asserts tarball contents (no `src/`, no `tsconfig.json`, no tests;
- *      yes `dist/`, README, the agent's `bin/` + `skills/`)
- *   4. installs the three tarballs into a fresh scratch dir
+ *      yes `dist/`, README, the agent's `bin/` + `skills/`, model's
+ *      `adapters/` and `worker.js`, etc.)
+ *   4. installs all four tarballs into a fresh scratch dir
  *   5. runs a `test.mjs` that imports a real entry from each package
- *      (root + a sub-export), verifying the published exports resolve
+ *      (root + sub-exports), verifying the published exports resolve
  *      and emit the expected values
  *   6. bundles `@inbrowser/relay/client/browser` for the `browser` target
  *      to prove the browser sub-export has no Node API references
+ *
+ * Model coverage is import-only — `createEngine` exists in node but
+ * needs `@huggingface/transformers` and a real model to do anything;
+ * this script asserts the export shape and stops before attempting
+ * to load a model.
  */
 
 import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
@@ -25,7 +32,7 @@ const PACK_OUT = mkdtempSync(join(tmpdir(), 'inbrowser-pack-'));
 const SCRATCH = mkdtempSync(join(tmpdir(), 'inbrowser-smoke-'));
 
 interface PackSpec {
-  name: '@inbrowser/resumable' | '@inbrowser/relay' | '@inbrowser/agent';
+  name: '@inbrowser/resumable' | '@inbrowser/relay' | '@inbrowser/agent' | '@inbrowser/model';
   dir: string;
   /** Must appear in tarball. */
   expectFiles: string[];
@@ -50,6 +57,10 @@ const SPECS: PackSpec[] = [
       'package/dist/providers/gemini.js',
       'package/dist/providers/openrouter.js',
       'package/dist/providers/anthropic.js',
+      // ollama landed in the 0.2.0 cycle; was missing from this list
+      // until pre-publish review caught it. Keep it pinned so future
+      // tarball-shape regressions are visible.
+      'package/dist/providers/ollama.js',
       'package/dist/adapters/astro.js',
       'package/dist/adapters/express.js',
       'package/dist/client/index.js',
@@ -67,6 +78,23 @@ const SPECS: PackSpec[] = [
       'package/dist/cli/index.js',
       'package/dist/node.js',
       'package/bin/agent.ts',
+      'package/README.md',
+      'package/AGENTS.md',
+    ],
+    forbidFiles: [/^package\/src\//, /^package\/test\//, /tsconfig\.json$/],
+  },
+  {
+    name: '@inbrowser/model',
+    dir: 'packages/model',
+    expectFiles: [
+      'package/dist/index.js',
+      'package/dist/index.d.ts',
+      'package/dist/presets.js',
+      'package/dist/adapters/relay.js',
+      'package/dist/adapters/agent.js',
+      'package/dist/worker.js',
+      'package/dist/think.js',
+      'package/dist/parse-tool-calls.js',
       'package/README.md',
       'package/AGENTS.md',
     ],
@@ -147,10 +175,29 @@ assert.equal(typeof store.append, 'function');
 console.log('  ✓ resumable: createMemoryJobStore wired');
 
 // === @inbrowser/relay ===
-import { createRelay, geminiProvider } from '@inbrowser/relay';
+import {
+  createRelay,
+  geminiProvider,
+  openrouterProvider,
+  anthropicProvider,
+  ollamaProvider,
+} from '@inbrowser/relay';
 assert.equal(typeof createRelay, 'function');
-assert.equal(typeof geminiProvider, 'function');
-console.log('  ✓ relay: createRelay + geminiProvider exported');
+for (const [name, fn] of [
+  ['geminiProvider', geminiProvider],
+  ['openrouterProvider', openrouterProvider],
+  ['anthropicProvider', anthropicProvider],
+  ['ollamaProvider', ollamaProvider],
+]) {
+  assert.equal(typeof fn, 'function', \`relay root: \${name} should be exported\`);
+}
+console.log('  ✓ relay: createRelay + all four providers exported');
+
+// === @inbrowser/relay/providers/ollama (subpath also resolves) ===
+import { ollamaProvider as ollamaViaSubpath } from '@inbrowser/relay/providers/ollama';
+assert.equal(typeof ollamaViaSubpath, 'function');
+assert.equal(ollamaViaSubpath, ollamaProvider, 'subpath and root export same function');
+console.log('  ✓ relay/providers/ollama: subpath resolves to same export');
 
 // === @inbrowser/agent ===
 import { createAgentSession, createToolRegistry, createReactLoopStrategy } from '@inbrowser/agent';
@@ -167,6 +214,42 @@ console.log('  ✓ agent/cli: main exported');
 import * as agentNode from '@inbrowser/agent/node';
 assert.equal(typeof agentNode.openEventLog, 'function');
 console.log('  ✓ agent/node: openEventLog exported');
+
+// === @inbrowser/model ===
+// Import shape only — createEngine() needs @huggingface/transformers
+// and a real model to do anything. Smoke just verifies the surface.
+import { createEngine, definePreset, splitThinking, parseToolCalls } from '@inbrowser/model';
+assert.equal(typeof createEngine, 'function');
+assert.equal(typeof definePreset, 'function');
+assert.equal(typeof splitThinking, 'function');
+assert.equal(typeof parseToolCalls, 'function');
+console.log('  ✓ model: createEngine + utilities exported');
+
+import {
+  gemma4_E2B,
+  gemma4_E4B,
+  smollm2_360m,
+  qwen2_5_coder_1_5b,
+  qwen3_1_7b,
+  deepseek_r1_qwen_1_5b,
+} from '@inbrowser/model/presets';
+for (const [name, p] of [
+  ['gemma4_E2B', gemma4_E2B],
+  ['gemma4_E4B', gemma4_E4B],
+  ['smollm2_360m', smollm2_360m],
+  ['qwen2_5_coder_1_5b', qwen2_5_coder_1_5b],
+  ['qwen3_1_7b', qwen3_1_7b],
+  ['deepseek_r1_qwen_1_5b', deepseek_r1_qwen_1_5b],
+]) {
+  assert.equal(typeof p.model.modelId, 'string', \`preset \${name} should have model.modelId\`);
+  assert.equal(typeof p.dtype, 'string', \`preset \${name} should have dtype\`);
+}
+console.log('  ✓ model/presets: six presets exported with required shape');
+
+import * as modelWorker from '@inbrowser/model/worker';
+assert.equal(typeof modelWorker.hostEngineInWorker, 'function');
+assert.equal(typeof modelWorker.connectWorkerEngine, 'function');
+console.log('  ✓ model/worker: host/connect helpers exported');
 `,
   );
   await $`node test.mjs`.cwd(SCRATCH);
