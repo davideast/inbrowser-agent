@@ -1,7 +1,7 @@
 # `@inbrowser/model` POC — debugging notes
 
 Captured 2026-05-18 from the session that scaffolded the package, wired the
-engine, and brought up the `local-gemma-poc` example with headless
+engine, and brought up the `local-llm-poc` example with headless
 verification. Written for future-us when one of these gotchas bites again.
 
 ## TL;DR
@@ -205,7 +205,7 @@ two approaches). The model didn't stop because it was done; it stopped
 because we capped it. The `512`-exact `outputTokens` was the only
 visible signal.
 
-**Fix:** three layered, all in `examples/local-gemma-poc/src/main.ts`.
+**Fix:** three layered, all in `examples/local-llm-poc/src/main.ts`.
 
 1. **Bumped default** from 512 → 2048 (covers most realistic prompts).
 2. **`?maxTokens=N` URL override** for code-heavy prompts that need more.
@@ -278,11 +278,11 @@ Untested but reasonably expected to work:
 - `packages/model/src/engine.ts` — `AutoProcessor` → `AutoTokenizer`
 - `packages/model/src/presets.ts` — `smollm2_360m`, `qwen2_5_coder_1_5b`,
   `qwen3_1_7b` presets
-- `examples/local-gemma-poc/` — entire example app (UI, Vite config, README)
-- `examples/local-gemma-poc/scripts/verify.ts` — Playwright headless verifier
-- `examples/local-gemma-poc/vite.config.ts` — COOP/COEP, `allowedHosts: true`
+- `examples/local-llm-poc/` — entire example app (UI, Vite config, README)
+- `examples/local-llm-poc/scripts/verify.ts` — Playwright headless verifier
+- `examples/local-llm-poc/vite.config.ts` — COOP/COEP, `allowedHosts: true`
   for Tailscale, `strictPort: true`
-- `examples/local-gemma-poc/src/main.ts` — `?preset`, `?backend`,
+- `examples/local-llm-poc/src/main.ts` — `?preset`, `?backend`,
   `?maxTokens`, `?temperature` URL overrides; truncation indicator
 
 ## Open follow-ups

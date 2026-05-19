@@ -1,5 +1,5 @@
 /**
- * Headless verification of the local-gemma-poc example.
+ * Headless verification of the local-llm-poc example.
  *
  * Launches headless Chromium (Playwright), navigates to the running
  * dev server, clicks "Generate", and observes:
@@ -15,9 +15,9 @@
  *
  * Usage:
  *
- *   # dev server must be running (bun run --cwd examples/local-gemma-poc dev)
- *   bun run examples/local-gemma-poc/scripts/verify.ts
- *   bun run examples/local-gemma-poc/scripts/verify.ts --url http://localhost:5175 --timeout 120000
+ *   # dev server must be running (bun run --cwd examples/local-llm-poc dev)
+ *   bun run examples/local-llm-poc/scripts/verify.ts
+ *   bun run examples/local-llm-poc/scripts/verify.ts --url http://localhost:5175 --timeout 120000
  */
 
 import { homedir } from 'node:os';

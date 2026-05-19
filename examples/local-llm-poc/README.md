@@ -1,4 +1,4 @@
-# local-gemma-poc
+# local-llm-poc
 
 End-to-end demo of `@inbrowser/model` — loads a local LLM in the
 browser via WebGPU (or WASM) and streams a response from a prompt.
@@ -22,7 +22,7 @@ needs a real GPU + real browser.
 
 ```bash
 bun install
-bun run --cwd examples/local-gemma-poc dev
+bun run --cwd examples/local-llm-poc dev
 ```
 
 Open <http://localhost:5175>, click Load + generate. Expect ~180 MB
@@ -51,7 +51,7 @@ Gemma 4 does.
 ```bash
 # Coder model — `?prompt=` not supported on the page; type your prompt
 # in the textarea. Suggested first prompt: a small coding question.
-bun run --cwd examples/local-gemma-poc dev
+bun run --cwd examples/local-llm-poc dev
 # → open http://localhost:5175/?preset=qwen2_5_coder_1_5b&backend=webgpu
 
 # Qwen 3 general
@@ -115,7 +115,7 @@ bun run --cwd packages/agent build
 bun run --cwd packages/model build
 
 # 2. Start the dev server
-bun run --cwd examples/local-gemma-poc dev
+bun run --cwd examples/local-llm-poc dev
 # → "Local: http://localhost:5175/"
 
 # 3. Open the URL with the Gemma 4 preset selected
@@ -229,14 +229,14 @@ q4f16, so only `smollm2_360m` runs end-to-end headless today.
 
 ```bash
 # Verify SmolLM2 end-to-end (works headless, ~8s wall)
-bun run --cwd examples/local-gemma-poc verify
+bun run --cwd examples/local-llm-poc verify
 
 # Verify a larger preset's fetch + cache + load path (will fail at
 # the inference step due to the WASM size ceiling — useful for
 # regression-testing the fetch/storage/load layers)
-bun run --cwd examples/local-gemma-poc verify --preset qwen2_5_coder_1_5b
-bun run --cwd examples/local-gemma-poc verify --preset qwen3_1_7b
-bun run --cwd examples/local-gemma-poc verify --preset gemma4_e2b
+bun run --cwd examples/local-llm-poc verify --preset qwen2_5_coder_1_5b
+bun run --cwd examples/local-llm-poc verify --preset qwen3_1_7b
+bun run --cwd examples/local-llm-poc verify --preset gemma4_e2b
 ```
 
 Each run reports outcome (`SUCCESS` / `ERROR` / `TIMEOUT`) with
