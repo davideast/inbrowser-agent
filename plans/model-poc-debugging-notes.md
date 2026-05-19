@@ -136,6 +136,36 @@ For napkin math at q4f16: roughly **0.6 bytes per effective parameter**.
 - E2B (2.3B eff. params) → ~1.4 GB decoder + ~1.5 GB embed = ~3 GB
 - E4B (4.5B eff. params) → roughly double
 
+### 6b. Headless WASM has a hard practical ceiling around ~500 MB at q4f16
+
+**Symptom:** when adding Qwen presets (~1.3 GB each), headless WASM verify
+failed in two different model-specific ways at session create / first decode,
+not just on Gemma 4's 3 GB graph.
+
+| Preset | Size | Failure mode |
+|---|---|---|
+| `smollm2_360m` | ~180 MB | ✅ end-to-end success |
+| `qwen2_5_coder_1_5b` | ~1.28 GB | `Shape mismatch attempting to re-use buffer. {1,1,1536} != {1,40,1536}` on first decode |
+| `qwen3_1_7b` | ~1.36 GB | `Can't create a session. ERROR_CODE: 6, ERROR_MESSAGE: std::bad_alloc` |
+| `gemma4_e2b` | ~3 GB | hangs >10 min, no error surfaces |
+
+**Cause:** V8's WASM heap is bounded at ~4 GB total; ORT-Web's per-session
+scratch + KV cache + intermediate tensors compete for that budget. Different
+models hit different failure modes — Qwen 3 OOMs immediately, Qwen 2.5 Coder
+loads but ORT's buffer-reuse optimization breaks under memory pressure,
+Gemma 4 grinds without ever returning.
+
+The shape-mismatch on Qwen 2.5 Coder is the most interesting one: it's a
+real bug in ORT-Web's buffer-reuse when the prefill (40 tokens, shape
+`{1, 40, 1536}`) and decode (1 token, shape `{1, 1, 1536}`) reuse the same
+buffer slot. Surfaces only on WASM EP; WebGPU doesn't reuse buffers the
+same way.
+
+**Implication for `@inbrowser/model`:** the verification canary stays
+SmolLM2 360M. The Qwen + Gemma 4 presets are documented as "real-GPU only."
+A future small Qwen variant (e.g., 0.5B Coder at ~300 MB) could fill the
+verifiable-Qwen slot if needed.
+
 ### 6. A small verifiable preset is non-negotiable for headless CI
 
 `gemma4_E2B` cannot be exercised end-to-end without a real GPU. To prove the
