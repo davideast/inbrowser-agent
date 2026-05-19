@@ -35,6 +35,13 @@ export function createLocalInferenceProvider(engine: Engine): InferenceProvider 
         yield { kind: 'text', chunk: evt.text };
         continue;
       }
+      if (evt.kind === 'thinking') {
+        // InferenceEvent has its own 'thinking' kind — pass through.
+        // The engine only emits this when the caller wrapped with
+        // splitThinking() upstream.
+        yield { kind: 'thinking', chunk: evt.text };
+        continue;
+      }
       if (evt.kind === 'usage') {
         yield {
           kind: 'usage',

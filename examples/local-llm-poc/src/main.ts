@@ -15,8 +15,10 @@ import {
   type LoadProgress,
   type ModelPreset,
   createEngine,
+  splitThinking,
 } from '@inbrowser/model';
 import {
+  deepseek_r1_qwen_1_5b,
   gemma4_E2B,
   gemma4_E4B,
   qwen2_5_coder_1_5b,
@@ -30,6 +32,7 @@ const PRESETS: Record<string, ModelPreset> = {
   smollm2_360m,
   qwen2_5_coder_1_5b,
   qwen3_1_7b,
+  deepseek_r1_qwen_1_5b,
 };
 
 /**
@@ -117,6 +120,8 @@ const promptEl = $<HTMLTextAreaElement>('prompt');
 const buttonEl = $<HTMLButtonElement>('generate');
 const outputEl = $<HTMLPreElement>('output');
 const usageEl = $<HTMLDivElement>('usage');
+const thinkingDetailsEl = $<HTMLDetailsElement>('thinking-details');
+const thinkingEl = $<HTMLPreElement>('thinking');
 
 function setStatus(text: string, kind: 'info' | 'error' = 'info'): void {
   statusEl.textContent = text;
@@ -189,23 +194,44 @@ buttonEl.addEventListener('click', async () => {
     buttonEl.textContent = 'Generating…';
     outputEl.textContent = '';
     usageEl.textContent = '';
+    thinkingEl.textContent = '';
+    // Show or hide the thinking section based on whether the active
+    // preset declares it. Default open while a thinking model is
+    // mid-decode so the reasoning trace is visible without an extra
+    // click; consumers can collapse it manually.
+    const thinkingMode = engine.capabilities.supportsThinking;
+    thinkingDetailsEl.hidden = !thinkingMode;
+    thinkingDetailsEl.open = thinkingMode;
 
     const maxTokens = pickMaxTokens();
     const temperature = pickTemperature();
     const sampling = temperature === undefined ? 'greedy' : `temp=${temperature}`;
     setStatus(
-      `decoding (${engine.capabilities.contextWindow.toLocaleString()} ctx, ${sampling}, maxTokens=${maxTokens})`,
+      `decoding (${engine.capabilities.contextWindow.toLocaleString()} ctx, ${sampling}, maxTokens=${maxTokens}${
+        thinkingMode ? ', thinking-aware' : ''
+      })`,
     );
 
     const messages = [{ role: 'user' as const, text: promptEl.value }];
 
     const startedAt = performance.now();
-    for await (const evt of engine.generate(messages, {
+    // Wrap the raw token stream with splitThinking only when the
+    // active preset claims to emit `<think>` blocks. For non-thinking
+    // models the wrapper would still work (no tags = pass-through)
+    // but adds a layer of buffering for no benefit; skipping it
+    // keeps the simpler path tight.
+    const rawStream = engine.generate(messages, {
       maxNewTokens: maxTokens,
       ...(temperature !== undefined ? { temperature } : {}),
-    })) {
+    });
+    const stream = thinkingMode ? splitThinking(rawStream) : rawStream;
+    for await (const evt of stream) {
       if (evt.kind === 'token') {
         outputEl.textContent += evt.text;
+        continue;
+      }
+      if (evt.kind === 'thinking') {
+        thinkingEl.textContent += evt.text;
         continue;
       }
       if (evt.kind === 'usage') {
