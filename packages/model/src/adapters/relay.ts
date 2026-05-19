@@ -25,10 +25,24 @@ export function createLocalInferenceProvider(engine: Engine): InferenceProvider 
     const messages = toEngineMessages(req.messages);
     const startedAt = performance.now();
 
+    // Forward declared tools to the engine when the request brings
+    // any. The engine itself gates emission on the preset's
+    // capabilities.supportsTools — passing tools to a non-tools
+    // preset is a no-op rather than an error so callers can be
+    // backend-agnostic about which preset they bound to.
+    const tools =
+      req.tools.length > 0
+        ? req.tools.map((t) => ({
+            type: 'function' as const,
+            function: { name: t.name, description: t.description, parameters: t.parameters },
+          }))
+        : undefined;
+
     for await (const evt of engine.generate(messages, {
       temperature: req.temperature,
       topP: req.topP,
       topK: req.topK,
+      ...(tools ? { tools } : {}),
       ...(req.signal ? { signal: req.signal } : {}),
     })) {
       if (evt.kind === 'token') {
@@ -40,6 +54,15 @@ export function createLocalInferenceProvider(engine: Engine): InferenceProvider 
         // The engine only emits this when the caller wrapped with
         // splitThinking() upstream.
         yield { kind: 'thinking', chunk: evt.text };
+        continue;
+      }
+      if (evt.kind === 'tool_call') {
+        yield {
+          kind: 'tool_call',
+          callId: evt.id,
+          name: evt.name,
+          args: evt.args,
+        };
         continue;
       }
       if (evt.kind === 'usage') {

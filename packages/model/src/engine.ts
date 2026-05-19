@@ -35,6 +35,7 @@ import {
   env as transformersEnv,
 } from '@huggingface/transformers';
 
+import { parseToolCalls } from './parse-tool-calls.js';
 import type {
   Backend,
   CreateEngineOpts,
@@ -47,6 +48,7 @@ import type {
   GenerateOpts,
   LoadProgress,
   ModelRef,
+  ToolSpec,
 } from './types.js';
 
 export function createEngine(opts: CreateEngineOpts): Engine {
@@ -158,6 +160,29 @@ export function createEngine(opts: CreateEngineOpts): Engine {
     messages: ReadonlyArray<EngineMessage>,
     genOpts: GenerateOpts = {},
   ): AsyncIterable<EngineEvent> {
+    // Tool calling: pass `tools` to the chat template only when the
+    // preset declares support AND the caller provided tools. Then
+    // wrap the raw stream with `parseToolCalls` so we surface
+    // synthetic `tool_call` events when the model emits an envelope.
+    // Both gates matter: a preset claiming `supportsTools: false`
+    // (e.g., the base chat template doesn't know about tools) must
+    // refuse, and a tools-supporting preset called without tools
+    // pays no parsing cost.
+    const useTools =
+      capabilities.supportsTools && genOpts.tools !== undefined && genOpts.tools.length > 0;
+    const raw = generateRaw(messages, genOpts, useTools);
+    if (useTools) {
+      yield* parseToolCalls(raw);
+    } else {
+      yield* raw;
+    }
+  }
+
+  async function* generateRaw(
+    messages: ReadonlyArray<EngineMessage>,
+    genOpts: GenerateOpts,
+    useTools: boolean,
+  ): AsyncIterable<EngineEvent> {
     try {
       await ensureReady();
     } catch (e) {
@@ -175,7 +200,8 @@ export function createEngine(opts: CreateEngineOpts): Engine {
     }
 
     // ── Build prompt ──────────────────────────────────────────────
-    const renderedPrompt = applyChatTemplate(tokenizer, messages, opts.chatTemplate);
+    const tools = useTools ? (genOpts.tools as ReadonlyArray<ToolSpec>) : undefined;
+    const renderedPrompt = applyChatTemplate(tokenizer, messages, opts.chatTemplate, tools);
     // Calling the tokenizer as a function returns a BatchEncoding
     // (`{ input_ids, attention_mask, ... }`) of Tensors.
     const inputs = (await tokenizer(renderedPrompt)) as Record<string, unknown>;
@@ -314,6 +340,7 @@ function applyChatTemplate(
   tokenizer: PreTrainedTokenizer,
   messages: ReadonlyArray<EngineMessage>,
   override?: (m: ReadonlyArray<EngineMessage>) => string,
+  tools?: ReadonlyArray<ToolSpec>,
 ): string {
   if (override) return override(messages);
   // EngineMessage's media field is dropped here — text-only path
@@ -322,9 +349,15 @@ function applyChatTemplate(
     role: m.role,
     content: m.text,
   }));
+  // When `tools` is provided the model's chat template formats them
+  // into its native tool-advertisement section (Qwen 3 wraps them in
+  // `<tools>`; DeepSeek R1 uses a different block). Transformers.js
+  // forwards the `tools` array to the underlying Jinja template
+  // unchanged — the OAI function-call shape is the canonical input.
   const rendered = tokenizer.apply_chat_template(conversation, {
     add_generation_prompt: true,
     tokenize: false,
+    ...(tools && tools.length > 0 ? { tools: tools as unknown[] } : {}),
   });
   if (typeof rendered !== 'string') {
     throw new Error('apply_chat_template returned non-string with tokenize:false');

@@ -123,6 +123,29 @@ export interface GenerateOpts {
   stop?: ReadonlyArray<string>;
   /** Caller-side cancellation. Aborting stops the decode loop. */
   signal?: AbortSignal;
+  /**
+   * Tool declarations advertised to the model. Only honored when the
+   * active preset declares `capabilities.supportsTools: true`. When
+   * provided, the engine threads them through the tokenizer's chat
+   * template (`apply_chat_template({ messages, tools })`) and wraps
+   * the output stream with a tool-call parser so `kind: 'tool_call'`
+   * events are emitted when the model invokes a tool.
+   */
+  tools?: ReadonlyArray<ToolSpec>;
+}
+
+/**
+ * Tool declaration shape. Matches the OAI function-calling format
+ * that most modern chat templates (Qwen 2/3, DeepSeek R1, Llama 3.2+,
+ * Mistral v0.3+) accept directly.
+ */
+export interface ToolSpec {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: unknown;
+  };
 }
 
 /**
@@ -145,6 +168,15 @@ export interface GenerateOpts {
 export type EngineEvent =
   | { kind: 'token'; text: string }
   | { kind: 'thinking'; text: string }
+  | {
+      kind: 'tool_call';
+      /** Locally-generated id; the engine doesn't get one from the model. */
+      id: string;
+      /** Tool name as the model wrote it (may not be in the registered set — caller validates). */
+      name: string;
+      /** Parsed args. Plain object when JSON parsing succeeds; `{ _raw: string }` when malformed. */
+      args: unknown;
+    }
   | { kind: 'usage'; promptTokens: number; outputTokens: number; decodeMs: number }
   | { kind: 'error'; message: string; recoverable: boolean };
 
