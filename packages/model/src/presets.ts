@@ -127,3 +127,36 @@ export const qwen3_1_7b: ModelPreset = definePreset({
     supportsThinking: false,
   },
 });
+
+/**
+ * DeepSeek-R1-Distill-Qwen 1.5B. ~1.37 GB on-device download at q4f16.
+ *
+ * R1-style reasoning distilled into a Qwen2 1.5B base. Architecture
+ * is `Qwen2ForCausalLM` — same code path as `qwen2_5_coder_1_5b` and
+ * other Qwen 2.5 family presets, no engine changes needed.
+ *
+ * `supportsThinking: true` because the model emits its reasoning
+ * trace inside literal `<think>…</think>` tags before the answer.
+ * Consumers should wrap the engine's stream with `splitThinking()`
+ * from `@inbrowser/model` to receive `kind: 'thinking'` events
+ * separated from `kind: 'token'` output, then render the two streams
+ * differently (e.g., collapsible thinking pane + main output pane).
+ *
+ * Has a tool-aware chat template, but the distill drops the
+ * tool-trained head — leaving `supportsTools: false` until a
+ * polyfill or fine-tune restores it.
+ *
+ * Reference: https://huggingface.co/onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX
+ */
+export const deepseek_r1_qwen_1_5b: ModelPreset = definePreset({
+  model: { modelId: 'onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX' },
+  dtype: 'q4f16',
+  backend: 'auto',
+  capabilities: {
+    supportsTools: false,
+    supportsVision: false,
+    supportsAudio: false,
+    contextWindow: 131_072,
+    supportsThinking: true,
+  },
+});

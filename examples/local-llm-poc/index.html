@@ -60,6 +60,29 @@
         font-size: 0.875rem;
       }
       .usage { color: #666; font-size: 0.8rem; margin-top: 0.25rem; }
+      details.thinking {
+        background: rgba(140, 110, 200, 0.08);
+        border-left: 3px solid rgba(140, 110, 200, 0.6);
+        border-radius: 6px;
+        padding: 0.5rem 0.75rem;
+        margin-bottom: 0.75rem;
+      }
+      details.thinking summary {
+        cursor: pointer;
+        font-size: 0.85rem;
+        color: rgba(140, 110, 200, 0.95);
+        user-select: none;
+      }
+      pre.thinking {
+        margin: 0.5rem 0 0 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.8rem;
+        color: #555;
+        max-height: 22rem;
+        overflow-y: auto;
+      }
     </style>
   </head>
   <body>
@@ -68,7 +91,9 @@
       <code>@inbrowser/model</code> + <code>@huggingface/transformers</code>.
       Default preset: <code>smollm2_360m</code> (~180 MB). Larger presets via URL:
       <code>?preset=qwen2_5_coder_1_5b&amp;backend=webgpu</code>,
-      <code>?preset=qwen3_1_7b&amp;backend=webgpu</code>, or
+      <code>?preset=qwen3_1_7b&amp;backend=webgpu</code>,
+      <code>?preset=deepseek_r1_qwen_1_5b&amp;backend=webgpu</code> (reasoning model — shows
+      <code>&lt;think&gt;</code> trace), or
       <code>?preset=gemma4_e2b&amp;backend=webgpu</code> — all need a real GPU; see the README.
     </p>
 
@@ -83,6 +108,11 @@
       <textarea id="prompt" placeholder="Ask Gemma anything…">Explain WebGPU in one paragraph.</textarea>
       <button id="generate" disabled>Load model</button>
     </div>
+
+    <details id="thinking-details" class="thinking" hidden>
+      <summary>💭 Reasoning trace (model thought-tokens)</summary>
+      <pre id="thinking" class="thinking"></pre>
+    </details>
 
     <div class="row">
       <label>Output</label>

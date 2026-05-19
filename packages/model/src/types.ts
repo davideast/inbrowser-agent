@@ -130,13 +130,21 @@ export interface GenerateOpts {
  * shapes consumers expect (`InferenceEvent`, `ChatEvent`). No cost,
  * no thoughtSignature, no cloud-specific extension fields.
  *
- *   - `token` — decoded text per decode step.
- *   - `usage` — terminal accounting, once per stream.
- *   - `error` — `recoverable` distinguishes retryable transients
- *               (decode hiccup) from terminal failures (OOM, dispose).
+ *   - `token`    — decoded text per decode step.
+ *   - `thinking` — content the model emitted inside a reasoning-tag
+ *                  wrapper (e.g., `<think>…</think>` for DeepSeek R1).
+ *                  The engine itself never produces this kind; it's
+ *                  emitted by `splitThinking()` (see `./think.ts`) when
+ *                  a consumer wraps the engine's stream. The variant
+ *                  lives on `EngineEvent` so a single `switch (kind)`
+ *                  handles both wrapped and raw streams.
+ *   - `usage`    — terminal accounting, once per stream.
+ *   - `error`    — `recoverable` distinguishes retryable transients
+ *                  (decode hiccup) from terminal failures (OOM, dispose).
  */
 export type EngineEvent =
   | { kind: 'token'; text: string }
+  | { kind: 'thinking'; text: string }
   | { kind: 'usage'; promptTokens: number; outputTokens: number; decodeMs: number }
   | { kind: 'error'; message: string; recoverable: boolean };
 

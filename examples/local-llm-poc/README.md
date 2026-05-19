@@ -10,6 +10,7 @@ browser via WebGPU (or WASM) and streams a response from a prompt.
 | `smollm2_360m` | ~180 MB | ✅ verified end-to-end | ✅ | Default. The verification canary. |
 | `qwen2_5_coder_1_5b` | ~1.28 GB | ❌ ORT shape bug | ✅ | Code/FIM focus; Qwen2.5 lineage |
 | `qwen3_1_7b` | ~1.36 GB | ❌ WASM heap OOM | ✅ | Current frontier-for-size general model |
+| `deepseek_r1_qwen_1_5b` | ~1.37 GB | ❌ (same band) | ✅ | **Reasoning model.** Emits `<think>…</think>` blocks before the answer; the UI splits them into a collapsible pane via `splitThinking`. |
 | `gemma4_e2b` | ~3 GB | ❌ hangs | ✅ (with caveats) | Multimodal-capable; needs 1.2 GiB `maxBufferSize` + `shader-f16` |
 | `gemma4_e4b` | ~6 GB | ❌ | ✅ (real discrete GPU) | Bigger Gemma; same constraints, 2× the budget |
 
@@ -27,6 +28,34 @@ bun run --cwd examples/local-llm-poc dev
 
 Open <http://localhost:5175>, click Load + generate. Expect ~180 MB
 download, ~8s to first token on first run, near-instant on reloads.
+
+## Reasoning models — `deepseek_r1_qwen_1_5b`
+
+DeepSeek R1 Distill (and similar reasoning models) emit their
+chain-of-thought inside literal `<think>…</think>` tags before the
+final answer. The example wraps the engine's stream with
+`splitThinking` from `@inbrowser/model` when the active preset
+declares `supportsThinking: true`, then routes the two event kinds
+to separate panes:
+
+- A collapsible **"💭 Reasoning trace"** section above the output —
+  default-open while a thinking model is decoding so the trace is
+  visible immediately; click to collapse.
+- The main **Output** pane — only the post-`</think>` answer.
+
+Try a math or logic prompt to see the difference. Suggested first
+prompts:
+
+> "If a train leaves station A at 9 AM going 60 mph and another
+> leaves station B (180 miles away) at 10 AM going 40 mph toward
+> A, when do they meet?"
+>
+> "Prove that sqrt(2) is irrational."
+
+The reasoning trace will typically be 5–20× longer than the answer.
+For non-thinking presets the section is hidden entirely.
+
+URL: `?preset=deepseek_r1_qwen_1_5b&backend=webgpu`
 
 ## Testing Qwen presets in a real browser
 

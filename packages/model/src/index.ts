@@ -16,6 +16,7 @@
  */
 
 export { createEngine, definePreset } from './engine.js';
+export { splitThinking, type ThinkingSplitOpts } from './think.js';
 
 export type {
   Backend,
