@@ -66,7 +66,9 @@
     <h1>Gemma 4 — On-Device</h1>
     <p class="sub">
       <code>@inbrowser/model</code> + <code>@huggingface/transformers</code>.
-      First load fetches ~500 MB into the Cache API; subsequent reloads are instant.
+      Default preset: <code>smollm2_360m</code> (~180 MB). For Gemma 4, open
+      <a href="?preset=gemma4_e2b&backend=webgpu"><code>?preset=gemma4_e2b&amp;backend=webgpu</code></a>
+      — needs a real GPU (see the README).
     </p>
 
     <div class="row">

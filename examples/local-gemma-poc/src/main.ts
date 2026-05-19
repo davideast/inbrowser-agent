@@ -4,7 +4,8 @@
  *   1. Probe WebGPU; warn if absent.
  *   2. `createEngine(gemma4_E2B)`.
  *   3. Subscribe to `engine.on('load')` → progress bar.
- *   4. `ensureReady()` on user click (don't auto-fetch ~500 MB).
+ *   4. `ensureReady()` on user click (don't auto-fetch — weights are
+ *      hundreds of MB to several GB depending on preset).
  *   5. On generate: render tokens into <pre>, then usage line.
  */
 
@@ -174,4 +175,6 @@ buttonEl.addEventListener('click', async () => {
 
 buttonEl.textContent = 'Load + generate';
 buttonEl.disabled = false;
-setStatus('click Load + generate to start (first load fetches ~500 MB)');
+setStatus(
+  'click Load + generate to start. First load fetches weights from the HF Hub: ~180 MB for smollm2_360m, ~3 GB for gemma4_e2b. Cached after first run.',
+);
