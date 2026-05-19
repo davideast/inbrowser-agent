@@ -10,11 +10,11 @@
  */
 
 import {
-  createEngine,
   type Backend,
   type Engine,
   type LoadProgress,
   type ModelPreset,
+  createEngine,
 } from '@inbrowser/model';
 import {
   gemma4_E2B,
@@ -197,9 +197,7 @@ buttonEl.addEventListener('click', async () => {
       `decoding (${engine.capabilities.contextWindow.toLocaleString()} ctx, ${sampling}, maxTokens=${maxTokens})`,
     );
 
-    const messages = [
-      { role: 'user' as const, text: promptEl.value },
-    ];
+    const messages = [{ role: 'user' as const, text: promptEl.value }];
 
     const startedAt = performance.now();
     for await (const evt of engine.generate(messages, {
@@ -217,7 +215,9 @@ buttonEl.addEventListener('click', async () => {
         // than terminated by an EOS token. Surface that visually so
         // the user knows to retry with a higher maxTokens.
         const truncated = evt.outputTokens >= maxTokens;
-        const cap = truncated ? ` ⚠️ hit ${maxTokens}-token cap — append ?maxTokens=N to extend` : '';
+        const cap = truncated
+          ? ` ⚠️ hit ${maxTokens}-token cap — append ?maxTokens=N to extend`
+          : '';
         usageEl.textContent = `${evt.promptTokens} in / ${evt.outputTokens} out — ${elapsed}s wall (${tps} tok/s decode)${cap}`;
         continue;
       }

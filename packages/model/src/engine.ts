@@ -28,10 +28,10 @@
 import {
   AutoModelForCausalLM,
   AutoTokenizer,
-  TextStreamer,
-  type ProgressInfo,
   type PreTrainedModel,
   type PreTrainedTokenizer,
+  type ProgressInfo,
+  TextStreamer,
 } from '@huggingface/transformers';
 
 import type {
@@ -216,8 +216,7 @@ export function createEngine(opts: CreateEngineOpts): Engine {
     // Drive `model.generate` concurrently with the iterator drain.
     const generatePromise = (async () => {
       try {
-        // biome-ignore lint/suspicious/noExplicitAny: GenerationFunctionParameters is widely typed; we forward a runtime-shaped object.
-        await llm!.generate(generateArgs as any);
+        await llm!.generate(generateArgs as Parameters<typeof llm.generate>[0]);
       } catch (e) {
         producerError = e;
       } finally {

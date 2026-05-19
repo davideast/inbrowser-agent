@@ -14,12 +14,7 @@
  * in `@inbrowser/model` that imports from it.
  */
 
-import type {
-  ChatEvent,
-  ChatRequest,
-  LlmClient,
-  NormalizedMessage,
-} from '@inbrowser/agent';
+import type { ChatEvent, ChatRequest, LlmClient, NormalizedMessage } from '@inbrowser/agent';
 import type { Engine, EngineMessage } from '../types.js';
 
 export function createLocalLlmClient(engine: Engine, id: string): LlmClient {

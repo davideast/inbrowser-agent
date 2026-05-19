@@ -22,7 +22,7 @@
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { chromium, type ConsoleMessage } from 'playwright';
+import { type ConsoleMessage, chromium } from 'playwright';
 
 interface Options {
   url: string;
@@ -75,7 +75,10 @@ async function estimateStorage(page: import('playwright').Page): Promise<Storage
     return {
       quotaMb: typeof e.quota === 'number' ? Math.round(e.quota / 1024 / 1024) : null,
       usageMb: typeof e.usage === 'number' ? Math.round(e.usage / 1024 / 1024) : null,
-      raw: { ...(typeof e.quota === 'number' ? { quota: e.quota } : {}), ...(typeof e.usage === 'number' ? { usage: e.usage } : {}) },
+      raw: {
+        ...(typeof e.quota === 'number' ? { quota: e.quota } : {}),
+        ...(typeof e.usage === 'number' ? { usage: e.usage } : {}),
+      },
     };
   });
 }
@@ -97,7 +100,8 @@ async function readSnapshot(page: import('playwright').Page): Promise<Snapshot> 
     return {
       status: statusEl?.textContent ?? '',
       hasError: statusEl?.classList.contains('error') ?? false,
-      progressValue: progressEl && !progressEl.hasAttribute('value') ? null : (progressEl?.value ?? null),
+      progressValue:
+        progressEl && !progressEl.hasAttribute('value') ? null : (progressEl?.value ?? null),
       progressHidden: progressEl?.hidden ?? true,
       output: document.getElementById('output')?.textContent ?? '',
       usage: document.getElementById('usage')?.textContent ?? '',
@@ -207,7 +211,7 @@ async function main(): Promise<void> {
   const deadline = Date.now() + opts.timeoutMs;
   let lastStatus = '';
   let lastProgressBucket = -1;
-  let phasesSeen = new Set<string>();
+  const phasesSeen = new Set<string>();
   let firstTokenAt: number | null = null;
   let firstTokenOutputLen = 0;
   let finalUsage = '';
@@ -235,7 +239,10 @@ async function main(): Promise<void> {
     if (snap.output.length > 0 && firstTokenAt === null) {
       firstTokenAt = Date.now() - startedAt;
       firstTokenOutputLen = snap.output.length;
-      log('decode', `first token at +${(firstTokenAt / 1000).toFixed(2)}s (${snap.output.length} chars buffered)`);
+      log(
+        'decode',
+        `first token at +${(firstTokenAt / 1000).toFixed(2)}s (${snap.output.length} chars buffered)`,
+      );
     }
 
     if (snap.usage && snap.usage !== finalUsage) {
@@ -269,9 +276,7 @@ async function main(): Promise<void> {
   console.log(`user-data-dir:    ${opts.userDataDir}`);
   console.log(`total wall:       ${(totalMs / 1000).toFixed(2)}s`);
   console.log(`webgpu detected:  ${probe.webgpu}`);
-  console.log(
-    `cross-origin iso: ${probe.crossOriginIsolated} (SAB=${probe.sharedArrayBuffer})`,
-  );
+  console.log(`cross-origin iso: ${probe.crossOriginIsolated} (SAB=${probe.sharedArrayBuffer})`);
   console.log(
     `storage quota:    ${storagePre.quotaMb ?? '?'}MB (pre) → ${storagePost.quotaMb ?? '?'}MB (post)`,
   );
@@ -281,24 +286,25 @@ async function main(): Promise<void> {
   console.log(`page errors:      ${pageErrors.length}`);
   console.log(`console errors:   ${consoleErrors.length}`);
   console.log(`load phases seen: ${[...phasesSeen].join(', ') || '(none)'}`);
-  console.log(`first token:      ${firstTokenAt ? `+${(firstTokenAt / 1000).toFixed(2)}s` : 'never'}`);
+  console.log(
+    `first token:      ${firstTokenAt ? `+${(firstTokenAt / 1000).toFixed(2)}s` : 'never'}`,
+  );
   console.log(`final status:     ${final.hasError ? '[ERROR] ' : ''}${final.status}`);
   console.log(`output chars:     ${final.output.length}`);
   console.log(`usage line:       ${final.usage || '(none)'}`);
-  console.log(`outcome:          ${
-    final.hasError ? 'ERROR' :
-    finalUsage ? 'SUCCESS' :
-    aborted ? 'TIMEOUT' :
-    'UNKNOWN'
-  }`);
+  console.log(
+    `outcome:          ${
+      final.hasError ? 'ERROR' : finalUsage ? 'SUCCESS' : aborted ? 'TIMEOUT' : 'UNKNOWN'
+    }`,
+  );
 
   if (pageErrors.length > 0) {
     console.log('\npage errors:');
-    pageErrors.forEach((e) => console.log(`  - ${e}`));
+    for (const e of pageErrors) console.log(`  - ${e}`);
   }
   if (consoleErrors.length > 0) {
     console.log('\nconsole errors:');
-    consoleErrors.forEach((e) => console.log(`  - ${e}`));
+    for (const e of consoleErrors) console.log(`  - ${e}`);
   }
   if (final.output) {
     console.log('\noutput preview (first 240 chars):');
