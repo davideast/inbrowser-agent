@@ -167,10 +167,7 @@ export interface Engine {
     handler: (value: EngineEventMap[K]) => void,
   ): () => void;
 
-  generate(
-    messages: ReadonlyArray<EngineMessage>,
-    opts?: GenerateOpts,
-  ): AsyncIterable<EngineEvent>;
+  generate(messages: ReadonlyArray<EngineMessage>, opts?: GenerateOpts): AsyncIterable<EngineEvent>;
 
   /** Release GPU buffers + tokenizer state. Engine unusable after. */
   dispose(): Promise<void>;
