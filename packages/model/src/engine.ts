@@ -237,15 +237,18 @@ export function createEngine(opts: CreateEngineOpts): Engine {
       wakeIterator();
     };
 
-    // When the active preset uses *special tokens* to delimit its
-    // thinking channel (Gemma 4: `<|channel>` id 100, `<channel|>`
-    // id 101), the default `skip_special_tokens: true` swallows the
-    // markers and the reasoning becomes indistinguishable from the
-    // answer. Set false in that case so the channel boundaries
-    // survive into the text stream where `splitThinking` can find
-    // them. Models that use literal-text tags (DeepSeek `<think>`)
-    // don't need this and stay with the default for cleaner output
-    // (otherwise BOS/EOS would leak too).
+    // Only expose special tokens in the output stream when the
+    // preset declares thinkingTags AND thinking is enabled. The
+    // signal that says "I expect a downstream parser to consume
+    // structural tokens" is `thinkingTags !== undefined` — without
+    // it, the default `skip_special_tokens: true` keeps the output
+    // clean (no `<|channel>`, no `<turn|>`, no BOS/EOS leak).
+    //
+    // Models with reliable channel formats (DeepSeek's `<think>` is
+    // literal text, not a special token, so it survives the default)
+    // need no special handling here. Models with structural-token
+    // channels but inconsistent emission (Gemma 4 family — see
+    // presets.ts) deliberately omit `thinkingTags` to take this path.
     const preserveSpecialTokens = useThinking && capabilities.thinkingTags !== undefined;
     const streamer = new TextStreamer(tokenizer, {
       skip_prompt: true,

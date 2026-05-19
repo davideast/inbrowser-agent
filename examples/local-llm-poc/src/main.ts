@@ -195,46 +195,50 @@ buttonEl.addEventListener('click', async () => {
     outputEl.textContent = '';
     usageEl.textContent = '';
     thinkingEl.textContent = '';
-    // Show or hide the thinking section based on whether the active
-    // preset declares it. Default open while a thinking model is
-    // mid-decode so the reasoning trace is visible without an extra
-    // click; consumers can collapse it manually.
-    const thinkingMode = engine.capabilities.supportsThinking;
-    thinkingDetailsEl.hidden = !thinkingMode;
-    thinkingDetailsEl.open = thinkingMode;
+    // Two related-but-distinct capabilities:
+    //   - supportsThinking: model can think when the chat template's
+    //     enable_thinking flag is set. Triggers GenerateOpts.enableThinking.
+    //   - thinkingTags: the model emits reasoning in a parseable
+    //     tag format we can extract for a dedicated UI pane. Only
+    //     present on presets where the format is reliable enough.
+    //
+    // Gemma 4 has the first but not the second — reasoning happens
+    // but the in-output channel format is inconsistent across model
+    // sizes and prompts. We still let it think (better answers) but
+    // show the reasoning inline in the main output pane.
+    //
+    // DeepSeek R1 has both: model emits `<think>…</think>` reliably,
+    // splitThinking routes the trace to the dedicated pane.
+    const supportsThinking = engine.capabilities.supportsThinking;
+    const canExtractThinking = engine.capabilities.thinkingTags !== undefined;
+    thinkingDetailsEl.hidden = !canExtractThinking;
+    thinkingDetailsEl.open = canExtractThinking;
 
     const maxTokens = pickMaxTokens();
     const temperature = pickTemperature();
     const sampling = temperature === undefined ? 'greedy' : `temp=${temperature}`;
     setStatus(
       `decoding (${engine.capabilities.contextWindow.toLocaleString()} ctx, ${sampling}, maxTokens=${maxTokens}${
-        thinkingMode ? ', thinking-aware' : ''
+        canExtractThinking ? ', thinking-aware' : supportsThinking ? ', inline-thinking' : ''
       })`,
     );
 
     const messages = [{ role: 'user' as const, text: promptEl.value }];
 
     const startedAt = performance.now();
-    // Wrap the raw token stream with splitThinking only when the
-    // active preset declares it can emit reasoning blocks. For
-    // non-thinking models the wrapper would still work (no tags =
-    // pass-through) but adds a layer of buffering for no benefit;
-    // skipping it keeps the simpler path tight.
-    //
-    // Tag format is preset-declared (DeepSeek: `<think>...</think>`;
-    // Gemma 4: `<|channel>thought\n...\n<channel|>`). When the
-    // preset declares `enableThinking` via opts, the engine ALSO
-    // passes `enable_thinking: true` to the chat template and
-    // preserves the model's channel-marker special tokens in the
-    // output stream so splitThinking can see them.
+    // Wrap with splitThinking only when the preset declares
+    // thinkingTags — those are the models whose channel format we
+    // can reliably parse. Without them, raw stream goes straight
+    // through to the output pane (thinking shows inline).
     const rawStream = engine.generate(messages, {
       maxNewTokens: maxTokens,
       ...(temperature !== undefined ? { temperature } : {}),
-      ...(thinkingMode ? { enableThinking: true } : {}),
+      ...(supportsThinking ? { enableThinking: true } : {}),
     });
-    const stream = thinkingMode
-      ? splitThinking(rawStream, engine.capabilities.thinkingTags ?? {})
-      : rawStream;
+    const stream =
+      canExtractThinking && engine.capabilities.thinkingTags
+        ? splitThinking(rawStream, engine.capabilities.thinkingTags)
+        : rawStream;
     for await (const evt of stream) {
       if (evt.kind === 'token') {
         outputEl.textContent += evt.text;
