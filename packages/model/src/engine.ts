@@ -32,6 +32,7 @@ import {
   type PreTrainedTokenizer,
   type ProgressInfo,
   TextStreamer,
+  env as transformersEnv,
 } from '@huggingface/transformers';
 
 import type {
@@ -100,6 +101,15 @@ export function createEngine(opts: CreateEngineOpts): Engine {
     if (loadPromise) return loadPromise;
 
     setState('loading');
+    // `weightsBaseUrl` overrides the HF Hub origin for self-hosted
+    // mirrors. Transformers.js exposes this as the global
+    // `env.remoteHost`; we set it process-wide before load. Documented
+    // limitation: with multiple engines spanning different remotes,
+    // the last one to load wins. Realistic use case (one app, one
+    // mirror) is unaffected.
+    if (opts.weightsBaseUrl) {
+      transformersEnv.remoteHost = opts.weightsBaseUrl;
+    }
     loadPromise = (async () => {
       // AutoTokenizer (not AutoProcessor): text-only models like
       // SmolLM2 ship no preprocessor_config.json and AutoProcessor
