@@ -13,6 +13,30 @@ export { anthropicProvider } from './providers/anthropic.js';
 // fourth too (consistency, fixes a real consumer-side gotcha).
 export { ollamaProvider } from './providers/ollama.js';
 
+// Reconnecting consumer client. Available at `./client` for users who
+// want narrow imports; also re-exported here because the common case
+// is "consume the relay's stream from a browser/Node app" and forcing
+// the subpath import for the universal client is friction without
+// payoff (no peer-dep activation, no Node-only API leak —
+// installBrowserLifecycle is SSR-safe; checks `typeof document`).
+export {
+  createResumableClient,
+  installBrowserLifecycle,
+  type ResumableClient,
+  type ResumableClientOpts,
+} from './client/index.js';
+
+// SSE wire-format utilities. Re-exported because anyone writing a
+// custom InferenceProvider needs them to parse upstream SSE feeds.
+// Internal use today is via `./sse`; root re-export removes the
+// "didn't know it existed" gotcha.
+export {
+  encodeSseEvent,
+  readSseDataLines,
+  SSE_DONE_LINE,
+  SSE_STREAM_OPEN,
+} from './sse.js';
+
 export type {
   InferenceEvent,
   InferenceProvider,

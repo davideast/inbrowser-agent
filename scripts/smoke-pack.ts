@@ -181,6 +181,11 @@ import {
   openrouterProvider,
   anthropicProvider,
   ollamaProvider,
+  createResumableClient,
+  installBrowserLifecycle,
+  encodeSseEvent,
+  readSseDataLines,
+  SSE_DONE_LINE,
 } from '@inbrowser/relay';
 assert.equal(typeof createRelay, 'function');
 for (const [name, fn] of [
@@ -193,11 +198,26 @@ for (const [name, fn] of [
 }
 console.log('  ✓ relay: createRelay + all four providers exported');
 
+// Lifted-from-subpath exports also reachable from root
+assert.equal(typeof createResumableClient, 'function');
+assert.equal(typeof installBrowserLifecycle, 'function');
+assert.equal(typeof encodeSseEvent, 'function');
+assert.equal(typeof readSseDataLines, 'function');
+assert.equal(typeof SSE_DONE_LINE, 'string');
+console.log('  ✓ relay: client + SSE utilities lifted to root');
+
 // === @inbrowser/relay/providers/ollama (subpath also resolves) ===
 import { ollamaProvider as ollamaViaSubpath } from '@inbrowser/relay/providers/ollama';
 assert.equal(typeof ollamaViaSubpath, 'function');
 assert.equal(ollamaViaSubpath, ollamaProvider, 'subpath and root export same function');
 console.log('  ✓ relay/providers/ollama: subpath resolves to same export');
+
+// === @inbrowser/relay/client + sse subpaths also resolve to same fns ===
+import { createResumableClient as resumableViaSubpath } from '@inbrowser/relay/client';
+assert.equal(resumableViaSubpath, createResumableClient, 'subpath and root export same fn');
+import { readSseDataLines as sseViaSubpath } from '@inbrowser/relay/sse';
+assert.equal(sseViaSubpath, readSseDataLines, 'subpath and root export same fn');
+console.log('  ✓ relay/client + relay/sse: subpaths still resolve to same exports');
 
 // === @inbrowser/agent ===
 import { createAgentSession, createToolRegistry, createReactLoopStrategy } from '@inbrowser/agent';
@@ -218,21 +238,23 @@ console.log('  ✓ agent/node: openEventLog exported');
 // === @inbrowser/model ===
 // Import shape only — createEngine() needs @huggingface/transformers
 // and a real model to do anything. Smoke just verifies the surface.
-import { createEngine, definePreset, splitThinking, parseToolCalls } from '@inbrowser/model';
-assert.equal(typeof createEngine, 'function');
-assert.equal(typeof definePreset, 'function');
-assert.equal(typeof splitThinking, 'function');
-assert.equal(typeof parseToolCalls, 'function');
-console.log('  ✓ model: createEngine + utilities exported');
-
+// Presets are also reachable from root for ergonomics.
 import {
+  createEngine,
+  definePreset,
+  splitThinking,
+  parseToolCalls,
   gemma4_E2B,
   gemma4_E4B,
   smollm2_360m,
   qwen2_5_coder_1_5b,
   qwen3_1_7b,
   deepseek_r1_qwen_1_5b,
-} from '@inbrowser/model/presets';
+} from '@inbrowser/model';
+assert.equal(typeof createEngine, 'function');
+assert.equal(typeof definePreset, 'function');
+assert.equal(typeof splitThinking, 'function');
+assert.equal(typeof parseToolCalls, 'function');
 for (const [name, p] of [
   ['gemma4_E2B', gemma4_E2B],
   ['gemma4_E4B', gemma4_E4B],
@@ -244,7 +266,12 @@ for (const [name, p] of [
   assert.equal(typeof p.model.modelId, 'string', \`preset \${name} should have model.modelId\`);
   assert.equal(typeof p.dtype, 'string', \`preset \${name} should have dtype\`);
 }
-console.log('  ✓ model/presets: six presets exported with required shape');
+console.log('  ✓ model: createEngine + utilities + six presets exported from root');
+
+// Presets subpath also resolves to the same constants
+import { gemma4_E2B as gemmaViaSubpath } from '@inbrowser/model/presets';
+assert.equal(gemmaViaSubpath, gemma4_E2B, 'preset via subpath is the same reference');
+console.log('  ✓ model/presets: subpath resolves to same constants');
 
 import * as modelWorker from '@inbrowser/model/worker';
 assert.equal(typeof modelWorker.hostEngineInWorker, 'function');
