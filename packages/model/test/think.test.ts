@@ -166,15 +166,94 @@ describe('splitThinking', () => {
     ]);
   });
 
-  test('rejects empty tags', () => {
+  test('rejects empty open tag when implicitOpen is false', () => {
     expect(() => {
       const gen = splitThinking(fromTokens([]), { openTag: '' })[Symbol.asyncIterator]();
       return gen.next();
     }).toThrow(/non-empty/);
   });
 
+  test('rejects empty close tag', () => {
+    expect(() => {
+      const gen = splitThinking(fromTokens([]), {
+        closeTag: '',
+        implicitOpen: true,
+      })[Symbol.asyncIterator]();
+      return gen.next();
+    }).toThrow(/closeTag/);
+  });
+
   test('empty input yields nothing', async () => {
     const out = await collectMerged(splitThinking(fromTokens([])));
     expect(out).toEqual([]);
+  });
+
+  // ── implicitOpen (Gemma 4 channel format) ─────────────────────────
+
+  test('implicitOpen treats initial output as thinking', async () => {
+    const out = await collectMerged(
+      splitThinking(fromTokens(['reasoning steps here<channel|>the answer']), {
+        closeTag: '<channel|>',
+        implicitOpen: true,
+      }),
+    );
+    expect(out).toEqual([
+      { kind: 'thinking', text: 'reasoning steps here' },
+      { kind: 'token', text: 'the answer' },
+    ]);
+  });
+
+  test('implicitOpen with no close tag flushes residual as thinking', async () => {
+    // Model hit max_new_tokens before emitting the close marker.
+    const out = await collectMerged(
+      splitThinking(fromTokens(['just thinking, never closed']), {
+        closeTag: '<channel|>',
+        implicitOpen: true,
+      }),
+    );
+    expect(out).toEqual([{ kind: 'thinking', text: 'just thinking, never closed' }]);
+  });
+
+  test('implicitOpen with close-tag-only stream is supported', async () => {
+    // Edge case: model emits the close marker as its very first token.
+    const out = await collectMerged(
+      splitThinking(fromTokens(['<channel|>answer only']), {
+        closeTag: '<channel|>',
+        implicitOpen: true,
+      }),
+    );
+    expect(out).toEqual([{ kind: 'token', text: 'answer only' }]);
+  });
+
+  // ── stripTokens (Gemma 4 <turn|> leak) ────────────────────────────
+
+  test('stripTokens removes literal substrings from token events', async () => {
+    const out = await collectMerged(
+      splitThinking(fromTokens(['<channel|>the answer<turn|>']), {
+        closeTag: '<channel|>',
+        implicitOpen: true,
+        stripTokens: ['<turn|>'],
+      }),
+    );
+    expect(out).toEqual([{ kind: 'token', text: 'the answer' }]);
+  });
+
+  test('stripTokens does not affect thinking content', async () => {
+    // The strip list is applied to `token` events only — content
+    // inside thinking is preserved verbatim.
+    const out = await collectMerged(
+      splitThinking(
+        fromTokens(['<turn|>inside still has it<channel|>but answer is clean<turn|>']),
+        {
+          closeTag: '<channel|>',
+          implicitOpen: true,
+          stripTokens: ['<turn|>'],
+        },
+      ),
+    );
+    expect(out).toEqual([
+      { kind: 'thinking', text: '<turn|>inside still has it' },
+      { kind: 'token', text: 'but answer is clean' },
+    ]);
   });
 });

@@ -28,8 +28,24 @@ const GEMMA_4_CAPS = {
   // emission pattern.
   supportsThinking: true,
   thinkingTags: {
+    // Empirically observed Gemma 4 emission pattern (verified end-to-end
+    // against gemma4_e2b on real WebGPU):
+    //
+    //   [thinking content — no opening marker, prompt primed us inside]
+    //   <channel|>
+    //   [answer content]
+    //   <turn|>
+    //
+    // So the engine sees no opening tag at generation time. The opening
+    // `<|channel>thought\n` lives in the prompt only (chat template's
+    // `add_generation_prompt`). We start in "inside" mode and let the
+    // close marker switch us back to normal output. The end-of-turn
+    // marker `<turn|>` leaks because `skip_special_tokens: false` is
+    // engaged to expose `<channel|>` — strip it.
     openTag: '<|channel>thought\n',
-    closeTag: '\n<channel|>',
+    closeTag: '<channel|>',
+    implicitOpen: true,
+    stripTokens: ['<turn|>'],
   },
 } as const;
 
