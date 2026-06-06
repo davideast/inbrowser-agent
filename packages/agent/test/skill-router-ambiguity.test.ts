@@ -1,5 +1,5 @@
-import { routeSkill } from '../src/skill-router.js';
 import type { SkillCatalogEntry } from '../src/skill-catalog.js';
+import { routeSkill } from '../src/skill-router.js';
 
 /**
  * Verify that when two skills tie on score and **neither** skill name appears in the prompt,
