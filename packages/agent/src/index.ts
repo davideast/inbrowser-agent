@@ -304,3 +304,6 @@ export type { EventValueCodec } from './events/codec.js';
 // type-only so `node:fs` doesn't leak into the universal entry.
 export type { EventLog, AppendDraft } from './events/log-core.js';
 export type { EventLogIO, OpenEventLogOptions } from './events/log.js';
+
+export { withToolUsePolyfill } from './tool-polyfill/index.js';
+export type { ToolUsePolyfillOpts } from './tool-polyfill/index.js';
