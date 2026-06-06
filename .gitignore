@@ -6,6 +6,7 @@ dist
 .env.*
 !.env.example
 coverage
+.claude/
 *.log
 .idea
 .vscode
