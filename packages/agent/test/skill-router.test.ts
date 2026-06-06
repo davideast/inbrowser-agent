@@ -134,12 +134,11 @@ describe('routeSkill — tie-break by name-in-prompt', () => {
       } as SkillCatalogEntry,
     ];
 
-    // Both score 1, neither name in the prompt — ambiguity guard
-    // returns null rather than picking the catalog-order winner.
-    const decision = routeSkill('please frobnicate it', { catalog });
-    expect(decision.match).toBeNull();
-    expect(decision.ranking[0].score).toBe(1);
-    expect(decision.ranking[1].score).toBe(1);
+// Both score 1, neither name in the prompt — ambiguity guard returns null rather than picking the catalog-order winner.
+const decision = routeSkill('please frobnicate it', { catalog });
+expect(decision.match).toBeNull();
+expect(decision.ranking[0].score).toBe(1);
+expect(decision.ranking[1].score).toBe(1);
   });
 });
 

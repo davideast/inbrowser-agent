@@ -166,6 +166,15 @@ export function routeSkill(prompt: string, options?: RouterOptions): RouterDecis
   // skill. Only applies when the top score is at least 1: callers
   // who pass `threshold: 0` are explicitly asking for the
   // catalog-order winner regardless of signal.
+// Ambiguity guard. When the top and runner-up share a positive
+// score and the name-in-prompt tie-break does not separate them,
+// the keyword router does not have enough signal to commit.
+// Returning null here hands the prompt off to the planner-executor's
+// fallback (plain ReAct) rather than mis-routing — the brief's
+// hard requirement is that the router never returns a *wrong*
+// skill. Only applies when the top score is at least 1: callers
+// who pass `threshold: 0` are explicitly asking for the
+// catalog-order winner regardless of signal.
   if (match !== null && top.score > 0 && scored.length > 1) {
     const runnerUp = scored[1];
     if (runnerUp.score === top.score && runnerUp.nameInPrompt === top.nameInPrompt) {
