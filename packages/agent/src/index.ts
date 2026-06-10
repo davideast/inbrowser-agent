@@ -260,6 +260,9 @@ export type {
 // import the files directly via their relative paths.
 
 export type { ServeAgentsOptions, ServeAgentsHandle } from './mcp/serve.js';
+// MCP client adapter — runtime lives in `./node` (pulls the node-only stdio
+// transport); the types are browser-safe (erased at compile).
+export type { McpConnectOptions, McpConnection } from './mcp/connect.js';
 
 export type {
   RunRecord,
