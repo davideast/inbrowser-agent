@@ -17,7 +17,8 @@ received offset.
   `handleStream(request, ctx)` as Web `Request` to `Response` handlers.
 - A provider plug-in contract: `InferenceProvider` is an async iterable of
   `InferenceEvent`s.
-- Built-in providers for Gemini, OpenRouter, and Anthropic native Messages.
+- Built-in providers for Gemini, OpenRouter, Anthropic native Messages,
+  Ollama, and the Claude Code CLI (`claude -p`, subscription auth).
 - SSE helpers shared by providers, the relay, and the reconnecting client.
 - Astro and Express adapters.
 - `createResumableClient`, which starts a job, tails the SSE stream, and

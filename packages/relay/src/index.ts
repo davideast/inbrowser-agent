@@ -12,6 +12,13 @@ export { anthropicProvider } from './providers/anthropic.js';
 // re-exported from root for one-import-convenience, so include the
 // fourth too (consistency, fixes a real consumer-side gotcha).
 export { ollamaProvider } from './providers/ollama.js';
+// claude-cli is Node-only (spawns a subprocess) but SSR-safe to import:
+// nothing runs until the provider function is invoked.
+export {
+  type ClaudeCliOptions,
+  claudeCliProvider,
+  createClaudeCliProvider,
+} from './providers/claude-cli.js';
 
 // Reconnecting consumer client. Available at `./client` for users who
 // want narrow imports; also re-exported here because the common case
