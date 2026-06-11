@@ -60,7 +60,14 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
     const turnId = `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     yield { kind: 'turn_started', turnId };
 
-    // Capture the user message in history so the next turn sees it.
+    // The strategy receives the PRE-prompt history — everything
+    // before this turn's prompt — and appends `prompt` itself when
+    // composing messages. Passing the post-append history here would
+    // make every LLM request carry the user prompt twice.
+    const priorHistory = history;
+
+    // Capture the user message in the session's own history so the
+    // next turn (and persistence) sees it.
     const userMsg: ChatMessage = {
       id: `u-${turnId}`,
       role: 'user',
@@ -74,7 +81,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
     const strategyEvents = config.strategy.run(
       {
         prompt,
-        history,
+        history: priorHistory,
         workspace,
         runtime,
         llm: config.llm,

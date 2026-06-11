@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
   type ChatEvent,
+  type ChatMessage,
+  type ChatRequest,
   EMPTY_RUNTIME,
   EMPTY_WORKSPACE,
   type LlmClient,
@@ -91,6 +93,59 @@ describe('createReactLoopStrategy', () => {
 
     expect(events.find((e) => e.kind === 'text')?.kind).toBe('text');
     expect(events[events.length - 1]!.kind).toBe('turn_complete');
+  });
+
+  test('composes [system, ...history, user(prompt)] with the prompt exactly once', async () => {
+    // Regression: the session used to pass a history that ALREADY
+    // contained the current user prompt, and buildMessages() appended
+    // input.prompt again — every LLM request carried the prompt twice.
+    // The contract is now: input.history is the PRE-prompt history and
+    // the strategy appends input.prompt itself, exactly once.
+    const prompt = 'current question';
+    const history: ChatMessage[] = [
+      { id: 'u-prev', role: 'user', text: 'earlier question', timestamp: 1 },
+      { id: 'a-prev', role: 'assistant', text: 'earlier answer', timestamp: 2 },
+    ];
+    const requests: ChatRequest[] = [];
+    const spyLlm: LlmClient = {
+      id: 'spy',
+      supportsTools: true,
+      chat(req): AsyncIterable<ChatEvent> {
+        requests.push(req);
+        return (async function* () {
+          yield { kind: 'text', chunk: 'ok' } as ChatEvent;
+          yield {
+            kind: 'turn_complete',
+            usage: { promptTokens: 1, completionTokens: 1 },
+            details: { requestedModel: 'spy' },
+          } as ChatEvent;
+        })();
+      },
+    };
+
+    await collect(
+      createReactLoopStrategy().run(
+        {
+          prompt,
+          history,
+          workspace: EMPTY_WORKSPACE,
+          runtime: EMPTY_RUNTIME,
+          llm: spyLlm,
+          tools: createDispatch(createToolRegistry()),
+          toolList: [],
+          toolContext: fakeCtx,
+          systemPrompt: 'sys',
+        },
+        new AbortController().signal,
+      ),
+    );
+
+    expect(requests).toHaveLength(1);
+    const messages = requests[0]!.messages;
+    expect(messages.map((m) => m.role)).toEqual(['system', 'user', 'assistant', 'user']);
+    const promptOccurrences = messages.filter((m) => m.text === prompt);
+    expect(promptOccurrences).toHaveLength(1);
+    expect(messages[messages.length - 1]).toEqual({ role: 'user', text: prompt });
   });
 
   test('drives a tool-call → result → next-turn loop', async () => {
