@@ -13,9 +13,9 @@
  */
 
 import type {
+  ChatMessage,
   InferenceEvent,
   InferenceProvider,
-  ChatMessage,
   NormalizedRequest,
 } from '@inbrowser/relay';
 import type { Engine, EngineMessage } from '../types.js';
