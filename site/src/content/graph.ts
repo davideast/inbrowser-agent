@@ -1,0 +1,340 @@
+/**
+ * Content graph for the inbrowser docs site.
+ *
+ * Single source of truth for navigation, breadcrumbs, routing, and (in
+ * Phase 2) the agent's dynamic lookup. Nodes are doc pages sourced from
+ * the existing package markdown — nothing under `packages/**` is edited;
+ * all display metadata lives here.
+ *
+ * Phase 1 uses the hierarchy (package -> category -> reading order) plus
+ * `summary`. Phase 2's `scripts/build-graph.ts` enriches this with the
+ * markdown body + typed cross-link edges for the agent.
+ */
+
+export type PackageId = 'overview' | 'agent' | 'relay' | 'resumable' | 'model';
+
+export type Category =
+  | 'overview'
+  | 'tutorial'
+  | 'how-to'
+  | 'design'
+  | 'reference'
+  | 'agent-context'
+  | 'skill';
+
+export interface DocNode {
+  /** Stable key — the route without its leading slash (e.g. `relay/reference`). */
+  id: string;
+  package: PackageId;
+  category: Category;
+  /** Page title (matches the source doc's H1). */
+  title: string;
+  /** Site route, leading slash (e.g. `/relay/reference`). */
+  route: string;
+  /** Repo-root-relative path to the source markdown. */
+  sourcePath: string;
+  /** One-line summary — shown under the page title and reused as the
+   *  agent's node summary in Phase 2. */
+  summary: string;
+}
+
+export const PACKAGE_ORDER: PackageId[] = ['overview', 'agent', 'relay', 'resumable', 'model'];
+
+export const PACKAGE_LABELS: Record<PackageId, string> = {
+  overview: 'Overview',
+  agent: '@inbrowser/agent',
+  relay: '@inbrowser/relay',
+  resumable: '@inbrowser/resumable',
+  model: '@inbrowser/model',
+};
+
+export const CATEGORY_LABELS: Record<Category, string> = {
+  overview: 'Overview',
+  tutorial: 'Tutorial',
+  'how-to': 'How-To',
+  design: 'Design',
+  reference: 'Reference',
+  'agent-context': 'Agent Context',
+  skill: 'Skill',
+};
+
+/**
+ * Every doc node, in global reading order (drives prev/next). Within a
+ * package the order is overview -> tutorial -> how-to -> design ->
+ * reference -> agent-context -> skill.
+ */
+export const NODES: DocNode[] = [
+  // ── Overview (repo-level) ──────────────────────────────────────────
+  {
+    id: 'overview',
+    package: 'overview',
+    category: 'overview',
+    title: 'inbrowser',
+    route: '/overview',
+    sourcePath: 'README.md',
+    summary:
+      'The inbrowser monorepo: a resumable job engine, an inference relay, an agent runtime, and an on-device model engine.',
+  },
+  {
+    id: 'overview/agent-context',
+    package: 'overview',
+    category: 'agent-context',
+    title: 'Agent context for the inbrowser monorepo',
+    route: '/overview/agent-context',
+    sourcePath: 'AGENTS.md',
+    summary: 'Repo shape, conventions, and invariants for agents working across the monorepo.',
+  },
+
+  // ── @inbrowser/agent ───────────────────────────────────────────────
+  {
+    id: 'agent',
+    package: 'agent',
+    category: 'overview',
+    title: '@inbrowser/agent',
+    route: '/agent',
+    sourcePath: 'packages/agent/README.md',
+    summary:
+      'Agent runtime plus an agent-friendly CLI: AgentSession, AgentStrategy, ToolRegistry, LlmClient, and an `agent` binary.',
+  },
+  {
+    id: 'agent/agent-context',
+    package: 'agent',
+    category: 'agent-context',
+    title: 'AGENTS.md — @inbrowser/agent',
+    route: '/agent/agent-context',
+    sourcePath: 'packages/agent/AGENTS.md',
+    summary:
+      'Invariants, anti-patterns, and workflow patterns for driving the agent runtime and CLI.',
+  },
+  {
+    id: 'agent/skill-cli',
+    package: 'agent',
+    category: 'skill',
+    title: 'Skill: drive the agent CLI',
+    route: '/agent/skill-cli',
+    sourcePath: 'packages/agent/skills/agent-cli.md',
+    summary:
+      'Step-by-step skill for running sessions, fleets, event-sourced audit/undo, and forward replay through the CLI.',
+  },
+
+  // ── @inbrowser/relay ───────────────────────────────────────────────
+  {
+    id: 'relay',
+    package: 'relay',
+    category: 'overview',
+    title: '@inbrowser/relay',
+    route: '/relay',
+    sourcePath: 'packages/relay/README.md',
+    summary:
+      'Resumable LLM inference relay: a pluggable InferenceProvider contract, built-in providers, and a reconnecting browser client.',
+  },
+  {
+    id: 'relay/tutorial',
+    package: 'relay',
+    category: 'tutorial',
+    title: 'Tutorial: Create A Relay With A Fake Provider',
+    route: '/relay/tutorial',
+    sourcePath: 'packages/relay/docs/tutorial.md',
+    summary:
+      'Build a relay over a memory store and a fake provider, start a job, stream it, and resume from an offset.',
+  },
+  {
+    id: 'relay/wire-a-web-app',
+    package: 'relay',
+    category: 'how-to',
+    title: 'How To Wire A Web App',
+    route: '/relay/wire-a-web-app',
+    sourcePath: 'packages/relay/docs/how-to-wire-a-web-app.md',
+    summary:
+      'Mount the relay in Astro, Express, or any Web-standard runtime, and consume the stream from the browser.',
+  },
+  {
+    id: 'relay/write-a-provider',
+    package: 'relay',
+    category: 'how-to',
+    title: 'How To Write A Provider',
+    route: '/relay/write-a-provider',
+    sourcePath: 'packages/relay/docs/how-to-write-a-provider.md',
+    summary:
+      'Implement the InferenceProvider contract: parse SSE upstreams, emit tool calls, and register the provider.',
+  },
+  {
+    id: 'relay/how-it-works',
+    package: 'relay',
+    category: 'design',
+    title: 'How The Relay Works',
+    route: '/relay/how-it-works',
+    sourcePath: 'packages/relay/docs/how-it-works.md',
+    summary:
+      'The job lifecycle, why providers and adapters are separate, what is stored, and offset-based replay.',
+  },
+  {
+    id: 'relay/reference',
+    package: 'relay',
+    category: 'reference',
+    title: 'API Reference',
+    route: '/relay/reference',
+    sourcePath: 'packages/relay/docs/reference.md',
+    summary:
+      'createRelay, NormalizedRequest, InferenceEvent, the provider contract, built-in providers, and the client.',
+  },
+
+  // ── @inbrowser/resumable ───────────────────────────────────────────
+  {
+    id: 'resumable',
+    package: 'resumable',
+    category: 'overview',
+    title: '@inbrowser/resumable',
+    route: '/resumable',
+    sourcePath: 'packages/resumable/README.md',
+    summary:
+      'Resumable streaming-job engine: a pluggable JobStore plus a JobEngine that streams events into a durable, tailable log.',
+  },
+  {
+    id: 'resumable/tutorial',
+    package: 'resumable',
+    category: 'tutorial',
+    title: 'Tutorial: Build A Resumable Stream',
+    route: '/resumable/tutorial',
+    sourcePath: 'packages/resumable/docs/tutorial.md',
+    summary:
+      'Create the engine, start a producer, read the stream, replay from an offset, and stop cleanly.',
+  },
+  {
+    id: 'resumable/use-rtdb',
+    package: 'resumable',
+    category: 'how-to',
+    title: 'How To Use RTDB For Durable Jobs',
+    route: '/resumable/use-rtdb',
+    sourcePath: 'packages/resumable/docs/how-to-use-rtdb.md',
+    summary:
+      'Configure the Firebase RTDB store, add the sweep index, use a service-account token provider, and verify durability.',
+  },
+  {
+    id: 'resumable/how-it-works',
+    package: 'resumable',
+    category: 'design',
+    title: 'How Resumable Jobs Work',
+    route: '/resumable/how-it-works',
+    sourcePath: 'packages/resumable/docs/how-it-works.md',
+    summary:
+      'Engine and store, sequence numbers as the resume contract, terminal state vs events, and TTL retention.',
+  },
+  {
+    id: 'resumable/reference',
+    package: 'resumable',
+    category: 'reference',
+    title: 'API Reference',
+    route: '/resumable/reference',
+    sourcePath: 'packages/resumable/docs/reference.md',
+    summary:
+      'createJobEngine, the producer surface, subscription events, the JobStore contract, memory + RTDB stores, and sweeps.',
+  },
+
+  // ── @inbrowser/model ───────────────────────────────────────────────
+  {
+    id: 'model',
+    package: 'model',
+    category: 'overview',
+    title: '@inbrowser/model',
+    route: '/model',
+    sourcePath: 'packages/model/README.md',
+    summary:
+      'On-device LLM engine (POC stub) exposing a narrow Engine surface over @huggingface/transformers + ONNX, with relay + agent adapters. The engine wiring is not yet implemented.',
+  },
+  {
+    id: 'model/agent-context',
+    package: 'model',
+    category: 'agent-context',
+    title: 'Agent context for @inbrowser/model',
+    route: '/model/agent-context',
+    sourcePath: 'packages/model/AGENTS.md',
+    summary: 'Purpose, layering invariants, and vocabulary for the on-device model engine.',
+  },
+];
+
+/** The collection entry id for a node (glob loader strips the `.md`). */
+export function entryIdOf(node: DocNode): string {
+  return node.sourcePath.replace(/\.md$/, '');
+}
+
+/** Map of repo-relative target -> route, for link rewriting. Keyed by
+ *  both source-path-without-extension (e.g. `packages/relay/docs/reference`)
+ *  and package directory (e.g. `packages/relay` -> `/relay`) so that
+ *  directory links in READMEs resolve too. */
+export function buildRouteMap(): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const node of NODES) {
+    map[entryIdOf(node)] = node.route;
+  }
+  // Package directories -> their overview route (root READMEs link these).
+  for (const pkg of ['agent', 'relay', 'resumable', 'model'] as const) {
+    map[`packages/${pkg}`] = `/${pkg}`;
+  }
+  return map;
+}
+
+const NODE_BY_ENTRY_ID = new Map(NODES.map((n) => [entryIdOf(n), n]));
+const NODE_BY_ROUTE = new Map(NODES.map((n) => [n.route, n]));
+
+export function nodeByEntryId(id: string): DocNode | undefined {
+  return NODE_BY_ENTRY_ID.get(id);
+}
+
+export function nodeByRoute(route: string): DocNode | undefined {
+  return NODE_BY_ROUTE.get(route);
+}
+
+/** The package's root (overview) route — the first node in that package. */
+export function packageRootRoute(pkg: PackageId): string {
+  const root = NODES.find((n) => n.package === pkg);
+  return root?.route ?? '/';
+}
+
+export interface Crumb {
+  label: string;
+  href?: string;
+}
+
+/** Breadcrumb trail: Home / Package / Category / Page. The category
+ *  segment is a label (no link); the package segment links to its root.
+ *  A package-root page collapses to Home / Package. */
+export function breadcrumbFor(node: DocNode): Crumb[] {
+  const crumbs: Crumb[] = [{ label: 'Home', href: '/' }];
+  const rootRoute = packageRootRoute(node.package);
+
+  if (node.route === rootRoute) {
+    crumbs.push({ label: PACKAGE_LABELS[node.package] });
+    return crumbs;
+  }
+
+  crumbs.push({ label: PACKAGE_LABELS[node.package], href: rootRoute });
+  crumbs.push({ label: CATEGORY_LABELS[node.category] });
+  crumbs.push({ label: node.title });
+  return crumbs;
+}
+
+export interface NavLink {
+  label: string;
+  href: string;
+}
+
+/** Previous / next in global reading order. */
+export function prevNextFor(node: DocNode): { prev?: NavLink; next?: NavLink } {
+  const i = NODES.findIndex((n) => n.route === node.route);
+  const prevNode = i > 0 ? NODES[i - 1] : undefined;
+  const nextNode = i >= 0 && i < NODES.length - 1 ? NODES[i + 1] : undefined;
+  return {
+    prev: prevNode ? { label: prevNode.title, href: prevNode.route } : undefined,
+    next: nextNode ? { label: nextNode.title, href: nextNode.route } : undefined,
+  };
+}
+
+/** Nodes grouped by package, in nav order — for landing/index listings. */
+export function nodesByPackage(): { package: PackageId; label: string; nodes: DocNode[] }[] {
+  return PACKAGE_ORDER.map((pkg) => ({
+    package: pkg,
+    label: PACKAGE_LABELS[pkg],
+    nodes: NODES.filter((n) => n.package === pkg),
+  }));
+}

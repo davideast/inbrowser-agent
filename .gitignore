@@ -11,3 +11,6 @@ coverage
 .vscode
 plans/
 .claude/
+.astro/
+site/dist/
+site/src/generated/

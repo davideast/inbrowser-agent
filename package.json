@@ -2,14 +2,14 @@
   "name": "inbrowser-monorepo",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*", "examples/*"],
+  "workspaces": ["packages/*", "examples/*", "site"],
   "scripts": {
     "build": "bun run build:resumable && bun run build:relay && bun run build:agent && bun run build:model",
     "build:resumable": "bun run --cwd packages/resumable build",
     "build:relay": "bun run --cwd packages/relay build",
     "build:agent": "bun run --cwd packages/agent build",
     "build:model": "bun run --cwd packages/model build",
-    "typecheck": "bun run --cwd packages/resumable typecheck && bun run --cwd packages/relay typecheck && bun run --cwd packages/agent typecheck && bun run --cwd packages/model typecheck",
+    "typecheck": "bun run --cwd packages/resumable typecheck && bun run --cwd packages/relay typecheck && bun run --cwd packages/agent typecheck && bun run --cwd packages/model typecheck && bun run --cwd site typecheck",
     "test": "bun run --cwd packages/resumable test && bun run --cwd packages/relay test && bun run --cwd packages/agent test && bun run --cwd packages/model test",
     "smoke": "bun scripts/smoke-pack.ts",
     "format": "biome format --write .",
@@ -22,5 +22,9 @@
     "@types/node": "^20.0.0",
     "bun-types": "^1.3.14",
     "typescript": "^5.7.0"
+  },
+  "overrides": {
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
   }
 }

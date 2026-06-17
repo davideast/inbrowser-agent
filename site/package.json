@@ -1,0 +1,38 @@
+{
+  "name": "@inbrowser/site",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "build-graph": "bun run scripts/build-graph.ts",
+    "predev": "bun run scripts/build-graph.ts",
+    "dev": "astro dev",
+    "prebuild": "bun run scripts/build-graph.ts",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro check",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.0",
+    "@astrojs/node": "^9.0.0",
+    "@astrojs/react": "^4.4.2",
+    "@inbrowser/agent": "workspace:*",
+    "@inbrowser/relay": "workspace:*",
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "astro": "^5.17.1",
+    "dompurify": "^3.2.0",
+    "marked": "^14.1.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.1.18",
+    "unist-util-visit": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/hast": "^3.0.0",
+    "@types/mdast": "^4.0.0",
+    "vfile": "^6.0.0"
+  }
+}
