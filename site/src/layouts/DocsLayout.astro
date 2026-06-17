@@ -1,0 +1,56 @@
+---
+import { BreadcrumbBar } from '../components/BreadcrumbBar';
+import { PageHeader } from '../components/PageHeader';
+import { PrevNextNav } from '../components/PrevNextNav';
+import type { Crumb, NavLink } from '../content/graph';
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+  title: string;
+  categoryDisplay: string;
+  description?: string;
+  crumbs: Crumb[];
+  prev?: NavLink;
+  next?: NavLink;
+}
+
+const { title, categoryDisplay, description, crumbs, prev, next } = Astro.props;
+---
+<BaseLayout title={`${title} — inbrowser docs`}>
+  <a
+    href="#main"
+    class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-surface focus:text-primary focus:px-3 focus:py-2 focus:border focus:border-border-strong"
+  >
+    Skip to content
+  </a>
+  <BreadcrumbBar crumbs={crumbs} />
+  <main id="main">
+    <div class="max-w-[860px] mx-auto px-6 pt-16 pb-24">
+      <PageHeader category={categoryDisplay} title={title}>
+        {description}
+      </PageHeader>
+      <div class="docs-prose">
+        <slot />
+      </div>
+      <PrevNextNav prev={prev} next={next} />
+    </div>
+  </main>
+  <script>
+    document.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-role=tui-copy]");
+      if (!btn) return;
+      const frame = btn.closest(".tui-frame");
+      const code = frame?.querySelector("pre")?.textContent ?? "";
+      navigator.clipboard.writeText(code).then(() => {
+        btn.textContent = "OK";
+        btn.classList.add("copied");
+        btn.setAttribute("aria-label", "Copied to clipboard");
+        setTimeout(() => {
+          btn.textContent = "COPY";
+          btn.classList.remove("copied");
+          btn.setAttribute("aria-label", "Copy code to clipboard");
+        }, 1500);
+      });
+    });
+  </script>
+</BaseLayout>

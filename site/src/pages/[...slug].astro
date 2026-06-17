@@ -1,0 +1,39 @@
+---
+import { getCollection, render } from 'astro:content';
+import { CATEGORY_LABELS, NODES, breadcrumbFor, entryIdOf, prevNextFor } from '../content/graph';
+import DocsLayout from '../layouts/DocsLayout.astro';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('docs');
+  const byId = new Map(entries.map((e) => [e.id, e]));
+
+  return NODES.map((node) => {
+    const entry = byId.get(entryIdOf(node));
+    if (!entry) {
+      throw new Error(
+        `No content entry for node "${node.id}" (expected loader id "${entryIdOf(node)}"). ` +
+          `Check the glob pattern in content.config.ts and the sourcePath in graph.ts.`,
+      );
+    }
+    return {
+      params: { slug: node.route.replace(/^\//, '') },
+      props: { node, entry },
+    };
+  });
+}
+
+const { node, entry } = Astro.props;
+const { Content } = await render(entry);
+const crumbs = breadcrumbFor(node);
+const { prev, next } = prevNextFor(node);
+---
+<DocsLayout
+  title={node.title}
+  categoryDisplay={CATEGORY_LABELS[node.category]}
+  description={node.summary}
+  crumbs={crumbs}
+  prev={prev}
+  next={next}
+>
+  <Content />
+</DocsLayout>
