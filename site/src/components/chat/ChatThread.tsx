@@ -1,23 +1,26 @@
 import type { ChatTurn } from '../../lib/chat-store';
+import { AgentActivity } from '../answer/AgentActivity';
 import { MarkdownAnswer } from '../answer/MarkdownAnswer';
 import { SourceCards } from '../answer/SourceCard';
 
 interface ChatThreadProps {
   messages: ChatTurn[];
   busy: boolean;
-  status: string;
   error: string;
 }
 
-/** The conversation: labeled USER / ASSISTANT blocks (Terminal Modernism). */
-export function ChatThread({ messages, busy, status, error }: ChatThreadProps) {
+/** The conversation: labeled USER / ASSISTANT blocks (Terminal Modernism).
+ *  Each assistant turn keeps a collapsible activity log (persisted on the turn).
+ *  The in-flight turn shows live progress + a skeleton; source cards reveal once
+ *  that turn is done. */
+export function ChatThread({ messages, busy, error }: ChatThreadProps) {
   const lastIsAssistant = messages[messages.length - 1]?.role === 'assistant';
 
   return (
     <div>
       {messages.map((m, i) => {
         const isLast = i === messages.length - 1;
-        const showStatus = busy && isLast && m.role === 'assistant' && !m.text;
+        const turnBusy = busy && isLast;
         return (
           <div key={`${m.role}-${i}`} className="mb-10">
             <div className="text-[10px] font-medium uppercase tracking-widest text-dim-text mb-2">
@@ -27,29 +30,25 @@ export function ChatThread({ messages, busy, status, error }: ChatThreadProps) {
               <p className="text-primary text-[15px] leading-[1.7] whitespace-pre-wrap">{m.text}</p>
             ) : (
               <>
-                {showStatus ? (
-                  <div className="text-[12px] text-dim-text" aria-live="polite">
-                    <span className="inline-block animate-pulse" aria-hidden="true">
-                      ▸
-                    </span>{' '}
-                    {status || 'thinking'}…
-                  </div>
-                ) : null}
+                <AgentActivity steps={m.steps ?? []} busy={turnBusy} hasText={!!m.text} />
                 <MarkdownAnswer answer={m.text} />
-                <SourceCards cards={m.cards ?? []} />
+                {/* Sources reveal once the turn is done — surfacing the clickable
+                    cards mid-stream pulls focus from the answer. */}
+                {turnBusy ? null : <SourceCards cards={m.cards ?? []} />}
               </>
             )}
           </div>
         );
       })}
 
-      {/* Status while the agent works before the assistant turn exists. */}
+      {/* Pre-assistant phase: busy before the first tool/token creates the
+          assistant turn — show the working header + skeleton so there's no dead air. */}
       {busy && !lastIsAssistant ? (
-        <div className="mb-10 text-[12px] text-dim-text" aria-live="polite">
-          <span className="inline-block animate-pulse" aria-hidden="true">
-            ▸
-          </span>{' '}
-          {status || 'thinking'}…
+        <div className="mb-10">
+          <div className="text-[10px] font-medium uppercase tracking-widest text-dim-text mb-2">
+            Assistant
+          </div>
+          <AgentActivity steps={[]} busy hasText={false} />
         </div>
       ) : null}
 

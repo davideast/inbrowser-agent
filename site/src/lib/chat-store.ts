@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { VisitedCard } from './agent-types';
+import type { AgentStep, VisitedCard } from './agent-types';
 
 /**
  * Client-side chat persistence. Sessions + messages live in localStorage
@@ -18,6 +18,8 @@ export interface ChatTurn {
   role: 'user' | 'assistant';
   text: string;
   cards?: VisitedCard[];
+  /** The agent's tool-call activity log for this turn (persisted). */
+  steps?: AgentStep[];
 }
 
 export interface Session {
@@ -93,6 +95,8 @@ export interface ChatStore {
   appendAssistantText(id: string, text: string): void;
   /** Add a source card to a session's assistant turn (created lazily). */
   addAssistantCard(id: string, card: VisitedCard): void;
+  /** Append a tool-call step to a session's assistant turn (created lazily). */
+  addAssistantStep(id: string, step: AgentStep): void;
 }
 
 export function useChatStore(): ChatStore {
@@ -127,7 +131,10 @@ export function useChatStore(): ChatStore {
     }
   }, []);
 
-  // Debounced persist on change.
+  // Debounced persist on change. `sessions` is the intentional change trigger:
+  // the effect re-runs to debounce a persist whenever sessions mutate, and the
+  // body calls persist (which reads the latest via sessionsRef).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sessions is the change trigger
   useEffect(() => {
     if (!loaded.current) return;
     const t = setTimeout(persist, 400);
@@ -228,6 +235,13 @@ export function useChatStore(): ChatStore {
     [mutateAssistant],
   );
 
+  const addAssistantStep = useCallback(
+    (id: string, step: AgentStep) => {
+      mutateAssistant(id, (t) => ({ ...t, steps: [...(t.steps ?? []), step] }));
+    },
+    [mutateAssistant],
+  );
+
   const active = sessions.find((s) => s.id === activeId) ?? null;
 
   return {
@@ -241,5 +255,6 @@ export function useChatStore(): ChatStore {
     addUserTurn,
     appendAssistantText,
     addAssistantCard,
+    addAssistantStep,
   };
 }

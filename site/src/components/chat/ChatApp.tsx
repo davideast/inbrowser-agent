@@ -1,24 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChatStore } from '../../lib/chat-store';
 import { streamAgent } from '../../lib/stream-client';
+import { getSuggestions } from '../../lib/suggestions';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatThread } from './ChatThread';
 import { Composer } from './Composer';
-
-const TOOL_LABELS: Record<string, string> = {
-  search_docs: 'searching',
-  get_doc: 'reading',
-  related_docs: 'finding related',
-  list_packages: 'listing packages',
-  list_docs: 'listing docs',
-  compose: 'composing',
-};
-
-const EXAMPLES = [
-  'How do I resume a stream after a disconnect?',
-  'How do I write a custom relay provider?',
-  'What does the agent runtime expose?',
-];
 
 /** Centered docs chat: a prompt box to begin, an in-flow composer, and a
  *  toggle-only session drawer. */
@@ -26,7 +12,6 @@ export function ChatApp() {
   const store = useChatStore();
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -36,6 +21,10 @@ export function ChatApp() {
 
   const messages = store.active?.messages ?? [];
   const hasMessages = messages.length > 0;
+
+  // Empty-state chips: cold-start orientation for a first-time user, else
+  // "learn more" suggestions derived from their prior questions across sessions.
+  const suggestions = useMemo(() => getSuggestions(store.sessions), [store.sessions]);
 
   const focusComposer = useCallback(() => {
     requestAnimationFrame(() => composerRef.current?.focus());
@@ -49,7 +38,7 @@ export function ChatApp() {
   useEffect(() => {
     const el = scrollRef.current;
     if (el && atBottomRef.current) el.scrollTop = el.scrollHeight;
-  }, [messages, status, busy]);
+  }, [messages, busy]);
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -59,7 +48,6 @@ export function ChatApp() {
 
   const finalize = useCallback(() => {
     setBusy(false);
-    setStatus('');
     abortRef.current = null;
   }, []);
 
@@ -80,7 +68,6 @@ export function ChatApp() {
 
       setInput('');
       setError('');
-      setStatus('thinking');
       setBusy(true);
       atBottomRef.current = true;
 
@@ -93,12 +80,10 @@ export function ChatApp() {
           { messages: convo },
           {
             onToken: (t) => {
-              setStatus('');
               store.appendAssistantText(sid, t);
             },
             onTool: (name, detail) => {
-              const verb = TOOL_LABELS[name] ?? name;
-              setStatus(detail ? `${verb}: ${detail}` : verb);
+              store.addAssistantStep(sid, { name, detail });
             },
             onVisited: (card) => store.addAssistantCard(sid, card),
             onError: (message) => {
@@ -149,7 +134,7 @@ export function ChatApp() {
   }, [store, finalize, focusComposer]);
 
   return (
-    <div className="h-screen h-dvh flex flex-col">
+    <div className="h-dvh flex flex-col">
       <header className="h-12 shrink-0 border-b border-border flex items-center justify-between px-4 md:px-6">
         <div className="flex items-center gap-3">
           <button
@@ -189,11 +174,17 @@ export function ChatApp() {
         onClose={() => setDrawerOpen(false)}
       />
 
-      <main ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
-        {hasMessages ? (
-          <div className="max-w-[760px] mx-auto px-4 md:px-6 py-8">
-            <ChatThread messages={messages} busy={busy} status={status} error={error} />
-            <div className="mt-8 pb-20">
+      {hasMessages ? (
+        <>
+          {/* Scroll the conversation; the composer is docked below so it is
+              always fully visible (no mid-screen float, no mobile-toolbar clip). */}
+          <main ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
+            <div className="max-w-[760px] mx-auto px-4 md:px-6 py-8">
+              <ChatThread messages={messages} busy={busy} error={error} />
+            </div>
+          </main>
+          <div className="shrink-0 border-t border-border bg-bg">
+            <div className="max-w-[760px] mx-auto px-4 md:px-6 py-3">
               <Composer
                 inputRef={composerRef}
                 value={input}
@@ -204,7 +195,9 @@ export function ChatApp() {
               />
             </div>
           </div>
-        ) : (
+        </>
+      ) : (
+        <main ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
           <div className="max-w-[640px] mx-auto px-4 md:px-6 min-h-full flex flex-col justify-center py-16">
             <div className="mb-5">
               <span className="text-[11px] font-medium uppercase tracking-widest text-label leading-none">
@@ -227,7 +220,7 @@ export function ChatApp() {
               busy={busy}
             />
             <div className="mt-8 flex flex-wrap gap-2">
-              {EXAMPLES.map((ex) => (
+              {suggestions.map((ex) => (
                 <button
                   key={ex}
                   type="button"
@@ -239,8 +232,8 @@ export function ChatApp() {
               ))}
             </div>
           </div>
-        )}
-      </main>
+        </main>
+      )}
     </div>
   );
 }

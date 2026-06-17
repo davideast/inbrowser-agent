@@ -27,6 +27,31 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Skeleton shimmer — a moving highlight sweep. Flat `bg-surface` + animate-pulse
+ * bars were nearly invisible on the near-black background, so the loading state
+ * read as absent. This sweeps a brighter band across so progress is
+ * unmistakable. (The reduced-motion block below neutralizes the animation.) */
+@keyframes skeleton-sweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.skeleton-bar {
+  background-color: var(--color-surface);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-sweep 1.5s ease-in-out infinite;
+}
+
 body {
   background-color: var(--color-bg);
   color: var(--color-secondary);
@@ -138,20 +163,6 @@ pre {
   letter-spacing: 0.15em;
   margin-top: 80px;
   margin-bottom: 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.docs-prose h2::before {
-  content: "";
-  width: 48px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--color-border-strong);
-}
-.docs-prose h2::after {
-  content: "";
-  flex: 1;
-  border-bottom: 1px solid var(--color-border-strong);
 }
 
 .docs-prose h3 {

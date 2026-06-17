@@ -1,19 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
 import type { VisitedCard } from '../lib/agent-types';
 import { streamAgent } from '../lib/stream-client';
+import { AgentActivity, type AgentStep } from './answer/AgentActivity';
 import { MarkdownAnswer } from './answer/MarkdownAnswer';
 import { SourceCards } from './answer/SourceCard';
 
 type Phase = 'idle' | 'streaming' | 'done' | 'error';
-
-const TOOL_LABELS: Record<string, string> = {
-  search_docs: 'searching',
-  get_doc: 'reading',
-  related_docs: 'finding related',
-  list_packages: 'listing packages',
-  list_docs: 'listing docs',
-  compose: 'composing',
-};
 
 /**
  * Keystone demo: ask a question, the server-side agent traverses the
@@ -24,7 +16,7 @@ export function Keystone() {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [cards, setCards] = useState<VisitedCard[]>([]);
-  const [status, setStatus] = useState('');
+  const [steps, setSteps] = useState<AgentStep[]>([]);
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState('');
   const abortRef = useRef<AbortController | null>(null);
@@ -37,7 +29,7 @@ export function Keystone() {
     setAnswer('');
     setCards([]);
     setError('');
-    setStatus('thinking');
+    setSteps([]);
     setPhase('streaming');
 
     try {
@@ -46,12 +38,10 @@ export function Keystone() {
         { q },
         {
           onToken: (text) => {
-            setStatus('');
             setAnswer((a) => a + text);
           },
           onTool: (name, detail) => {
-            const verb = TOOL_LABELS[name] ?? name;
-            setStatus(detail ? `${verb}: ${detail}` : verb);
+            setSteps((prev) => [...prev, { name, detail }]);
           },
           onVisited: (card) =>
             setCards((c) => (c.some((x) => x.route === card.route) ? c : [...c, card])),
@@ -60,7 +50,6 @@ export function Keystone() {
             setPhase('error');
           },
           onDone: () => {
-            setStatus('');
             setPhase('done');
           },
         },
@@ -129,14 +118,9 @@ export function Keystone() {
         </div>
       </form>
 
-      {status ? (
-        <div className="mt-6 text-[12px] text-dim-text" aria-live="polite" aria-atomic="true">
-          <span className="inline-block animate-pulse" aria-hidden="true">
-            ▸
-          </span>{' '}
-          {status}…
-        </div>
-      ) : null}
+      <div className="mt-6">
+        <AgentActivity steps={steps} busy={busy} hasText={!!answer} />
+      </div>
 
       {error ? (
         <div className="mt-6 text-[13px] text-primary border border-border-strong bg-surface p-4">
@@ -149,7 +133,8 @@ export function Keystone() {
       ) : null}
 
       <MarkdownAnswer answer={answer} className="mt-8" />
-      <SourceCards cards={cards} />
+      {/* Sources appear at the end, after the answer renders — not mid-stream. */}
+      {busy ? null : <SourceCards cards={cards} />}
     </section>
   );
 }
