@@ -18,6 +18,13 @@ export interface TurnMessage {
   text: string;
 }
 
+/** One entry in the agent's activity log (a tool call it made). Persisted on
+ *  the assistant turn so the log survives streaming, scroll-back, and reload. */
+export interface AgentStep {
+  name: string;
+  detail: string;
+}
+
 /** Normalized events the agent streams to the browser as SSE. */
 export type DocsAgentEvent =
   | { type: 'token'; text: string }
