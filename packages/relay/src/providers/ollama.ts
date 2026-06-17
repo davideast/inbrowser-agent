@@ -28,10 +28,11 @@ import type { ChatMessage, ToolDecl } from '../types.js';
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 
-function resolveEndpoint(apiKey: string): string {
+function resolveEndpoint(apiKey: string | undefined): string {
   // The playground passes the baseUrl through req.apiKey. Trim
   // trailing slashes so `/v1/chat/completions` concatenates cleanly.
-  // Fall back to the documented default when the slot is empty.
+  // Fall back to the documented default when the slot is empty or
+  // absent (the field is optional on NormalizedRequest).
   const baseUrl =
     apiKey && /^https?:\/\//.test(apiKey) ? apiKey.replace(/\/+$/, '') : DEFAULT_BASE_URL;
   return `${baseUrl}/v1/chat/completions`;

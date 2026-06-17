@@ -39,15 +39,24 @@ export type ReasoningEffort = 'off' | 'low' | 'medium' | 'high';
 /**
  * The wire shape the relay accepts at `handleStart`. `provider` is
  * the routing key — looked up in `createRelay`'s `providers` map.
- * `apiKey` is BYOK and round-trips to the provider; the relay treats
- * it as opaque.
+ *
+ * `apiKey` is optional because the relay supports two modes:
+ *   - BYOK (default): the client supplies the key and it round-trips
+ *     to the provider; the relay treats it as opaque. Missing it is a
+ *     400.
+ *   - Server-managed: the provider is configured in
+ *     `CreateRelayOpts.apiKeys`, the relay resolves the key itself,
+ *     and the client must NOT send one (a non-empty value is a 400).
+ *
+ * By the time a provider's generator runs, the relay has guaranteed a
+ * resolved key, so providers read `req.apiKey` directly.
  */
 export interface NormalizedRequest {
   provider: string;
   model: string;
   messages: ChatMessage[];
   tools: ToolDecl[];
-  apiKey: string;
+  apiKey?: string;
   reasoningEffort?: ReasoningEffort;
   temperature?: number;
   topP?: number;

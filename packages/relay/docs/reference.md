@@ -26,6 +26,7 @@ function createRelay(opts: CreateRelayOpts): Relay;
 | `providers` | `Record<string, InferenceProvider>` | Provider map keyed by `NormalizedRequest.provider`. |
 | `logger` | `Logger` | Optional structured logger. Defaults to silent. |
 | `sweep` | `SweepSchedule` | Optional periodic sweep passed to `@inbrowser/resumable`. |
+| `apiKeys` | `Record<string, ApiKeySource>` | Optional per-provider server-managed keys. See [Server-managed API keys](#server-managed-api-keys). |
 
 `Relay`:
 
@@ -41,8 +42,8 @@ function createRelay(opts: CreateRelayOpts): Relay;
 | Status | Meaning |
 | --- | --- |
 | `201` | Job created. Body is `{ "jobId": "..." }`. |
-| `400` | Invalid JSON, missing `provider` or `apiKey`, or unknown provider. |
-| `500` | Store or engine failed before the job could be created. |
+| `400` | Invalid JSON, missing `provider`, unknown provider, missing `apiKey` in BYOK mode, or a client-supplied `apiKey` for a server-managed provider. |
+| `500` | Store or engine failed, or a server-managed `apiKey` resolver threw, before the job could be created. |
 
 `handleStream` returns:
 
@@ -61,7 +62,7 @@ interface NormalizedRequest {
   model: string;
   messages: ChatMessage[];
   tools: ToolDecl[];
-  apiKey: string;
+  apiKey?: string;
   reasoningEffort?: 'off' | 'low' | 'medium' | 'high';
   temperature?: number;
   topP?: number;
@@ -71,7 +72,54 @@ interface NormalizedRequest {
 ```
 
 `provider` is the lookup key in the `providers` map. `apiKey` is passed to the
-selected provider and is not stored in job metadata by the relay.
+selected provider and is not stored in job metadata by the relay. It is optional
+on the wire because the relay resolves it differently per mode (see below); by
+the time a provider runs, the relay has guaranteed a resolved value.
+
+## Server-managed API keys
+
+By default the relay is BYOK: the client sends `apiKey` in the request body and
+the relay 400s if it is missing. To keep the key on the server instead, list the
+provider in `CreateRelayOpts.apiKeys`:
+
+```ts
+type ApiKeySource =
+  | string
+  | ((ctx: { req: NormalizedRequest; request: Request }) => string | Promise<string>);
+
+const relay = createRelay({
+  store,
+  providers: { gemini: geminiProvider, anthropic: anthropicProvider, ollama: ollamaProvider },
+  apiKeys: {
+    gemini: () => process.env.GEMINI_API_KEY ?? '',
+    anthropic: () => process.env.ANTHROPIC_API_KEY ?? '',
+    // ollama omitted, so it stays BYOK (the client supplies its base URL)
+  },
+});
+```
+
+Rules per provider:
+
+- **Listed (server-managed):** the relay resolves the key and overwrites
+  whatever the client sent. A client that sends a non-empty `apiKey` anyway gets
+  a `400` so a forgotten BYOK field cannot silently leak to the wire. If the
+  resolver throws, `handleStart` returns `500` and no job is created.
+- **Not listed (BYOK):** unchanged. The client supplies `apiKey`; a missing key
+  is a `400`.
+
+The function form receives the raw `Request`, so the key can be derived from an
+`Authorization` header, a session cookie, or a per-user store:
+
+```ts
+apiKeys: {
+  anthropic: async ({ request }) => {
+    const userId = await getUserIdFromSession(request);
+    const key = await db.getUserKey(userId, 'anthropic');
+    if (!key) throw new Error('no anthropic key for user');
+    return key;
+  },
+}
+```
 
 ## `InferenceEvent`
 
