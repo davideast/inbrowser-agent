@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import type { InferenceEvent, InferenceProvider, ChatMessage } from '../types.js';
+import type { ChatMessage, InferenceEvent, InferenceProvider } from '../types.js';
 
 /**
  * Claude Code CLI provider — spawns `claude -p` (print mode) as a

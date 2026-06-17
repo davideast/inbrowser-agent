@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  type CallbackProvider,
   type ChatEvent,
   type ChatRequest,
-  type CallbackProvider,
   callbackProviderAsLlmClient,
 } from '../src/index.js';
 
