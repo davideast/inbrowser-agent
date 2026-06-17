@@ -19,6 +19,15 @@ export {
   claudeCliProvider,
   createClaudeCliProvider,
 } from './providers/claude-cli.js';
+// claude-code uses the Claude Code Agent SDK programmatically. The
+// SDK is an OPTIONAL peer dep — consumers who don't use this provider
+// don't need to install it. Importing this file is SSR-safe; the SDK
+// is lazy-loaded inside the provider's generator.
+export {
+  type ClaudeCodeOptions,
+  claudeCodeProvider,
+  createClaudeCodeProvider,
+} from './providers/claude-code.js';
 
 // Reconnecting consumer client. Available at `./client` for users who
 // want narrow imports; also re-exported here because the common case
