@@ -143,7 +143,9 @@ export function buildGeminiRequest(req: NormalizedRequest): Request {
   return new Request(url, {
     method: 'POST',
     headers: {
-      'x-goog-api-key': req.apiKey,
+      // Relay guarantees a resolved key before the provider runs
+      // (BYOK 400s if missing; server-managed injects).
+      'x-goog-api-key': req.apiKey ?? '',
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(toGeminiBody(req)),

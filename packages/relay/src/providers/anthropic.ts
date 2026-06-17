@@ -143,7 +143,10 @@ export const anthropicProvider: InferenceProvider = async function* (req: Normal
     response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: {
-        'x-api-key': req.apiKey,
+        // Relay guarantees a resolved key before the provider runs
+        // (BYOK 400s if missing; server-managed injects). `?? ''`
+        // satisfies the string type for the now-optional field.
+        'x-api-key': req.apiKey ?? '',
         'anthropic-version': ANTHROPIC_VERSION,
         'content-type': 'application/json',
       },

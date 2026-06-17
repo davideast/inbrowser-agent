@@ -196,3 +196,141 @@ describe('createRelay', () => {
     await relay.stop();
   });
 });
+
+describe('createRelay — server-managed API keys', () => {
+  /** Provider that records the `apiKey` it was handed, so a test can
+   *  assert what the relay resolved before invoking it. */
+  function capturingProvider(): { provider: InferenceProvider; seenApiKey(): string | undefined } {
+    let seen: string | undefined;
+    const provider: InferenceProvider = async function* (req) {
+      seen = req.apiKey;
+      yield { kind: 'usage', promptTokens: 1, outputTokens: 1 };
+    };
+    return { provider, seenApiKey: () => seen };
+  }
+
+  /** Start + drain so the provider's generator actually runs. */
+  async function startAndDrain(relay: ReturnType<typeof createRelay>, req: Request): Promise<void> {
+    const res = await relay.handleStart(req);
+    const { jobId } = (await res.json()) as { jobId: string };
+    await readSseEvents(
+      await relay.handleStream(new Request(`http://localhost/api/inference/job/${jobId}/stream`), {
+        jobId,
+      }),
+    );
+  }
+
+  it('injects a static server-managed key and the client omits apiKey', async () => {
+    const store = createMemoryJobStore<InferenceEvent>();
+    const { provider, seenApiKey } = capturingProvider();
+    const relay = createRelay({
+      store,
+      providers: { gemini: provider },
+      apiKeys: { gemini: 'sk-server' },
+    });
+
+    await startAndDrain(relay, makeStartRequest({ provider: 'gemini', apiKey: undefined }));
+    expect(seenApiKey()).toBe('sk-server');
+
+    await relay.stop();
+  });
+
+  it('resolves a key from an async function that reads the raw Request', async () => {
+    const store = createMemoryJobStore<InferenceEvent>();
+    const { provider, seenApiKey } = capturingProvider();
+    let sawReq: NormalizedRequest | undefined;
+    const relay = createRelay({
+      store,
+      providers: { gemini: provider },
+      apiKeys: {
+        gemini: async ({ req, request }) => {
+          sawReq = req;
+          // Derive the key from an Authorization header on the request.
+          const auth = request.headers.get('authorization') ?? '';
+          return auth.replace(/^Bearer /, '');
+        },
+      },
+    });
+
+    const req = new Request('http://localhost/api/inference/job', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer sk-from-header',
+      },
+      body: JSON.stringify({
+        provider: 'gemini',
+        model: 'm',
+        messages: [],
+        tools: [],
+      }),
+    });
+    await startAndDrain(relay, req);
+
+    expect(seenApiKey()).toBe('sk-from-header');
+    expect(sawReq?.provider).toBe('gemini');
+
+    await relay.stop();
+  });
+
+  it('rejects a client-supplied key for a server-managed provider with 400', async () => {
+    const store = createMemoryJobStore<InferenceEvent>();
+    const { provider } = capturingProvider();
+    const relay = createRelay({
+      store,
+      providers: { gemini: provider },
+      apiKeys: { gemini: 'sk-server' },
+    });
+
+    const res = await relay.handleStart(
+      makeStartRequest({ provider: 'gemini', apiKey: 'sk-user' }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('server-managed');
+
+    await relay.stop();
+  });
+
+  it('keeps BYOK semantics for providers not in apiKeys (missing key still 400s)', async () => {
+    const store = createMemoryJobStore<InferenceEvent>();
+    const { provider } = capturingProvider();
+    const relay = createRelay({
+      store,
+      // gemini is server-managed; fake is left BYOK.
+      providers: { gemini: provider, fake: fakeProvider },
+      apiKeys: { gemini: 'sk-server' },
+    });
+
+    const res = await relay.handleStart(makeStartRequest({ provider: 'fake', apiKey: undefined }));
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('apiKey is required');
+
+    await relay.stop();
+  });
+
+  it('returns 500 and creates no job when the resolver throws', async () => {
+    const store = createMemoryJobStore<InferenceEvent>();
+    const { provider } = capturingProvider();
+    const relay = createRelay({
+      store,
+      providers: { gemini: provider },
+      apiKeys: {
+        gemini: () => {
+          throw new Error('no key for user');
+        },
+      },
+    });
+
+    const res = await relay.handleStart(
+      makeStartRequest({ provider: 'gemini', apiKey: undefined }),
+    );
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('resolver failed');
+    expect(body.error).toContain('no key for user');
+
+    await relay.stop();
+  });
+});

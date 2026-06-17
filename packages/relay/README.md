@@ -68,6 +68,53 @@ The relay does not choose URL paths for you. Common route shapes are:
 - `GET /api/inference/job/:id/stream?from=N` - call
   `relay.handleStream(request, { jobId: id })`.
 
+## API Keys
+
+The relay supports two modes, configurable per provider.
+
+**BYOK (default).** The client sends `apiKey` in the request body and the relay
+forwards it to the provider. A missing key is a `400`. This is the right mode
+when the end user brings their own key (the playground case).
+
+**Server-managed.** List the provider in `apiKeys` and the relay resolves the
+key itself, so the browser never carries it on the wire. This is the "your app,
+your bill" mode.
+
+```ts
+const relay = createRelay({
+  store,
+  providers: {
+    gemini: geminiProvider,
+    anthropic: anthropicProvider,
+    ollama: ollamaProvider,
+  },
+  apiKeys: {
+    gemini: () => process.env.GEMINI_API_KEY ?? '',
+    anthropic: () => process.env.ANTHROPIC_API_KEY ?? '',
+    // ollama omitted, so it stays BYOK (the client supplies its base URL).
+  },
+});
+```
+
+A client that sends a non-empty `apiKey` for a server-managed provider gets a
+`400`, so a forgotten BYOK field cannot silently leak to the wire. If a resolver
+throws, `handleStart` returns `500` and no job is created.
+
+The function form receives the raw `Request`, so the key can be derived from an
+`Authorization` header the browser already sends (the browser carries its own
+user token, never the provider key), a session cookie, or a per-user store:
+
+```ts
+apiKeys: {
+  anthropic: async ({ request }) => {
+    const userId = await getUserIdFromSession(request);
+    const key = await db.getUserKey(userId, 'anthropic');
+    if (!key) throw new Error('no anthropic key for user');
+    return key;
+  },
+}
+```
+
 ## Client
 
 ```ts

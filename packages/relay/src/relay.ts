@@ -19,6 +19,18 @@ import {
 import { SSE_DONE_LINE, SSE_STREAM_OPEN, encodeSseEvent } from './sse.js';
 import type { InferenceEvent, InferenceProvider, NormalizedRequest } from './types.js';
 
+/**
+ * A server-managed API key for one provider. Either a static string
+ * (resolved once at `createRelay` time — e.g. from an env var) or a
+ * function called per request. The function form receives the parsed
+ * `NormalizedRequest` plus the raw `Request`, so a host can derive the
+ * key from auth headers, cookies, or a per-user store. It may return
+ * the key synchronously or as a promise.
+ */
+export type ApiKeySource =
+  | string
+  | ((ctx: { req: NormalizedRequest; request: Request }) => string | Promise<string>);
+
 export interface CreateRelayOpts {
   /** Backing `JobStore` for resumable inference jobs. */
   store: JobStore<InferenceEvent>;
@@ -37,6 +49,21 @@ export interface CreateRelayOpts {
    * on their own and shouldn't pass this.
    */
   sweep?: SweepSchedule;
+  /**
+   * Per-provider server-managed API keys. When a provider is listed
+   * here the relay resolves the key itself and overwrites whatever
+   * the client sent — the browser never carries the key on the wire.
+   * A client that nonetheless sends a non-empty `apiKey` for a
+   * server-managed provider gets a 400 (so a forgotten BYOK field
+   * can't silently leak to the wire). Providers NOT listed keep BYOK
+   * semantics: the client supplies `apiKey` in the request body and
+   * the relay 400s if it's missing.
+   *
+   * The function form gets the raw `Request`, so the key can be
+   * derived from an `Authorization` header, a session cookie, or a
+   * per-user store. See `plans/server-managed-api-keys.md`.
+   */
+  apiKeys?: Record<string, ApiKeySource>;
 }
 
 /**
@@ -85,8 +112,8 @@ export function createRelay(opts: CreateRelayOpts): Relay {
         400,
       );
     }
-    if (!body || typeof body !== 'object' || !body.provider || !body.apiKey) {
-      return json({ error: 'provider and apiKey are required' }, 400);
+    if (!body || typeof body !== 'object' || !body.provider) {
+      return json({ error: 'provider is required' }, 400);
     }
     const provider = opts.providers[body.provider];
     if (!provider) {
@@ -96,6 +123,33 @@ export function createRelay(opts: CreateRelayOpts): Relay {
         },
         400,
       );
+    }
+
+    // Resolve the API key. Two modes per provider:
+    //  - server-managed: `opts.apiKeys[provider]` is set → the relay
+    //    owns the key. A client that still sends a non-empty `apiKey`
+    //    is rejected so a forgotten BYOK field can't silently leak to
+    //    the wire.
+    //  - BYOK (default): the client supplies `apiKey` in the body; a
+    //    missing key is a 400.
+    const keySource = opts.apiKeys?.[body.provider];
+    if (keySource) {
+      if (body.apiKey) {
+        return json(
+          { error: `apiKey not accepted: provider "${body.provider}" is server-managed` },
+          400,
+        );
+      }
+      try {
+        body.apiKey =
+          typeof keySource === 'string' ? keySource : await keySource({ req: body, request });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        logger.error('apiKey resolver failed', { provider: body.provider, error: message });
+        return json({ error: `apiKey resolver failed: ${message}` }, 500);
+      }
+    } else if (!body.apiKey) {
+      return json({ error: 'apiKey is required (or configure server-managed mode)' }, 400);
     }
 
     let jobId: string;
