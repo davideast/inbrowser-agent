@@ -14,7 +14,7 @@
  * each provider adapter (Gemini, OpenRouter, Anthropic) translates
  * this into its native wire format.
  */
-export interface LegacyChatMessage {
+export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   text?: string;
   toolCalls?: { callId: string; name: string; args: unknown; signature?: string }[];
@@ -24,7 +24,7 @@ export interface LegacyChatMessage {
 }
 
 /** One tool declaration advertised to the LLM. */
-export interface LegacyToolDecl {
+export interface ToolDecl {
   name: string;
   description: string;
   parameters: unknown;
@@ -45,8 +45,8 @@ export type ReasoningEffort = 'off' | 'low' | 'medium' | 'high';
 export interface NormalizedRequest {
   provider: string;
   model: string;
-  messages: LegacyChatMessage[];
-  tools: LegacyToolDecl[];
+  messages: ChatMessage[];
+  tools: ToolDecl[];
   apiKey: string;
   reasoningEffort?: ReasoningEffort;
   temperature?: number;

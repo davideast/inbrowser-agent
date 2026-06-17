@@ -13,7 +13,7 @@ import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../ty
  * The chunk shape, thoughtSignature placement, and tool-call callId
  * generation match what the SDK produced.
  */
-import type { LegacyChatMessage, LegacyToolDecl } from '../types.js';
+import type { ChatMessage, ToolDecl } from '../types.js';
 
 const ENDPOINT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -94,7 +94,7 @@ function toGeminiBody(req: NormalizedRequest): GeminiBody {
   if (systemText) body.systemInstruction = { parts: [{ text: systemText }] };
 
   if (req.tools.length > 0) {
-    const functionDeclarations = req.tools.map((t: LegacyToolDecl) => ({
+    const functionDeclarations = req.tools.map((t: ToolDecl) => ({
       name: t.name,
       description: t.description,
       parameters: sanitizeGeminiSchema(t.parameters),

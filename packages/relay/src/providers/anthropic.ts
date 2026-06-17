@@ -25,7 +25,7 @@ import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../ty
  * complex tool flows may want to extend this — the file is
  * intentionally compact so it's easy to fork.
  */
-import type { LegacyChatMessage, LegacyToolDecl } from '../types.js';
+import type { ChatMessage, ToolDecl } from '../types.js';
 
 const ENDPOINT = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -61,7 +61,7 @@ interface AnthropicBody {
   }>;
 }
 
-function toAnthropic(messages: LegacyChatMessage[]): {
+function toAnthropic(messages: ChatMessage[]): {
   system: string;
   msgs: AnthropicMessage[];
 } {
@@ -109,7 +109,7 @@ function toAnthropic(messages: LegacyChatMessage[]): {
   return { system, msgs };
 }
 
-function toAnthropicTools(tools: LegacyToolDecl[]): AnthropicBody['tools'] {
+function toAnthropicTools(tools: ToolDecl[]): AnthropicBody['tools'] {
   if (tools.length === 0) return undefined;
   return tools.map((t) => ({
     name: t.name,

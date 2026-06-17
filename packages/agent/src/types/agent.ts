@@ -74,8 +74,7 @@ export interface AgentContext {
    *
    * Field name preserved (vs. `projectContext`) so the public
    * AgentContext shape doesn't break external tools that destructure
-   * `ctx.agentApp`; the *type* migrated from `AgentApp` to
-   * `ProjectContext` in Phase C step 13 of the legacy-SDK migration.
+   * `ctx.agentApp`; the *type* is `ProjectContext`.
    */
   agentApp?: ProjectContext;
 }

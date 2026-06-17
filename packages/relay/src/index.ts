@@ -47,8 +47,8 @@ export {
 export type {
   InferenceEvent,
   InferenceProvider,
-  LegacyChatMessage,
-  LegacyToolDecl,
+  ChatMessage,
+  ToolDecl,
   Logger,
   NormalizedRequest,
   ReasoningEffort,

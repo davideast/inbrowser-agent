@@ -15,7 +15,7 @@
 import type {
   InferenceEvent,
   InferenceProvider,
-  LegacyChatMessage,
+  ChatMessage,
   NormalizedRequest,
 } from '@inbrowser/relay';
 import type { Engine, EngineMessage } from '../types.js';
@@ -81,7 +81,7 @@ export function createLocalInferenceProvider(engine: Engine): InferenceProvider 
   };
 }
 
-function toEngineMessages(messages: ReadonlyArray<LegacyChatMessage>): EngineMessage[] {
+function toEngineMessages(messages: ReadonlyArray<ChatMessage>): EngineMessage[] {
   const out: EngineMessage[] = [];
   for (const m of messages) {
     // The engine vocabulary has no `tool` role — Gemma 4 is toolless.

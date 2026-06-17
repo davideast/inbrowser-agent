@@ -49,15 +49,15 @@ export type {
   JsonSchema,
   RawUsage,
 } from './types/llm.js';
-export { legacyProviderAsLlmClient } from './llm-adapter.js';
+export { callbackProviderAsLlmClient } from './llm-adapter.js';
 export type {
-  LegacyProvider,
-  LegacyChatTurnResult,
-  LegacyChatCallbacks,
-  LegacyChatMessage,
-  LegacyToolDecl,
-  LegacyProviderUsage,
-  LegacyTurnDetails,
+  CallbackProvider,
+  ProviderTurnResult,
+  ProviderCallbacks,
+  ProviderChatMessage,
+  ProviderToolDecl,
+  ProviderUsage,
+  ProviderTurnDetails,
 } from './llm-adapter.js';
 
 export type {

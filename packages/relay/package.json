@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/relay",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Resumable LLM inference relay. Pre-wires @inbrowser/resumable with NormalizedRequest/InferenceEvent types, a pluggable InferenceProvider contract, built-in Gemini/OpenRouter/Anthropic/Ollama/Claude-CLI providers, Web-standard handlers, Astro/Express adapters, and a reconnecting browser client.",
   "type": "module",
   "main": "./dist/index.js",

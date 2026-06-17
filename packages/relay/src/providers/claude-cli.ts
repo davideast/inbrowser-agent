@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import type { InferenceEvent, InferenceProvider, LegacyChatMessage } from '../types.js';
+import type { InferenceEvent, InferenceProvider, ChatMessage } from '../types.js';
 
 /**
  * Claude Code CLI provider — spawns `claude -p` (print mode) as a
@@ -114,7 +114,7 @@ function toEffortFlag(effort: string | undefined): string | undefined {
  * transcript with an explicit "reply with the next assistant message"
  * framing — `claude -p` takes one prompt, not a message array.
  */
-export function renderPrompt(messages: LegacyChatMessage[]): {
+export function renderPrompt(messages: ChatMessage[]): {
   system: string;
   prompt: string;
 } {
