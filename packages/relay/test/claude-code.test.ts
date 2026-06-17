@@ -208,6 +208,51 @@ describe('claude-code provider', () => {
     expect(env.SOME_OTHER).toBe('allowed');
   });
 
+  it('passes reasoningEffort through as SDK Options.effort', async () => {
+    const { calls, loadSdk } = fakeSdk([
+      {
+        type: 'result',
+        subtype: 'success',
+        is_error: false,
+        result: 'ok',
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    ]);
+    const provider = createClaudeCodeProvider({ loadSdk });
+    await collect(provider(makeReq({ reasoningEffort: 'high' })));
+    expect((calls[0]?.options as { effort: string }).effort).toBe('high');
+  });
+
+  it("omits effort when reasoningEffort is 'off' (relay sentinel — SDK has no off level)", async () => {
+    const { calls, loadSdk } = fakeSdk([
+      {
+        type: 'result',
+        subtype: 'success',
+        is_error: false,
+        result: 'ok',
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    ]);
+    const provider = createClaudeCodeProvider({ loadSdk });
+    await collect(provider(makeReq({ reasoningEffort: 'off' })));
+    expect('effort' in (calls[0]?.options as object)).toBe(false);
+  });
+
+  it('omits effort when reasoningEffort is undefined', async () => {
+    const { calls, loadSdk } = fakeSdk([
+      {
+        type: 'result',
+        subtype: 'success',
+        is_error: false,
+        result: 'ok',
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    ]);
+    const provider = createClaudeCodeProvider({ loadSdk });
+    await collect(provider(makeReq()));
+    expect('effort' in (calls[0]?.options as object)).toBe(false);
+  });
+
   it('omits model option when req.model is empty', async () => {
     const { calls, loadSdk } = fakeSdk([
       {

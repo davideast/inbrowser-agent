@@ -66,6 +66,12 @@ import { renderPrompt } from './claude-cli.js';
  *     rather than silently dropping them.
  *   - `temperature` / `topP` / `topK` are not exposed by the SDK in
  *     the bare-model configuration and are ignored.
+ *   - `reasoningEffort` maps to the SDK's `effort` option: `low` /
+ *     `medium` / `high` pass through; `off` (the relay's sentinel
+ *     for "do not request reasoning") omits the field so the model's
+ *     default applies. The SDK also accepts `xhigh` / `max` for
+ *     newer Opus + Fable models — not exposed yet because the relay
+ *     layer's `ReasoningEffort` union doesn't include them.
  *   - Multi-turn histories are flattened into a single transcript
  *     prompt by `renderPrompt` (shared with `claude-cli`). For a
  *     one-shot user message the text passes through verbatim.
@@ -83,8 +89,21 @@ interface SdkOptions {
   strictMcpConfig?: boolean;
   permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
   includePartialMessages?: boolean;
+  /** SDK Options.effort. Wider than the relay's ReasoningEffort —
+   *  the relay's 'off' is mapped to "omit the field" so the model's
+   *  default applies; 'xhigh' / 'max' are not exposed by the relay
+   *  layer yet. */
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   abortController?: AbortController;
   env?: Record<string, string | undefined>;
+}
+
+/** Map the relay's `reasoningEffort` onto the SDK's `effort` option.
+ *  `off` is the relay's "do not request reasoning" sentinel; the SDK
+ *  has no off level, so we omit the field entirely and let the
+ *  model's default kick in. */
+function toEffort(effort: string | undefined): SdkOptions['effort'] | undefined {
+  return effort === 'low' || effort === 'medium' || effort === 'high' ? effort : undefined;
 }
 
 /** Subset of the SDK's `SDKMessage` union we consume. */
@@ -214,6 +233,7 @@ export function createClaudeCodeProvider(options: ClaudeCodeOptions = {}): Infer
     const onAbort = () => abortController.abort();
     req.signal?.addEventListener('abort', onAbort, { once: true });
 
+    const effort = toEffort(req.reasoningEffort);
     const sdkOptions: SdkOptions = {
       ...(req.model ? { model: req.model } : {}),
       systemPrompt: system,
@@ -223,6 +243,7 @@ export function createClaudeCodeProvider(options: ClaudeCodeOptions = {}): Infer
       strictMcpConfig: true,
       permissionMode: 'bypassPermissions',
       includePartialMessages: true,
+      ...(effort ? { effort } : {}),
       abortController,
       env,
     };
