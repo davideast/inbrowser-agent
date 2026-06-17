@@ -1,7 +1,7 @@
 {
   "name": "@inbrowser/relay",
   "version": "0.3.0",
-  "description": "Resumable LLM inference relay. Pre-wires @inbrowser/resumable with NormalizedRequest/InferenceEvent types, a pluggable InferenceProvider contract, built-in Gemini/OpenRouter/Anthropic/Ollama/Claude-CLI providers, Web-standard handlers, Astro/Express adapters, and a reconnecting browser client.",
+  "description": "Resumable LLM inference relay. Pre-wires @inbrowser/resumable with NormalizedRequest/InferenceEvent types, a pluggable InferenceProvider contract, built-in Gemini/OpenRouter/Anthropic/Ollama/Claude-CLI/Claude-Code providers, Web-standard handlers, Astro/Express adapters, and a reconnecting browser client.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -34,6 +34,10 @@
       "types": "./dist/providers/claude-cli.d.ts",
       "import": "./dist/providers/claude-cli.js"
     },
+    "./providers/claude-code": {
+      "types": "./dist/providers/claude-code.d.ts",
+      "import": "./dist/providers/claude-code.js"
+    },
     "./adapters/astro": {
       "types": "./dist/adapters/astro.d.ts",
       "import": "./dist/adapters/astro.js"
@@ -61,14 +65,17 @@
     "@inbrowser/resumable": "workspace:*"
   },
   "peerDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.0",
     "astro": "^5.0.0",
     "express": "^4.0.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
+    "@anthropic-ai/claude-agent-sdk": { "optional": true },
     "astro": { "optional": true },
     "express": { "optional": true }
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.0",
     "@types/bun": "latest",
     "@types/express": "^5.0.0",
     "typescript": "^5.7.0"
