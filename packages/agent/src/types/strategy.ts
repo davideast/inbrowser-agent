@@ -25,6 +25,15 @@ export interface AgentStrategy {
 
 export interface StrategyRunInput {
   prompt: string;
+  /**
+   * Conversation history BEFORE this turn's prompt. The strategy is
+   * responsible for appending `prompt` itself when composing the
+   * message array (`[system, ...history, user(prompt)]`). `history`
+   * never contains the current `prompt` — the session keeps the user
+   * message in its own history for persistence/events, but hands the
+   * strategy the pre-prompt view so the prompt appears exactly once
+   * per LLM request.
+   */
   history: ChatMessage[];
   workspace: Workspace;
   runtime: RuntimeState;
