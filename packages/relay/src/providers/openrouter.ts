@@ -10,7 +10,7 @@ import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../ty
  * same `usage.include` request for real-dollar cost, same
  * reasoning-token pass-through.
  */
-import type { LegacyChatMessage, LegacyToolDecl } from '../types.js';
+import type { ChatMessage, ToolDecl } from '../types.js';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -28,7 +28,7 @@ interface OaiMessage {
   name?: string;
 }
 
-function toOaiMessages(messages: LegacyChatMessage[]): OaiMessage[] {
+function toOaiMessages(messages: ChatMessage[]): OaiMessage[] {
   const out: OaiMessage[] = [];
   for (const m of messages) {
     if (m.role === 'system' || m.role === 'user') {
@@ -65,7 +65,7 @@ function toOaiMessages(messages: LegacyChatMessage[]): OaiMessage[] {
   return out;
 }
 
-function toOaiTools(tools: LegacyToolDecl[]): unknown[] {
+function toOaiTools(tools: ToolDecl[]): unknown[] {
   return tools.map((t) => ({
     type: 'function',
     function: {

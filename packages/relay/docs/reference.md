@@ -59,8 +59,8 @@ function createRelay(opts: CreateRelayOpts): Relay;
 interface NormalizedRequest {
   provider: string;
   model: string;
-  messages: LegacyChatMessage[];
-  tools: LegacyToolDecl[];
+  messages: ChatMessage[];
+  tools: ToolDecl[];
   apiKey: string;
   reasoningEffort?: 'off' | 'low' | 'medium' | 'high';
   temperature?: number;

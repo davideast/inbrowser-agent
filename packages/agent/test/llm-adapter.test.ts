@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import {
   type ChatEvent,
   type ChatRequest,
-  type LegacyProvider,
-  legacyProviderAsLlmClient,
+  type CallbackProvider,
+  callbackProviderAsLlmClient,
 } from '../src/index.js';
 
 function fakeProvider(opts: {
@@ -11,7 +11,7 @@ function fakeProvider(opts: {
   toolCall?: { callId: string; name: string; args: unknown };
   usage?: { promptTokens?: number; outputTokens?: number; costUsd?: number };
   details?: { servedModel?: string };
-}): LegacyProvider {
+}): CallbackProvider {
   return {
     label: 'Fake',
     supportsTools: true,
@@ -39,15 +39,15 @@ async function collect(events: AsyncIterable<ChatEvent>): Promise<ChatEvent[]> {
   return out;
 }
 
-describe('legacyProviderAsLlmClient', () => {
+describe('callbackProviderAsLlmClient', () => {
   test('exposes id + supportsTools', () => {
-    const client = legacyProviderAsLlmClient(fakeProvider({}), 'fake');
+    const client = callbackProviderAsLlmClient(fakeProvider({}), 'fake');
     expect(client.id).toBe('fake');
     expect(client.supportsTools).toBe(true);
   });
 
   test('streams text chunks as `text` events then a `turn_complete`', async () => {
-    const client = legacyProviderAsLlmClient(
+    const client = callbackProviderAsLlmClient(
       fakeProvider({
         streamText: ['hello ', 'world'],
         usage: { promptTokens: 10, outputTokens: 2 },
@@ -70,7 +70,7 @@ describe('legacyProviderAsLlmClient', () => {
   });
 
   test('relays tool calls as `tool_call` events', async () => {
-    const client = legacyProviderAsLlmClient(
+    const client = callbackProviderAsLlmClient(
       fakeProvider({
         toolCall: { callId: 'c1', name: 'writeRules', args: { source: '...' } },
       }),
@@ -93,8 +93,8 @@ describe('legacyProviderAsLlmClient', () => {
     expect(toolCall.id).toBe('c1');
   });
 
-  test('emits an `error` event when the legacy provider throws', async () => {
-    const provider: LegacyProvider = {
+  test('emits an `error` event when the provider throws', async () => {
+    const provider: CallbackProvider = {
       label: 'Broken',
       async chatWithTools() {
         throw new Error('boom');
@@ -103,7 +103,7 @@ describe('legacyProviderAsLlmClient', () => {
         throw new Error('boom');
       },
     };
-    const client = legacyProviderAsLlmClient(provider, 'broken');
+    const client = callbackProviderAsLlmClient(provider, 'broken');
     const events = await collect(
       client.chat(
         {

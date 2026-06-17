@@ -1,29 +1,25 @@
 /**
- * Adapter from the playground's existing `LlmProvider` shape to the
- * core `LlmClient` interface. Lets new core code (AgentSession,
- * AgentStrategy) consume providers via the narrow event-stream
- * surface without each provider needing a refactor.
+ * Adapter from a callback-style chat provider to the core
+ * `LlmClient` event-stream surface. Lets `AgentSession` /
+ * `AgentStrategy` consume providers that expose `onText`,
+ * `onToolCall`, etc. without each provider rewriting itself.
  *
- * The existing `LlmProvider` is callback-based (`onText`,
- * `onToolCall`, etc.) and lives in the React host alongside its
- * BYOK forms + localStorage wiring. This file flips it into the
+ * The callback shape is what the playground's BYOK forms +
+ * localStorage wiring already speak. This file flips it into the
  * `AsyncIterable<ChatEvent>` shape the core wants.
  *
- * Each provider can later migrate to natively implement `LlmClient`
- * to drop this adapter. The plan calls this "slice 4 — one
- * provider at a time"; the adapter exists so slice 4 doesn't have
- * to land atomically.
+ * A provider can later implement `LlmClient` natively and drop
+ * the adapter; nothing forces the indirection.
  */
 
 import type { TurnDetails } from './types/chat.js';
 import type { ChatEvent, ChatRequest, LlmClient, RawUsage } from './types/llm.js';
 
 /**
- * Minimal external surface the adapter expects. Matches the shape
- * `examples/admin-compat-browser/src/llm.ts` exports. We re-declare
- * it here so `@inbrowser/agent` doesn't import from the playground.
+ * Minimal external surface the adapter expects. Re-declared here so
+ * `@inbrowser/agent` doesn't import from a downstream package.
  */
-export interface LegacyProviderUsage {
+export interface ProviderUsage {
   promptTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
@@ -34,7 +30,7 @@ export interface LegacyProviderUsage {
   isByok?: boolean;
 }
 
-export interface LegacyTurnDetails {
+export interface ProviderTurnDetails {
   generationId?: string;
   servedModel?: string;
   requestedModel?: string;
@@ -42,15 +38,15 @@ export interface LegacyTurnDetails {
   routing?: Record<string, unknown>;
 }
 
-export interface LegacyChatTurnResult {
+export interface ProviderTurnResult {
   text?: string;
   thinking?: string;
   finishReason?: 'stop' | 'tool' | 'abort' | 'error';
-  usage?: LegacyProviderUsage;
-  details?: LegacyTurnDetails;
+  usage?: ProviderUsage;
+  details?: ProviderTurnDetails;
 }
 
-export interface LegacyChatCallbacks {
+export interface ProviderCallbacks {
   onText(chunk: string): void;
   onThinking?(chunk: string): void;
   onToolCall(call: {
@@ -62,13 +58,13 @@ export interface LegacyChatCallbacks {
   signal?: AbortSignal;
 }
 
-export interface LegacyToolDecl {
+export interface ProviderToolDecl {
   name: string;
   description: string;
   parameters: unknown;
 }
 
-export interface LegacyChatMessage {
+export interface ProviderChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   text?: string;
   toolCalls?: { callId: string; name: string; args: unknown; signature?: string }[];
@@ -77,44 +73,43 @@ export interface LegacyChatMessage {
   resultJson?: string;
 }
 
-export interface LegacyProvider {
+export interface CallbackProvider {
   readonly label: string;
   readonly supportsTools?: boolean;
   chatWithTools?(
-    messages: LegacyChatMessage[],
-    tools: LegacyToolDecl[],
-    callbacks: LegacyChatCallbacks,
-  ): Promise<LegacyChatTurnResult>;
+    messages: ProviderChatMessage[],
+    tools: ProviderToolDecl[],
+    callbacks: ProviderCallbacks,
+  ): Promise<ProviderTurnResult>;
   ask(
     prompt: string,
     onChunk: (chunk: string) => void,
     options?: { signal?: AbortSignal },
-  ): Promise<LegacyChatTurnResult>;
+  ): Promise<ProviderTurnResult>;
 }
 
 /**
- * Wrap a legacy `LlmProvider` instance in the `LlmClient` shape.
+ * Wrap a `CallbackProvider` instance in the `LlmClient` shape.
  * The adapter:
  *
- *   - Translates `ChatRequest` → legacy `chatWithTools` / `ask`
- *     call.
+ *   - Translates `ChatRequest` → `chatWithTools` / `ask` call.
  *   - Buffers callback events into an async queue and replays them
  *     as a `ChatEvent` `AsyncIterable`.
  *   - Forwards the final usage + details as a `turn_complete`
  *     event before closing the stream.
  */
-export function legacyProviderAsLlmClient(legacy: LegacyProvider, id: string): LlmClient {
+export function callbackProviderAsLlmClient(provider: CallbackProvider, id: string): LlmClient {
   return {
     id,
-    supportsTools: legacy.supportsTools ?? typeof legacy.chatWithTools === 'function',
+    supportsTools: provider.supportsTools ?? typeof provider.chatWithTools === 'function',
     chat(req: ChatRequest, signal: AbortSignal): AsyncIterable<ChatEvent> {
-      return drive(legacy, req, signal);
+      return drive(provider, req, signal);
     },
   };
 }
 
 async function* drive(
-  legacy: LegacyProvider,
+  provider: CallbackProvider,
   req: ChatRequest,
   signal: AbortSignal,
 ): AsyncIterable<ChatEvent> {
@@ -133,7 +128,7 @@ async function* drive(
     resolver = null;
   }
 
-  const callbacks: LegacyChatCallbacks = {
+  const callbacks: ProviderCallbacks = {
     onText: (chunk) => push({ kind: 'text', chunk }),
     onThinking: (chunk) => push({ kind: 'thinking', chunk }),
     onToolCall: (call) =>
@@ -147,7 +142,7 @@ async function* drive(
     signal,
   };
 
-  const messagesLegacy: LegacyChatMessage[] = req.messages.map((m) => ({
+  const messages: ProviderChatMessage[] = req.messages.map((m) => ({
     role: m.role,
     text: m.text,
     ...(m.toolCalls ? { toolCalls: m.toolCalls } : {}),
@@ -156,26 +151,26 @@ async function* drive(
     ...(m.resultJson !== undefined ? { resultJson: m.resultJson } : {}),
   }));
 
-  const toolsLegacy: LegacyToolDecl[] = req.tools.map((t) => ({
+  const tools: ProviderToolDecl[] = req.tools.map((t) => ({
     name: t.name,
     description: t.description,
     parameters: t.parameters,
   }));
 
-  let result: LegacyChatTurnResult | undefined;
+  let result: ProviderTurnResult | undefined;
   let error: unknown;
   const driver = (async () => {
     try {
-      if (req.toolUseEnabled && legacy.chatWithTools) {
-        result = await legacy.chatWithTools(messagesLegacy, toolsLegacy, callbacks);
+      if (req.toolUseEnabled && provider.chatWithTools) {
+        result = await provider.chatWithTools(messages, tools, callbacks);
       } else {
         // Plain-chat path — flatten messages into a single prompt.
-        const prompt = messagesLegacy
+        const prompt = messages
           .filter((m) => m.role === 'user' || m.role === 'system')
           .map((m) => m.text ?? '')
           .filter(Boolean)
           .join('\n\n');
-        result = await legacy.ask(prompt, callbacks.onText, { signal });
+        result = await provider.ask(prompt, callbacks.onText, { signal });
       }
     } catch (e) {
       error = e;
