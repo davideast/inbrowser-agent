@@ -19,6 +19,7 @@ export type Category =
   | 'how-to'
   | 'design'
   | 'reference'
+  | 'explanation'
   | 'agent-context'
   | 'skill';
 
@@ -54,6 +55,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   'how-to': 'How-To',
   design: 'Design',
   reference: 'Reference',
+  explanation: 'Explanation',
   'agent-context': 'Agent Context',
   skill: 'Skill',
 };
@@ -95,6 +97,126 @@ export const NODES: DocNode[] = [
     sourcePath: 'packages/agent/README.md',
     summary:
       'Agent runtime plus an agent-friendly CLI: AgentSession, AgentStrategy, ToolRegistry, LlmClient, and an `agent` binary.',
+  },
+  {
+    id: 'agent/tutorials/drive-a-session-from-code',
+    package: 'agent',
+    category: 'tutorial',
+    title: 'Tutorial: Drive A Session From Your Code',
+    route: '/agent/tutorials/drive-a-session-from-code',
+    sourcePath: 'packages/agent/docs/tutorials/01-drive-a-session-from-code.md',
+    summary:
+      'Build a complete agent session in TypeScript with a scripted LLM (no API key or network) that calls a tool then writes a reply.',
+  },
+  {
+    id: 'agent/tutorials/run-the-agent-cli',
+    package: 'agent',
+    category: 'tutorial',
+    title: 'Tutorial: Run The Agent CLI',
+    route: '/agent/tutorials/run-the-agent-cli',
+    sourcePath: 'packages/agent/docs/tutorials/02-run-the-agent-cli.md',
+    summary:
+      'Drive the `agent` binary: discover its schema, run a scripted scenario, read the NDJSON event stream, and find the durable session log.',
+  },
+  {
+    id: 'agent/tutorials/serve-agents-over-mcp',
+    package: 'agent',
+    category: 'tutorial',
+    title: 'Tutorial: Serve Agents Over MCP',
+    route: '/agent/tutorials/serve-agents-over-mcp',
+    sourcePath: 'packages/agent/docs/tutorials/03-serve-agents-over-mcp.md',
+    summary:
+      'Expose your own tools to an external host over MCP: define an agent, stand up an MCP stdio server, and point a host at it.',
+  },
+  {
+    id: 'agent/how-to/implement-llm-client',
+    package: 'agent',
+    category: 'how-to',
+    title: 'How to implement a custom LlmClient',
+    route: '/agent/how-to/implement-llm-client',
+    sourcePath: 'packages/agent/docs/how-to/implement-llm-client.md',
+    summary:
+      'Plug an upstream LLM API into a session by implementing the narrow `LlmClient.chat()` async generator and mapping its stream to ChatEvents.',
+  },
+  {
+    id: 'agent/how-to/consume-an-mcp-server',
+    package: 'agent',
+    category: 'how-to',
+    title: 'How to consume an external MCP server',
+    route: '/agent/how-to/consume-an-mcp-server',
+    sourcePath: 'packages/agent/docs/how-to/consume-an-mcp-server.md',
+    summary:
+      'Give an agent the tools from an external MCP server with `connectMcpTools`, so the session calls them through the same in-process loop.',
+  },
+  {
+    id: 'agent/how-to/define-and-register-tools',
+    package: 'agent',
+    category: 'how-to',
+    title: 'How to define and register tools',
+    route: '/agent/how-to/define-and-register-tools',
+    sourcePath: 'packages/agent/docs/how-to/define-and-register-tools.md',
+    summary:
+      'Define a ToolHandler, register it in a ToolRegistry, and dispatch it, including mutating session state and marking read-only tools parallel-safe.',
+  },
+  {
+    id: 'agent/how-to/inspect-and-undo-with-the-event-log',
+    package: 'agent',
+    category: 'how-to',
+    title: 'How to inspect and undo with the event log',
+    route: '/agent/how-to/inspect-and-undo-with-the-event-log',
+    sourcePath: 'packages/agent/docs/how-to/inspect-and-undo-with-the-event-log.md',
+    summary:
+      'Audit what an agent did to a project and reverse a mutating commit using the `agent` CLI against the per-project append-only event log.',
+  },
+  {
+    id: 'agent/reference/library',
+    package: 'agent',
+    category: 'reference',
+    title: 'Library Reference',
+    route: '/agent/reference/library',
+    sourcePath: 'packages/agent/docs/reference/library.md',
+    summary:
+      'The public library surface of `@inbrowser/agent`, exposed across three import subpaths.',
+  },
+  {
+    id: 'agent/reference/cli',
+    package: 'agent',
+    category: 'reference',
+    title: 'CLI Reference',
+    route: '/agent/reference/cli',
+    sourcePath: 'packages/agent/docs/reference/cli.md',
+    summary:
+      'The `agent` binary, derived from CLI_SPEC, the single source of truth the parser and the schema/describe commands surface verbatim.',
+  },
+  {
+    id: 'agent/reference/events',
+    package: 'agent',
+    category: 'reference',
+    title: 'Event Reference',
+    route: '/agent/reference/events',
+    sourcePath: 'packages/agent/docs/reference/events.md',
+    summary:
+      'The three discriminated-union event streams in `@inbrowser/agent`, each a typed AsyncIterable consumed at a different layer.',
+  },
+  {
+    id: 'agent/explanation/inference-vs-inverse',
+    package: 'agent',
+    category: 'explanation',
+    title: 'Inference vs Inverse: The Two Consumer Modes',
+    route: '/agent/explanation/inference-vs-inverse',
+    sourcePath: 'packages/agent/docs/explanation/inference-vs-inverse.md',
+    summary:
+      'The two ways to consume the package come down to who owns the loop, the single most important mental model for working with it.',
+  },
+  {
+    id: 'agent/explanation/how-the-react-loop-works',
+    package: 'agent',
+    category: 'explanation',
+    title: 'How the ReAct Loop Works',
+    route: '/agent/explanation/how-the-react-loop-works',
+    sourcePath: 'packages/agent/docs/explanation/how-the-react-loop-works.md',
+    summary:
+      'What createReactLoopStrategy() is, why it is shaped that way, and the trade-offs baked into its two optional behaviours.',
   },
   {
     id: 'agent/agent-context',
