@@ -141,6 +141,46 @@ describe('routeSkill — tie-break by name-in-prompt', () => {
     expect(decision.ranking[0].score).toBe(1);
     expect(decision.ranking[1].score).toBe(1);
   });
+
+  test('returns null when scores tie and BOTH names appear in the prompt', () => {
+    // The guard fires whenever the tie-break flag is equal between the
+    // top two — that is true both when neither name is present (covered
+    // above) AND when both are. This pins the both-present branch: two
+    // skills score equally, both names appear in the prompt, so
+    // name-in-prompt cannot separate them and the router declines to
+    // guess.
+    const catalog: SkillCatalog = [
+      {
+        name: 'rtdb-data-modeling',
+        description: 'modeling',
+        triggerHints: ['migrate'],
+        steps: [
+          { id: 'a', description: 'a' },
+          { id: 'b', description: 'b' },
+          { id: 'c', description: 'c' },
+          { id: 'd', description: 'd' },
+        ],
+      } as SkillCatalogEntry,
+      {
+        name: 'pyric-agents',
+        description: 'pyric',
+        triggerHints: ['migrate'],
+        steps: [
+          { id: 'a', description: 'a' },
+          { id: 'b', description: 'b' },
+          { id: 'c', description: 'c' },
+          { id: 'd', description: 'd' },
+        ],
+      } as SkillCatalogEntry,
+    ];
+
+    // "migrate" hits both entries (score 1 each); both literal names
+    // appear, so both nameInPrompt flags are true and tie.
+    const decision = routeSkill('migrate rtdb-data-modeling and pyric-agents', { catalog });
+    expect(decision.match).toBeNull();
+    expect(decision.ranking[0].score).toBe(1);
+    expect(decision.ranking[1].score).toBe(1);
+  });
 });
 
 describe('routeSkill — threshold filtering', () => {
