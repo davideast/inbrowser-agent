@@ -143,9 +143,21 @@ export function ChatApp() {
     focusComposer();
   }, [store, finalize, focusComposer]);
 
+  // Return to the landing (empty state). Start a fresh session only if the
+  // current one has content, so clicking the wordmark while already home does
+  // not pile up empty sessions.
+  const goHome = useCallback(() => {
+    abortRef.current?.abort();
+    finalize();
+    setError('');
+    if ((store.active?.messages.length ?? 0) > 0) store.newSession();
+    setDrawerOpen(false);
+    focusComposer();
+  }, [store, finalize, focusComposer]);
+
   return (
     <div className="h-dvh flex flex-col">
-      <SiteHeader onMenu={() => setDrawerOpen((o) => !o)} menuOpen={drawerOpen} />
+      <SiteHeader onMenu={() => setDrawerOpen((o) => !o)} menuOpen={drawerOpen} onHome={goHome} />
 
       {drawerOpen ? (
         <button
