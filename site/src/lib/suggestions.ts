@@ -106,15 +106,22 @@ function alreadyAsked(history: string[], text: string): boolean {
   });
 }
 
+/** The featured chip leads the home: a real, live answer that has the assistant
+ *  explain the stack it is built on (the self-reference, demonstrated). */
+const FEATURED = 'What is inbrowser?';
+
+const withFeatured = (list: string[], max: number): string[] =>
+  [FEATURED, ...list.filter((s) => s !== FEATURED)].slice(0, max);
+
 /** Build the suggestion chips for the empty state. `sessions` is the full
  *  history; the active (empty) session contributes nothing, so a returning user
  *  starting a fresh chat still gets warm suggestions from past sessions. */
-export function getSuggestions(sessions: Session[], max = 4): string[] {
+export function getSuggestions(sessions: Session[], max = 5): string[] {
   const history = sessions.flatMap((s) =>
     s.messages.filter((m) => m.role === 'user').map((m) => m.text),
   );
 
-  if (history.length === 0) return COLD_START.slice(0, max);
+  if (history.length === 0) return withFeatured(COLD_START, max);
 
   const engaged = (Object.keys(TOPIC_KEYWORDS) as Topic[]).filter((t) =>
     TOPIC_KEYWORDS[t].some((k) => history.some((h) => norm(h).includes(k))),
@@ -132,5 +139,5 @@ export function getSuggestions(sessions: Session[], max = 4): string[] {
   for (const c of fresh) if (!engaged.includes(c.topic)) push(c.text);
   for (const c of COLD_START) if (!alreadyAsked(history, c)) push(c);
 
-  return picked.slice(0, max);
+  return withFeatured(picked, max);
 }
