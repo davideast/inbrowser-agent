@@ -18,14 +18,6 @@
       "types": "./dist/presets.d.ts",
       "import": "./dist/presets.js"
     },
-    "./relay": {
-      "types": "./dist/adapters/relay.d.ts",
-      "import": "./dist/adapters/relay.js"
-    },
-    "./agent": {
-      "types": "./dist/adapters/agent.d.ts",
-      "import": "./dist/adapters/agent.js"
-    },
     "./worker": {
       "types": "./dist/worker.d.ts",
       "import": "./dist/worker.js"
@@ -38,25 +30,15 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@huggingface/transformers": "^3.0.0 || ^4.0.0",
-    "@inbrowser/agent": "workspace:*",
-    "@inbrowser/relay": "workspace:*"
+    "@huggingface/transformers": "^3.0.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "@huggingface/transformers": {
       "optional": false
-    },
-    "@inbrowser/agent": {
-      "optional": true
-    },
-    "@inbrowser/relay": {
-      "optional": true
     }
   },
   "devDependencies": {
     "@huggingface/transformers": "^4.2.0",
-    "@inbrowser/agent": "workspace:*",
-    "@inbrowser/relay": "workspace:*",
     "@types/bun": "latest",
     "typescript": "^5.7.0"
   },

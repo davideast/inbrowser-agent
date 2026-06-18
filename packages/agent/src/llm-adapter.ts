@@ -1,19 +1,18 @@
 /**
  * Adapter from a callback-style chat provider to the core
- * `LlmClient` event-stream surface. Lets `AgentSession` /
+ * `ModelClient` event-stream surface. Lets `AgentSession` /
  * `AgentStrategy` consume providers that expose `onText`,
  * `onToolCall`, etc. without each provider rewriting itself.
  *
  * The callback shape is what the playground's BYOK forms +
  * localStorage wiring already speak. This file flips it into the
- * `AsyncIterable<ChatEvent>` shape the core wants.
+ * `AsyncIterable<ModelEvent>` shape the core wants.
  *
- * A provider can later implement `LlmClient` natively and drop
+ * A provider can later implement `ModelClient` natively and drop
  * the adapter; nothing forces the indirection.
  */
 
-import type { TurnDetails } from './types/chat.js';
-import type { ChatEvent, ChatRequest, LlmClient, RawUsage } from './types/llm.js';
+import type { ModelClient, ModelEvent, ModelRequest, ModelUsage } from './types/llm.js';
 
 /**
  * Minimal external surface the adapter expects. Re-declared here so
@@ -89,20 +88,21 @@ export interface CallbackProvider {
 }
 
 /**
- * Wrap a `CallbackProvider` instance in the `LlmClient` shape.
+ * Wrap a `CallbackProvider` instance in the `ModelClient` shape.
  * The adapter:
  *
- *   - Translates `ChatRequest` → `chatWithTools` / `ask` call.
+ *   - Translates `ModelRequest` → `chatWithTools` / `ask` call.
  *   - Buffers callback events into an async queue and replays them
- *     as a `ChatEvent` `AsyncIterable`.
- *   - Forwards the final usage + details as a `turn_complete`
- *     event before closing the stream.
+ *     as a `ModelEvent` `AsyncIterable`.
+ *   - Forwards the final usage as a `usage` event before the iterable
+ *     returns (the return itself signals turn completion — there is no
+ *     separate terminal event).
  */
-export function callbackProviderAsLlmClient(provider: CallbackProvider, id: string): LlmClient {
+export function callbackProviderAsLlmClient(provider: CallbackProvider, id: string): ModelClient {
   return {
     id,
     supportsTools: provider.supportsTools ?? typeof provider.chatWithTools === 'function',
-    chat(req: ChatRequest, signal: AbortSignal): AsyncIterable<ChatEvent> {
+    chat(req: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent> {
       return drive(provider, req, signal);
     },
   };
@@ -110,14 +110,14 @@ export function callbackProviderAsLlmClient(provider: CallbackProvider, id: stri
 
 async function* drive(
   provider: CallbackProvider,
-  req: ChatRequest,
+  req: ModelRequest,
   signal: AbortSignal,
-): AsyncIterable<ChatEvent> {
-  const queue: ChatEvent[] = [];
+): AsyncIterable<ModelEvent> {
+  const queue: ModelEvent[] = [];
   let resolver: (() => void) | null = null;
   let done = false;
 
-  function push(ev: ChatEvent) {
+  function push(ev: ModelEvent) {
     queue.push(ev);
     resolver?.();
     resolver = null;
@@ -129,8 +129,8 @@ async function* drive(
   }
 
   const callbacks: ProviderCallbacks = {
-    onText: (chunk) => push({ kind: 'text', chunk }),
-    onThinking: (chunk) => push({ kind: 'thinking', chunk }),
+    onText: (chunk) => push({ kind: 'text', text: chunk }),
+    onThinking: (chunk) => push({ kind: 'thinking', text: chunk }),
     onToolCall: (call) =>
       push({
         kind: 'tool_call',
@@ -145,16 +145,25 @@ async function* drive(
   const messages: ProviderChatMessage[] = req.messages.map((m) => ({
     role: m.role,
     text: m.text,
-    ...(m.toolCalls ? { toolCalls: m.toolCalls } : {}),
-    ...(m.callId ? { callId: m.callId } : {}),
+    ...(m.toolCalls
+      ? {
+          toolCalls: m.toolCalls.map((tc) => ({
+            callId: tc.id,
+            name: tc.name,
+            args: tc.args,
+            ...(tc.signature ? { signature: tc.signature } : {}),
+          })),
+        }
+      : {}),
+    ...(m.toolCallId ? { callId: m.toolCallId } : {}),
     ...(m.name ? { name: m.name } : {}),
     ...(m.resultJson !== undefined ? { resultJson: m.resultJson } : {}),
   }));
 
   const tools: ProviderToolDecl[] = req.tools.map((t) => ({
-    name: t.name,
-    description: t.description,
-    parameters: t.parameters,
+    name: t.function.name,
+    description: t.function.description,
+    parameters: t.function.parameters,
   }));
 
   let result: ProviderTurnResult | undefined;
@@ -194,20 +203,24 @@ async function* drive(
     yield { kind: 'error', message: error instanceof Error ? error.message : String(error) };
     return;
   }
-  if (result) {
-    const rawUsage: RawUsage = {
-      promptTokens: result.usage?.promptTokens ?? 0,
-      completionTokens: result.usage?.outputTokens ?? 0,
-      cachedTokens: result.usage?.cachedTokens,
-      reasoningTokens: result.usage?.reasoningTokens,
-      ...(typeof result.usage?.costUsd === 'number' ? { costUsd: result.usage.costUsd } : {}),
-    };
-    const details: TurnDetails = {
-      requestedModel: result.details?.requestedModel ?? '',
-      ...(result.details?.servedModel ? { servedModel: result.details.servedModel } : {}),
-      ...(result.details?.fingerprint ? { fingerprint: result.details.fingerprint } : {}),
-      ...(result.details?.routing ? { routing: result.details.routing } : {}),
-    };
-    yield { kind: 'turn_complete', usage: rawUsage, details };
-  }
+  // The turn completed without error. Emit final accounting as a `usage` event
+  // before returning, per the ModelClient contract (the return itself signals
+  // turn completion). A well-behaved provider returns usage; default to zeros if
+  // it did not, so the "usage before a normal return" guarantee always holds and
+  // the turn is never silently dropped by the consumer.
+  // Provider-reported `details` (servedModel/fingerprint/routing) is no longer
+  // carried on the stream — the session synthesizes `{ requestedModel }` from the
+  // client id.
+  const usage: ModelUsage = {
+    promptTokens: result?.usage?.promptTokens ?? 0,
+    outputTokens: result?.usage?.outputTokens ?? 0,
+    ...(result?.usage?.cachedTokens !== undefined
+      ? { cachedTokens: result.usage.cachedTokens }
+      : {}),
+    ...(result?.usage?.reasoningTokens !== undefined
+      ? { reasoningTokens: result.usage.reasoningTokens }
+      : {}),
+    ...(typeof result?.usage?.costUsd === 'number' ? { costUsd: result.usage.costUsd } : {}),
+  };
+  yield { kind: 'usage', usage };
 }

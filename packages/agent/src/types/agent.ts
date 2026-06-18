@@ -1,7 +1,7 @@
 /**
  * Inverse-mode types — see `plans/inverse-mode-architecture.md`.
  *
- * In inference mode, an agent owns its LlmClient + conversation and the
+ * In inference mode, an agent owns its ModelClient + conversation and the
  * strategy drives a turn-by-turn loop calling `ToolHandler`s. In inverse
  * mode, an external LLM host (Claude Code, Claude Desktop) drives the
  * conversation and calls *behavior-named* `AgentTool`s one-shot.

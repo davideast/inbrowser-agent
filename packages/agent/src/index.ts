@@ -3,7 +3,7 @@
  *
  * The library surface (this module) exports the primitives the
  * playground UI consumes: `AgentSession`, `AgentStrategy`, `ToolRegistry`,
- * `LlmClient`, `MetricsCollector`, `SandboxObserver`, plus the default
+ * `ModelClient`, `MetricsCollector`, `SandboxObserver`, plus the default
  * `createReactLoopStrategy()` and `createAgentSession()`.
  *
  * The CLI surface lives under `@inbrowser/agent/cli` and the `agent` binary
@@ -36,18 +36,19 @@ export type {
   ToolCall as ChatToolCall,
   TurnMetrics,
   TurnDetails,
-  NormalizedMessage,
 } from './types/chat.js';
 
 export type {
-  LlmClient,
+  ModelClient,
+  ModelRequest,
+  ModelEvent,
+  ModelMessage,
+  ModelUsage,
+  ToolSpec,
+  ReasoningEffort,
   LlmClientFactory,
   LlmConfig,
-  ChatRequest,
-  ChatEvent,
-  ToolDeclaration,
   JsonSchema,
-  RawUsage,
 } from './types/llm.js';
 export { callbackProviderAsLlmClient } from './llm-adapter.js';
 export type {

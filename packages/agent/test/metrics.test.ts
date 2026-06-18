@@ -25,7 +25,7 @@ describe('computeTurnMetrics', () => {
       llmId: 'openrouter',
       model: 'anthropic/claude-sonnet-4',
       durationMs: 1500,
-      rawUsage: { promptTokens: 1000, completionTokens: 200, costUsd: 0.0042 },
+      rawUsage: { promptTokens: 1000, outputTokens: 200, costUsd: 0.0042 },
     });
     expect(m.costUsd).toBe(0.0042);
     expect(m.costEstimated).toBe(false);
@@ -36,7 +36,7 @@ describe('computeTurnMetrics', () => {
       llmId: 'gemini',
       model: 'gemini-3.1-flash-lite',
       durationMs: 1500,
-      rawUsage: { promptTokens: 10000, completionTokens: 1000, cachedTokens: 2000 },
+      rawUsage: { promptTokens: 10000, outputTokens: 1000, cachedTokens: 2000 },
     });
     // billed input = 10000-2000 = 8000 @ 0.15/M = 0.0012
     // cached = 2000 @ 0.0375/M = 0.000075
@@ -52,7 +52,7 @@ describe('computeTurnMetrics', () => {
       llmId: 'gemini',
       model: 'unknown-model',
       durationMs: 100,
-      rawUsage: { promptTokens: 100, completionTokens: 50 },
+      rawUsage: { promptTokens: 100, outputTokens: 50 },
     });
     expect(m.costUsd).toBe(0);
     expect(m.costEstimated).toBe(true);
@@ -64,7 +64,7 @@ describe('computeTurnMetrics', () => {
       model: 'gemini-3.1-flash-lite',
       durationMs: 100,
       isByok: true,
-      rawUsage: { promptTokens: 100, completionTokens: 50 },
+      rawUsage: { promptTokens: 100, outputTokens: 50 },
     });
     expect(m.isByok).toBe(true);
   });
@@ -77,13 +77,13 @@ describe('createMetricsCollector', () => {
       llmId: 'gemini',
       model: 'gemini-3.1-flash-lite',
       durationMs: 100,
-      rawUsage: { promptTokens: 1000, completionTokens: 200 },
+      rawUsage: { promptTokens: 1000, outputTokens: 200 },
     });
     c.recordTurn({
       llmId: 'gemini',
       model: 'gemini-3.1-flash-lite',
       durationMs: 100,
-      rawUsage: { promptTokens: 500, completionTokens: 100 },
+      rawUsage: { promptTokens: 500, outputTokens: 100 },
     });
     const totals = c.totals();
     expect(totals.turnCount).toBe(2);
@@ -99,7 +99,7 @@ describe('createMetricsCollector', () => {
       llmId: 'gemini',
       model: 'gemini-3.1-flash-lite',
       durationMs: 100,
-      rawUsage: { promptTokens: 1000, completionTokens: 200 },
+      rawUsage: { promptTokens: 1000, outputTokens: 200 },
     });
     c.reset();
     expect(c.totals().turnCount).toBe(0);

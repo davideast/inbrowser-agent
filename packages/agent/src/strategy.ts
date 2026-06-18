@@ -10,7 +10,8 @@
  *   4. When the LLM produces tool calls, dispatch each one, append
  *      the result message, and loop back to step 2.
  *   5. When the LLM produces no tool calls in a turn, emit
- *      `turn_complete` and finish.
+ *      `turn_complete` (synthesized from the model `usage` event +
+ *      the client id) and finish.
  *
  * Future strategies (planner-executor, graph-of-thoughts,
  * parallel-branch ensembling) sit alongside this one — same
@@ -18,8 +19,8 @@
  */
 
 import { isParallelSafe } from './tools.js';
-import type { NormalizedMessage, TurnDetails } from './types/chat.js';
-import type { ChatEvent, ChatRequest, RawUsage } from './types/llm.js';
+import type { TurnDetails } from './types/chat.js';
+import type { ModelEvent, ModelMessage, ModelRequest, ModelUsage, ToolSpec } from './types/llm.js';
 import type {
   AgentStrategy,
   ReflexionConfig,
@@ -65,7 +66,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
   return {
     id: 'react-loop',
     async *run(input: StrategyRunInput, signal: AbortSignal): AsyncIterable<StrategyEvent> {
-      const messages: NormalizedMessage[] = buildMessages(input);
+      const messages: ModelMessage[] = buildMessages(input);
       // Per-call retry budget for the critique-and-retry pass. Only
       // consulted when `reflexionEnabled` is true; otherwise the
       // critique branch is skipped entirely and the strategy returns
@@ -78,15 +79,21 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
           return;
         }
 
+        // Flat pre-provider view, captured verbatim in the trace.
         const toolDecls = input.toolList.map((h) => ({
           name: h.name,
           description: h.description,
-          parameters: h.parameters,
+          parameters: h.parameters as unknown,
         }));
-        const chatRequest: ChatRequest = {
+        // Nested OAI `ToolSpec` shape the contract requires on the wire.
+        const tools: ToolSpec[] = toolDecls.map((t) => ({
+          type: 'function',
+          function: { name: t.name, description: t.description, parameters: t.parameters },
+        }));
+        const chatRequest: ModelRequest = {
           messages,
-          tools: toolDecls,
-          toolUseEnabled: toolDecls.length > 0 && input.llm.supportsTools,
+          tools,
+          toolUseEnabled: tools.length > 0 && input.llm.supportsTools,
         };
 
         // Emit the trace BEFORE dispatch. Captures the request as the
@@ -119,19 +126,23 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
 
         const pendingToolCalls: { id: string; name: string; args: unknown; signature?: string }[] =
           [];
-        let turnUsage: RawUsage | undefined;
-        let turnDetails: TurnDetails | undefined;
+        let turnUsage: ModelUsage | undefined;
+        // The model stream no longer carries provider details; the
+        // turn's `details` is synthesized locally from the client id.
+        const turnDetails: TurnDetails = { requestedModel: input.llm.id };
         let assistantText = '';
         let assistantThinking = '';
 
-        // Stream the model's reply.
-        for await (const ev of input.llm.chat(chatRequest, signal) as AsyncIterable<ChatEvent>) {
+        // Stream the model's reply. The turn ends when this iterable
+        // returns; the final accounting arrives as a `usage` event
+        // shortly before that — there is no separate terminal event.
+        for await (const ev of input.llm.chat(chatRequest, signal) as AsyncIterable<ModelEvent>) {
           if (ev.kind === 'text') {
-            assistantText += ev.chunk;
-            yield { kind: 'text', chunk: ev.chunk };
+            assistantText += ev.text;
+            yield { kind: 'text', chunk: ev.text };
           } else if (ev.kind === 'thinking') {
-            assistantThinking += ev.chunk;
-            yield { kind: 'thinking', chunk: ev.chunk };
+            assistantThinking += ev.text;
+            yield { kind: 'thinking', chunk: ev.text };
           } else if (ev.kind === 'tool_call') {
             pendingToolCalls.push({
               id: ev.id,
@@ -146,9 +157,8 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
               args: ev.args,
               ...(ev.signature ? { signature: ev.signature } : {}),
             };
-          } else if (ev.kind === 'turn_complete') {
+          } else if (ev.kind === 'usage') {
             turnUsage = ev.usage;
-            turnDetails = ev.details;
           } else if (ev.kind === 'error') {
             yield { kind: 'error', message: ev.message };
             return;
@@ -176,7 +186,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
                 ? {
                     usage: {
                       promptTokens: turnUsage.promptTokens,
-                      outputTokens: turnUsage.completionTokens,
+                      outputTokens: turnUsage.outputTokens,
                       ...(turnUsage.cachedTokens !== undefined
                         ? { cachedTokens: turnUsage.cachedTokens }
                         : {}),
@@ -195,7 +205,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
         // a fresh ReAct iteration.
         if (pendingToolCalls.length === 0) {
           if (!reflexionEnabled) {
-            if (turnUsage && turnDetails) {
+            if (turnUsage) {
               yield { kind: 'turn_complete', usage: turnUsage, details: turnDetails };
             }
             return;
@@ -209,7 +219,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
           // byte when reflexion is disabled.
           messages.push({ role: 'assistant', text: assistantText });
 
-          const critiqueMessages: NormalizedMessage[] = [
+          const critiqueMessages: ModelMessage[] = [
             { role: 'system', text: critiqueSystemPrompt },
             // Skip the original system prompt — the critique system
             // prompt replaces it. Everything else (history + user
@@ -221,7 +231,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
               text: "Evaluate the assistant's most recent reply. Reply with the JSON verdict only.",
             },
           ];
-          const critiqueRequest: ChatRequest = {
+          const critiqueRequest: ModelRequest = {
             messages: critiqueMessages,
             tools: [],
             toolUseEnabled: false,
@@ -245,14 +255,14 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
           }
 
           let critiqueText = '';
-          let critiqueUsage: RawUsage | undefined;
+          let critiqueUsage: ModelUsage | undefined;
           for await (const ev of input.llm.chat(
             critiqueRequest,
             signal,
-          ) as AsyncIterable<ChatEvent>) {
+          ) as AsyncIterable<ModelEvent>) {
             if (ev.kind === 'text') {
-              critiqueText += ev.chunk;
-            } else if (ev.kind === 'turn_complete') {
+              critiqueText += ev.text;
+            } else if (ev.kind === 'usage') {
               critiqueUsage = ev.usage;
             } else if (ev.kind === 'error') {
               // Critique errored — fail open, return the candidate
@@ -270,7 +280,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
                   },
                 });
               }
-              if (turnUsage && turnDetails) {
+              if (turnUsage) {
                 yield { kind: 'turn_complete', usage: turnUsage, details: turnDetails };
               }
               return;
@@ -295,7 +305,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
                   ? {
                       usage: {
                         promptTokens: critiqueUsage.promptTokens,
-                        outputTokens: critiqueUsage.completionTokens,
+                        outputTokens: critiqueUsage.outputTokens,
                         ...(critiqueUsage.cachedTokens !== undefined
                           ? { cachedTokens: critiqueUsage.cachedTokens }
                           : {}),
@@ -314,7 +324,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
               name: 'reflexion_critique',
               data: { verdict: 'ok', text: critiqueText },
             };
-            if (turnUsage && turnDetails) {
+            if (turnUsage) {
               yield { kind: 'turn_complete', usage: turnUsage, details: turnDetails };
             }
             return;
@@ -330,7 +340,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
                 ...(verdict.feedback ? { feedback: verdict.feedback } : {}),
               },
             };
-            if (turnUsage && turnDetails) {
+            if (turnUsage) {
               yield { kind: 'turn_complete', usage: turnUsage, details: turnDetails };
             }
             return;
@@ -345,7 +355,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
               ...(verdict.feedback ? { feedback: verdict.feedback } : {}),
             },
           };
-          if (turnUsage && turnDetails) {
+          if (turnUsage) {
             yield { kind: 'turn_complete', usage: turnUsage, details: turnDetails };
           }
 
@@ -363,7 +373,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
           role: 'assistant',
           text: assistantText,
           toolCalls: pendingToolCalls.map((tc) => ({
-            callId: tc.id,
+            id: tc.id,
             name: tc.name,
             args: tc.args,
             ...(tc.signature ? { signature: tc.signature } : {}),
@@ -426,7 +436,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
             yield { kind: 'tool_result', id: call.id, result };
             messages.push({
               role: 'tool',
-              callId: call.id,
+              toolCallId: call.id,
               name: call.name,
               resultJson: JSON.stringify(safeSerializable(result)),
               text: '',
@@ -444,7 +454,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
             yield { kind: 'tool_result', id: call.id, result };
             messages.push({
               role: 'tool',
-              callId: call.id,
+              toolCallId: call.id,
               name: call.name,
               resultJson: JSON.stringify(safeSerializable(result)),
               text: '',
@@ -467,7 +477,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
           });
         }
         // Loop to next turn.
-        if (turnUsage && turnDetails) {
+        if (turnUsage) {
           yield { kind: 'turn_complete', usage: turnUsage, details: turnDetails };
         }
       }
@@ -480,15 +490,15 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
   };
 }
 
-function buildMessages(input: StrategyRunInput): NormalizedMessage[] {
-  const out: NormalizedMessage[] = [];
+function buildMessages(input: StrategyRunInput): ModelMessage[] {
+  const out: ModelMessage[] = [];
   out.push({ role: 'system', text: input.systemPrompt });
   for (const m of input.history) {
     if (m.role === 'system') continue; // already emitted
     if (m.role === 'assistant') {
       const tc =
         m.toolCalls?.map((c) => ({
-          callId: c.id,
+          id: c.id,
           name: c.name,
           args: safeParse(c.argsJson),
           ...(c.signature ? { signature: c.signature } : {}),
@@ -502,7 +512,7 @@ function buildMessages(input: StrategyRunInput): NormalizedMessage[] {
         if (c.resultJson !== undefined) {
           out.push({
             role: 'tool',
-            callId: c.id,
+            toolCallId: c.id,
             name: c.name,
             resultJson: c.resultJson,
             text: '',

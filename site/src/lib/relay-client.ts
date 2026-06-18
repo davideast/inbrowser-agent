@@ -1,19 +1,22 @@
 /**
- * Adapts any @inbrowser/relay `InferenceProvider` (an async-generator)
- * to @inbrowser/agent's `LlmClient`. Provider-agnostic: the
- * InferenceEvent -> ChatEvent mapping is identical for Gemini, Ollama,
- * etc. Runs server-side only.
+ * Adapts any @inbrowser/relay `InferenceProvider` (an async-generator) to the
+ * unified `ModelClient` contract @inbrowser/agent consumes. Provider-agnostic:
+ * the InferenceEvent -> ModelEvent mapping is identical for Gemini, Ollama, etc.
+ * Runs server-side only.
  *
- * `apiKey` means whatever the chosen provider expects: a real API key
- * for Gemini (x-goog-api-key), the base URL for Ollama.
+ * `apiKey` means whatever the chosen provider expects: a real API key for Gemini
+ * (x-goog-api-key), the base URL for Ollama.
  *
- * Event mapping (relay InferenceEvent -> agent ChatEvent):
- *   text/thinking      -> passthrough
- *   tool_call          -> rename `callId` -> `id`
- *   usage (terminal)   -> buffered, emitted as `turn_complete`
- *   error              -> passthrough, then stop
+ * Event mapping (relay InferenceEvent -> ModelEvent):
+ *   text/thinking    -> rename `chunk` -> `text`
+ *   tool_call        -> rename `callId` -> `id`
+ *   usage            -> nested under `usage`; emitted before the iterable returns
+ *   error            -> passthrough, then stop
+ *
+ * Interim bridge: it disappears once the cloud providers move into
+ * @inbrowser/model as native ModelClients (then relay speaks the contract too).
  */
-import type { ChatEvent, ChatRequest, LlmClient, RawUsage } from '@inbrowser/agent';
+import type { ModelClient, ModelEvent, ModelRequest, ModelUsage } from '@inbrowser/agent';
 import type { ChatMessage, InferenceProvider, NormalizedRequest } from '@inbrowser/relay';
 
 export interface RelayLlmOptions {
@@ -37,17 +40,27 @@ function isTransient(message: string): boolean {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-export function relayLlmClient(opts: RelayLlmOptions): LlmClient {
+export function relayModelClient(opts: RelayLlmOptions): ModelClient {
   const { provider, providerName, model, apiKey, temperature } = opts;
   return {
     id: `${providerName}:${model}`,
     supportsTools: true,
-    async *chat(req: ChatRequest, signal: AbortSignal): AsyncIterable<ChatEvent> {
+    async *chat(req: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent> {
+      // ModelMessage -> relay ChatMessage (relay still uses `callId`).
       const messages: ChatMessage[] = req.messages.map((m) => ({
         role: m.role,
-        text: m.text,
-        ...(m.toolCalls ? { toolCalls: m.toolCalls } : {}),
-        ...(m.callId ? { callId: m.callId } : {}),
+        text: m.text ?? '',
+        ...(m.toolCalls
+          ? {
+              toolCalls: m.toolCalls.map((tc) => ({
+                callId: tc.id,
+                name: tc.name,
+                args: tc.args,
+                ...(tc.signature ? { signature: tc.signature } : {}),
+              })),
+            }
+          : {}),
+        ...(m.toolCallId ? { callId: m.toolCallId } : {}),
         ...(m.name ? { name: m.name } : {}),
         ...(m.resultJson !== undefined ? { resultJson: m.resultJson } : {}),
       }));
@@ -56,8 +69,15 @@ export function relayLlmClient(opts: RelayLlmOptions): LlmClient {
         provider: providerName,
         model,
         messages,
+        // relay still speaks the flat tool shape; flatten the nested ToolSpec.
         // Only advertise tools when the loop enabled them this turn.
-        tools: req.toolUseEnabled ? req.tools : [],
+        tools: req.toolUseEnabled
+          ? req.tools.map((t) => ({
+              name: t.function.name,
+              description: t.function.description,
+              parameters: t.function.parameters,
+            }))
+          : [],
         apiKey,
         ...(typeof temperature === 'number' ? { temperature } : {}),
         signal,
@@ -66,17 +86,17 @@ export function relayLlmClient(opts: RelayLlmOptions): LlmClient {
       // Retry transient upstream errors, but only while nothing has been
       // emitted yet for this turn (so we never duplicate streamed output).
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        let usage: RawUsage | undefined;
+        let usage: ModelUsage | undefined;
         let emitted = false;
         let retryErr: string | null = null;
 
         for await (const e of provider(nreq)) {
           if (e.kind === 'text') {
             emitted = true;
-            yield { kind: 'text', chunk: e.chunk };
+            yield { kind: 'text', text: e.chunk };
           } else if (e.kind === 'thinking') {
             emitted = true;
-            yield { kind: 'thinking', chunk: e.chunk };
+            yield { kind: 'thinking', text: e.chunk };
           } else if (e.kind === 'tool_call') {
             emitted = true;
             yield {
@@ -89,7 +109,7 @@ export function relayLlmClient(opts: RelayLlmOptions): LlmClient {
           } else if (e.kind === 'usage') {
             usage = {
               promptTokens: e.promptTokens,
-              completionTokens: e.outputTokens,
+              outputTokens: e.outputTokens,
               ...(e.cachedTokens !== undefined ? { cachedTokens: e.cachedTokens } : {}),
               ...(e.costUsd !== undefined ? { costUsd: e.costUsd } : {}),
             };
@@ -108,11 +128,10 @@ export function relayLlmClient(opts: RelayLlmOptions): LlmClient {
           continue;
         }
 
-        yield {
-          kind: 'turn_complete',
-          usage: usage ?? { promptTokens: 0, completionTokens: 0 },
-          details: { requestedModel: model },
-        };
+        // Final accounting before the iterable returns (the contract's terminal
+        // is the return itself). `details` is synthesized downstream from the
+        // client id, so it is no longer emitted here.
+        yield { kind: 'usage', usage: usage ?? { promptTokens: 0, outputTokens: 0 } };
         return;
       }
     },

@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import type {
   ChatMessage,
-  LlmClient,
+  ModelClient,
   ObserverEvent,
   SessionEvent,
   ToolContext,
@@ -422,7 +422,7 @@ export async function runCommand(args: ParsedArgs, io: RunCommandIO): Promise<nu
   const envModel = process.env.OPENROUTER_MODEL;
   const wantOpenRouter = llmFlag === 'openrouter' || (llmFlag === 'auto' && apiKey);
 
-  let llm: LlmClient;
+  let llm: ModelClient;
   let llmLabel: string;
   let llmFallbackReason: string | undefined;
   if (wantOpenRouter) {

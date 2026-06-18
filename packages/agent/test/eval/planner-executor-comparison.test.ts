@@ -31,9 +31,9 @@ import { describe, expect, test } from 'bun:test';
 import type { RunRecord } from '../../src/eval/run-record.js';
 import { registerAllSpecs } from '../../src/eval/spec-helpers.js';
 import {
-  type ChatEvent,
-  type ChatRequest,
-  type LlmClient,
+  type ModelClient,
+  type ModelEvent,
+  type ModelRequest,
   type SpecResult,
   type TaskFixture,
   collectMetrics,
@@ -117,7 +117,7 @@ const SUBSET_FIXTURES: readonly TaskFixture[] = [
 ];
 
 /**
- * Stub `LlmClient`. The stub emits a tool call until the current
+ * Stub `ModelClient`. The stub emits a tool call until the current
  * ReAct loop has produced enough tool iterations, then emits the
  * final-text `done` token.
  *
@@ -148,11 +148,11 @@ function createBudgetedStub(
   toolNames: readonly string[],
   baselineTurns: number,
   stepTurns: number,
-): LlmClient {
+): ModelClient {
   return {
     id: 'planexec-cmp-stub',
     supportsTools: true,
-    chat(req: ChatRequest): AsyncIterable<ChatEvent> {
+    chat(req: ModelRequest): AsyncIterable<ModelEvent> {
       const sysText = req.messages.find((m) => m.role === 'system')?.text ?? '';
       const isPlannerSubLoop = /step \d+ of \d+/i.test(sysText);
       const budget = isPlannerSubLoop ? stepTurns : baselineTurns;
@@ -164,7 +164,7 @@ function createBudgetedStub(
       for (const m of req.messages) {
         if (m.role === 'assistant') priorIterations += 1;
       }
-      const events: ChatEvent[] = [];
+      const events: ModelEvent[] = [];
       if (priorIterations < budget) {
         const toolName = toolNames[priorIterations % toolNames.length]!;
         events.push({
@@ -174,13 +174,9 @@ function createBudgetedStub(
           args: { iteration: priorIterations },
         });
       } else {
-        events.push({ kind: 'text', chunk: 'All steps done.' });
+        events.push({ kind: 'text', text: 'All steps done.' });
       }
-      events.push({
-        kind: 'turn_complete',
-        usage: { promptTokens: 50, completionTokens: 10 },
-        details: { requestedModel: 'planexec-cmp-stub' },
-      });
+      events.push({ kind: 'usage', usage: { promptTokens: 50, outputTokens: 10 } });
       return (async function* () {
         for (const ev of events) yield ev;
       })();

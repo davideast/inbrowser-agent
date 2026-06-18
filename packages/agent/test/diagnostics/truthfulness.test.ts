@@ -45,7 +45,7 @@ describe('analyzeTruthfulness', () => {
         messages: [
           {
             role: 'tool',
-            callId: 'c1',
+            toolCallId: 'c1',
             name: 'firestore_discover_paths',
             text: '',
             resultJson: '{"paths":["users/abc123/orders"]}',
@@ -170,7 +170,7 @@ describe('analyzeTruthfulness', () => {
         messages: [
           {
             role: 'tool',
-            callId: 'c1',
+            toolCallId: 'c1',
             name: 'firestore_rules_stdlib_list',
             text: '',
             resultJson: '{"helpers":["isProjectMember","isOwner"]}',

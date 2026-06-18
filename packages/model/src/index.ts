@@ -3,10 +3,9 @@
  *
  * Root export carries the engine factory + types + `definePreset`.
  * Subpaths:
- *   - `@inbrowser/model/presets` — bundled Gemma 4 presets.
- *   - `@inbrowser/model/relay`   — adapter to `@inbrowser/relay`.
- *   - `@inbrowser/model/agent`   — adapter to `@inbrowser/agent`.
- *   - `@inbrowser/model/worker`  — host/connect helpers.
+ *   - `@inbrowser/model/presets`  — bundled Gemma 4 presets.
+ *   - `@inbrowser/model/contract` — the shared `ModelClient` contract.
+ *   - `@inbrowser/model/worker`   — host/connect helpers.
  *
  * Spread a preset into `createEngine` to get a running engine:
  *
