@@ -69,10 +69,9 @@ function titleFrom(text: string): string {
   return t.length > 48 ? `${t.slice(0, 48)}…` : t || 'New chat';
 }
 
-const uid = () =>
-  typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+// Short, URL-friendly session id (7 base36 chars), so chat URLs stay readable.
+// Collisions are vanishingly unlikely for the handful of sessions a browser holds.
+const uid = () => Math.random().toString(36).slice(2, 9).padEnd(7, '0');
 
 function blankSession(): Session {
   const now = Date.now();
@@ -112,13 +111,15 @@ export function useChatStore(): ChatStore {
   }, []);
 
   // Load once on mount (client only). The active session is taken from the URL
-  // (`?c=<id>`), so `/` lands on the home/empty state and a chat link restores
-  // its conversation.
+  // path (`/c/<id>`), so `/` lands on the home/empty state and a chat link
+  // restores its conversation.
   useEffect(() => {
     const s = load();
     setSessions(s);
     const urlId =
-      typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('c');
+      typeof window === 'undefined'
+        ? null
+        : (window.location.pathname.match(/^\/c\/([^/]+)/)?.[1] ?? null);
     setActive(urlId && s.some((x) => x.id === urlId) ? urlId : null);
     loaded.current = true;
   }, [setActive]);

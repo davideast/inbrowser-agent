@@ -61,8 +61,8 @@ export function ChatApp() {
   // Reflect the active session in the URL, so Back escapes a conversation, a
   // chat is linkable, and a refresh restores it. `/` is the home (empty) state.
   const setUrl = useCallback((id: string | null, mode: 'push' | 'replace') => {
-    const url = id ? `/?c=${encodeURIComponent(id)}` : '/';
-    if (url === window.location.pathname + window.location.search) return;
+    const url = id ? `/c/${id}` : '/';
+    if (url === window.location.pathname) return;
     window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
   }, []);
 
@@ -164,7 +164,7 @@ export function ChatApp() {
       abortRef.current?.abort();
       finalize();
       setError('');
-      const id = new URLSearchParams(window.location.search).get('c');
+      const id = window.location.pathname.match(/^\/c\/([^/]+)/)?.[1] ?? null;
       store.selectSession(id && store.sessions.some((s) => s.id === id) ? id : null);
     };
     window.addEventListener('popstate', onPop);
