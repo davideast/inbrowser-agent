@@ -19,6 +19,7 @@ those.
 | `@inbrowser/model` (engine half) | `createEngine`, `definePreset`, `parseToolCalls`, `splitThinking`, the six bundled presets, and engine types |
 | `@inbrowser/model` (model half) | The cloud provider factories (`geminiModelClient`, …), `withRetry`, and the `ModelClient` contract types |
 | `@inbrowser/model/contract` | `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` (type-only) |
+| `@inbrowser/model/engine-client` | `createEngineModelClient` — wraps an `Engine` as a `ModelClient` (also re-exported from the root). See [./adapters-and-worker.md](./adapters-and-worker.md). |
 | `@inbrowser/model/presets` | The six bundled presets. See [./presets.md](./presets.md). |
 | `@inbrowser/model/providers/<name>` | A single cloud provider factory. |
 | `@inbrowser/model/with-retry` | `withRetry`. |
@@ -29,8 +30,8 @@ The bundled presets (`deepseek_r1_qwen_1_5b`, `gemma4_E2B`, `gemma4_E4B`,
 root as well as from `@inbrowser/model/presets`.
 
 > The removed `@inbrowser/model/relay` and `@inbrowser/model/agent` adapter
-> subpaths are gone. The engine is not yet a `ModelClient`; a
-> `createEngineModelClient` wrapper is planned. See
+> subpaths are gone. The engine is now a `ModelClient` via
+> `createEngineModelClient` (root + `@inbrowser/model/engine-client`). See
 > [./adapters-and-worker.md](./adapters-and-worker.md).
 
 ## `createEngine`
