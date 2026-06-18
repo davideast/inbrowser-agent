@@ -1,0 +1,177 @@
+[
+  {
+    "q": "What packages are in the inbrowser monorepo and how do they depend on each other?",
+    "goldRoutes": ["/overview", "/overview/agent-context"],
+    "mustInclude": ["resumable", "relay", "agent", "model"]
+  },
+  {
+    "q": "Which build tool and linter does the repo use, and what is the no-backwards-compat rule for pre-release?",
+    "goldRoutes": ["/overview/agent-context"],
+    "mustInclude": ["bun", "biome", "pre-release"]
+  },
+  {
+    "q": "What are the two consumer modes of the agent package and who owns the loop in each?",
+    "goldRoutes": ["/agent/explanation/inference-vs-inverse"],
+    "mustInclude": ["inference mode", "inverse mode", "loop"]
+  },
+  {
+    "q": "How does the ReAct loop compose its message array before calling the model?",
+    "goldRoutes": ["/agent/explanation/how-the-react-loop-works"],
+    "mustInclude": ["system", "history", "tool"]
+  },
+  {
+    "q": "How do I define a ToolHandler and mark a read-only tool as safe to run in parallel?",
+    "goldRoutes": ["/agent/how-to/define-and-register-tools"],
+    "mustInclude": ["toolhandler", "parallel", "json schema"]
+  },
+  {
+    "q": "How do I plug an upstream LLM API into a session by implementing chat as an async generator?",
+    "goldRoutes": ["/agent/how-to/implement-llm-client"],
+    "mustInclude": ["modelclient", "chat", "async generator"]
+  },
+  {
+    "q": "How do I give an agent the tools from an external MCP server?",
+    "goldRoutes": ["/agent/how-to/consume-an-mcp-server"],
+    "mustInclude": ["connectmcptools", "stdio", "listtools"]
+  },
+  {
+    "q": "How do I audit what an agent changed in a project and reverse a mutating commit?",
+    "goldRoutes": ["/agent/how-to/inspect-and-undo-with-the-event-log"],
+    "mustInclude": ["undo", "events.ndjson", "wrapmutating"]
+  },
+  {
+    "q": "Where does the per-project event log live on disk and what events does a wrapped tool emit?",
+    "goldRoutes": ["/agent/how-to/inspect-and-undo-with-the-event-log"],
+    "mustInclude": ["append-only", "commit", "rollback"]
+  },
+  {
+    "q": "What are the three discriminated-union event streams and how do they layer?",
+    "goldRoutes": ["/agent/reference/events"],
+    "mustInclude": ["sessionevent", "strategyevent", "modelevent"]
+  },
+  {
+    "q": "What are the three import subpaths of the agent package and which is browser-safe?",
+    "goldRoutes": ["/agent/reference/library", "/agent"],
+    "mustInclude": ["node", "cli", "browser-safe"]
+  },
+  {
+    "q": "What output format does the agent binary default to and what are its main commands?",
+    "goldRoutes": ["/agent/reference/cli"],
+    "mustInclude": ["ndjson", "run", "fleet"]
+  },
+  {
+    "q": "How do I expose my own tools to Claude Desktop or Cursor over MCP from a host script?",
+    "goldRoutes": ["/agent/tutorials/serve-agents-over-mcp"],
+    "mustInclude": ["agentdefinition", "stdio", "stdout"]
+  },
+  {
+    "q": "How do I discover the CLI schema and find the durable session log after a scripted run?",
+    "goldRoutes": ["/agent/tutorials/run-the-agent-cli"],
+    "mustInclude": ["schema", "ndjson", "session log"]
+  },
+  {
+    "q": "How do I build an agent session in TypeScript with a scripted LLM and no API key?",
+    "goldRoutes": ["/agent/tutorials/drive-a-session-from-code"],
+    "mustInclude": ["createagentsession", "scripted", "no api key"]
+  },
+  {
+    "q": "What is the relay and why is resumability its primary value?",
+    "goldRoutes": ["/relay", "/relay/how-it-works"],
+    "mustInclude": ["transport", "durable", "reconnect"]
+  },
+  {
+    "q": "What are the two HTTP phases of a relay request and how does a client resume from an offset?",
+    "goldRoutes": ["/relay/how-it-works"],
+    "mustInclude": ["handlestart", "handlestream", "offset"]
+  },
+  {
+    "q": "How do I reach Claude through a subscription without an API key?",
+    "goldRoutes": ["/relay/use-a-subscription-provider"],
+    "mustInclude": ["claudecodemodelclient", "claudeclimodelclient", "subscription"]
+  },
+  {
+    "q": "How do I write a custom provider for an upstream LLM not shipped in the package?",
+    "goldRoutes": ["/relay/write-a-provider"],
+    "mustInclude": ["modelclient", "modelclientfactory", "upstream"]
+  },
+  {
+    "q": "How do I mount the relay in Astro or Express and persist jobs to Firebase RTDB?",
+    "goldRoutes": ["/relay/wire-a-web-app"],
+    "mustInclude": ["astro", "express", "rtdb"]
+  },
+  {
+    "q": "How do I build a relay over a fake provider and a memory store, then resume from an offset?",
+    "goldRoutes": ["/relay/tutorial"],
+    "mustInclude": ["fakeprovider", "from=", "resume"]
+  },
+  {
+    "q": "How does a stream pick back up after a tab is backgrounded or the network drops?",
+    "goldRoutes": ["/resumable/how-it-works", "/relay/how-it-works"],
+    "mustInclude": ["sequence number", "from", "terminal"]
+  },
+  {
+    "q": "What is the resume contract and how does the engine avoid replaying events a subscriber already saw?",
+    "goldRoutes": ["/resumable/how-it-works"],
+    "mustInclude": ["sequence number", "zero-based", "dedup"]
+  },
+  {
+    "q": "What does the resumable engine provide and which stores ship with it?",
+    "goldRoutes": ["/resumable", "/resumable/reference"],
+    "mustInclude": ["jobstore", "createjobengine", "memory"]
+  },
+  {
+    "q": "How do I make a streaming job survive a server restart using Firebase, and what index avoids a full scan?",
+    "goldRoutes": ["/resumable/use-rtdb"],
+    "mustInclude": ["indexon", "expiresat", "sweep"]
+  },
+  {
+    "q": "How do I authenticate the RTDB store against Firebase using a service account file?",
+    "goldRoutes": ["/resumable/use-rtdb"],
+    "mustInclude": ["service account", "oauth", "token"]
+  },
+  {
+    "q": "How do I start a producer that yields chunk events and read them to completion?",
+    "goldRoutes": ["/resumable/tutorial"],
+    "mustInclude": ["createjobengine", "producer", "subscribe"]
+  },
+  {
+    "q": "What is the model layer, what is the one shared contract, and why is the engine not yet a ModelClient?",
+    "goldRoutes": ["/model", "/model/agent-context"],
+    "mustInclude": ["modelclient", "createengine", "engineevent"]
+  },
+  {
+    "q": "Which presets support tool calling and which expose a visible reasoning trace?",
+    "goldRoutes": ["/model/how-to/choose-a-preset"],
+    "mustInclude": ["supportstools", "qwen2_5_coder_1_5b", "supportsthinking"]
+  },
+  {
+    "q": "What context window does each bundled preset declare and what dtype do they all use?",
+    "goldRoutes": ["/model/reference/presets", "/model/how-to/choose-a-preset"],
+    "mustInclude": ["contextwindow", "q4f16", "smollm2_360m"]
+  },
+  {
+    "q": "How do I separate a model's reasoning trace and tool-call envelopes out of the raw token stream?",
+    "goldRoutes": ["/model/how-to/handle-thinking-and-tool-calls"],
+    "mustInclude": ["splitthinking", "parsetoolcalls", "thinking"]
+  },
+  {
+    "q": "How do I load a small language model into a browser tab and stream its reply token by token?",
+    "goldRoutes": ["/model/tutorials/run-a-model-in-the-browser"],
+    "mustInclude": ["smollm2_360m", "wasm", "token"]
+  },
+  {
+    "q": "How do I move the engine into a Web Worker so the page stays responsive while it loads?",
+    "goldRoutes": ["/model/tutorials/run-the-model-in-a-worker"],
+    "mustInclude": ["web worker", "main thread", "hostengineinworker"]
+  },
+  {
+    "q": "What layers make up the on-device inference stack and what are ONNX Runtime Web's two backends?",
+    "goldRoutes": ["/model/explanation/on-device-inference"],
+    "mustInclude": ["onnx", "webgpu", "wasm"]
+  },
+  {
+    "q": "Why is there exactly one engine factory instead of one per model family?",
+    "goldRoutes": ["/model/explanation/design"],
+    "mustInclude": ["createengine", "definepreset", "plain data"]
+  }
+]
