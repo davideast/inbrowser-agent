@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChatStore } from '../../lib/chat-store';
 import { streamAgent } from '../../lib/stream-client';
 import { getSuggestions } from '../../lib/suggestions';
+import { PackageCards } from '../PackageCards';
 import { SiteHeader } from '../SiteHeader';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatThread } from './ChatThread';
@@ -180,7 +181,7 @@ export function ChatApp() {
         </>
       ) : (
         <main ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
-          <div className="max-w-[640px] mx-auto px-4 md:px-6 min-h-full flex flex-col justify-center py-16">
+          <div className="max-w-[760px] mx-auto px-4 md:px-6 pt-[12vh] pb-20">
             <div className="mb-5">
               <span className="text-[11px] font-medium uppercase tracking-widest text-label leading-none">
                 The in-browser AI stack
@@ -212,6 +213,21 @@ export function ChatApp() {
                   {ex}
                 </button>
               ))}
+            </div>
+
+            <div className="mt-16">
+              <h2 className="text-[11px] font-medium uppercase tracking-widest text-label mb-5">
+                Browse the packages
+              </h2>
+              <PackageCards />
+              <div className="mt-4 text-right">
+                <a
+                  href="/docs"
+                  className="text-[12px] text-dim-text hover:text-primary transition-colors"
+                >
+                  all docs <span aria-hidden="true">→</span>
+                </a>
+              </div>
             </div>
           </div>
         </main>
