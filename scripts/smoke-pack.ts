@@ -95,6 +95,8 @@ const SPECS: PackSpec[] = [
     expectFiles: [
       'package/dist/index.js',
       'package/dist/index.d.ts',
+      'package/dist/contract.js',
+      'package/dist/contract.d.ts',
       'package/dist/presets.js',
       'package/dist/adapters/relay.js',
       'package/dist/adapters/agent.js',
@@ -294,6 +296,11 @@ import * as modelWorker from '@inbrowser/model/worker';
 assert.equal(typeof modelWorker.hostEngineInWorker, 'function');
 assert.equal(typeof modelWorker.connectWorkerEngine, 'function');
 console.log('  ✓ model/worker: host/connect helpers exported');
+
+// The shared model-call contract is a type-only subpath: verify it resolves
+// (no runtime members to assert — importing it must pull no transformers).
+import '@inbrowser/model/contract';
+console.log('  ✓ model/contract: type-only contract subpath resolves');
 `,
   );
   await $`node test.mjs`.cwd(SCRATCH);

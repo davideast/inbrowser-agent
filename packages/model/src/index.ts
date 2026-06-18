@@ -51,3 +51,14 @@ export type {
   ModelRef,
   ToolSpec,
 } from './types.js';
+
+// The shared model-call contract (cloud providers + on-device engine implement
+// it; relay + agent consume it). Type-only; importing it pulls no runtime.
+export type {
+  ModelClient,
+  ModelEvent,
+  ModelMessage,
+  ModelRequest,
+  ModelUsage,
+  ReasoningEffort,
+} from './contract.js';
