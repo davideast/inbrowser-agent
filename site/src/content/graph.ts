@@ -20,7 +20,6 @@ export type Category =
   | 'design'
   | 'explanation'
   | 'reference'
-  | 'explanation'
   | 'agent-context'
   | 'skill';
 
@@ -57,7 +56,6 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   design: 'Design',
   explanation: 'Explanation',
   reference: 'Reference',
-  explanation: 'Explanation',
   'agent-context': 'Agent Context',
   skill: 'Skill',
 };
