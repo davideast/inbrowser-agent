@@ -10,8 +10,11 @@ import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../ty
  *
  * Endpoint: POST .../models/{model}:streamGenerateContent?alt=sse
  *
- * The chunk shape, thoughtSignature placement, and tool-call callId
- * generation match what the SDK produced.
+ * The chunk shape and thoughtSignature placement match what the SDK
+ * produced. Streamed function calls are accumulated across chunks and
+ * emitted exactly once (see `geminiEventsFromResponse`): Gemini
+ * re-sends the growing `content.parts[]` list every chunk, so emitting
+ * a `tool_call` per chunk would duplicate every call.
  */
 import type { ChatMessage, ToolDecl } from '../types.js';
 
@@ -134,6 +137,24 @@ interface GeminiStreamChunk {
 }
 
 /**
+ * A function call being assembled across streaming chunks. Gemini's
+ * `streamGenerateContent` re-sends the accumulating `content.parts[]`
+ * every chunk, so one logical call surfaces many times — first
+ * name-only with empty args, then with its full args, with its
+ * `thoughtSignature` sometimes landing on a still-later chunk. We merge
+ * those re-sends into one entry and emit a single `tool_call` at stream
+ * end. Unlike the OpenAI/Anthropic providers — which receive `args` as
+ * JSON-string fragments and *concatenate* — Gemini sends the complete
+ * `args` object each time, so the merge *replaces* with the latest
+ * non-empty snapshot.
+ */
+interface PendingGeminiCall {
+  name: string;
+  args: Record<string, unknown>;
+  signature?: string;
+}
+
+/**
  * Build the upstream Gemini Request — URL + headers + body — without
  * executing it. The returned Request carries no AbortSignal; the
  * caller adds one at fetch time.
@@ -180,6 +201,11 @@ function describeError(e: unknown): string {
  * Parse an already-fetched Gemini SSE response into `InferenceEvent`s.
  * `signal` is optional — the relay passes the consumer's signal in,
  * the page-direct caller passes `req.signal`.
+ *
+ * Function calls are accumulated across chunks (Gemini re-sends the
+ * growing parts list) and flushed as one `tool_call` per logical call
+ * at stream end, so a turn with N calls yields exactly N events with
+ * complete args and signatures.
  */
 export async function* geminiEventsFromResponse(
   response: Response,
@@ -202,6 +228,12 @@ export async function* geminiEventsFromResponse(
   // or a tool call — not thinking) actually came through.
   let sawOutput = false;
   let lastFinishReason: string | undefined;
+  // Function calls accumulate here and are flushed once, after the
+  // stream closes (see the per-part merge below and the flush loop).
+  // Keyed by the call's ordinal position among the turn's function
+  // calls — the one correlation key Gemini's stream offers (parts carry
+  // no id or index).
+  const pending = new Map<number, PendingGeminiCall>();
 
   try {
     for await (const payload of readSseDataLines(response.body)) {
@@ -213,6 +245,19 @@ export async function* geminiEventsFromResponse(
         continue;
       }
       const parts = chunk.candidates?.[0]?.content?.parts ?? [];
+      // Position of a functionCall part *among the functionCall parts in
+      // this chunk* — NOT its raw index in `parts[]`. Gemini re-sends the
+      // whole accumulating parts list each chunk, but the leading text
+      // deltas drop out of later chunks, so a call's raw array index
+      // shifts between chunks while its ordinal among function calls
+      // stays put. That ordinal is the stable correlation key.
+      //
+      // Invariant this relies on: across re-sends Gemini only ever
+      // appends function-call parts, never dropping or reordering an
+      // earlier one, so the k-th call keeps ordinal k. That holds for the
+      // relay's custom-function tools — it advertises no built-in Google
+      // tools whose parts could interleave and shift the ordinals.
+      let fnOrdinal = 0;
       for (const p of parts) {
         if (typeof p.text === 'string' && p.text.length > 0) {
           if (p.thought === true) {
@@ -224,13 +269,39 @@ export async function* geminiEventsFromResponse(
         }
         if (p.functionCall) {
           sawOutput = true;
-          yield {
-            kind: 'tool_call',
-            callId: `gem_${Math.random().toString(36).slice(2, 10)}`,
-            name: p.functionCall.name ?? '',
-            args: (p.functionCall.args as Record<string, unknown>) ?? {},
-            ...(p.thoughtSignature ? { signature: p.thoughtSignature } : {}),
-          };
+          const slot = fnOrdinal++;
+          let call = pending.get(slot);
+          if (!call) {
+            call = { name: '', args: {} };
+            pending.set(slot, call);
+          }
+          // Merge re-sends into the slot. Name and args fill in over
+          // successive chunks; Gemini sends the complete args object each
+          // time, so the latest non-empty snapshot is the full one
+          // (replace, don't concatenate). An all-empty re-send never
+          // clobbers args already captured.
+          //
+          // This reads the default `functionCall.args` shape. Gemini 3's
+          // opt-in argument-streaming mode instead emits `partialArgs`
+          // fragments with `willContinue` — the relay never requests that
+          // mode (`toGeminiBody` sends no `functionCallingConfig`), so
+          // args always arrive whole. If that ever changes, reconstruct
+          // from `partialArgs` here; until then such args would stay `{}`.
+          if (p.functionCall.name) call.name = p.functionCall.name;
+          const incomingArgs = p.functionCall.args;
+          if (
+            incomingArgs &&
+            typeof incomingArgs === 'object' &&
+            !Array.isArray(incomingArgs) &&
+            Object.keys(incomingArgs).length > 0
+          ) {
+            call.args = incomingArgs;
+          }
+          // thoughtSignature is a sibling of functionCall on the part and
+          // frequently arrives on a later chunk than the args. Capturing
+          // it per-slot is what keeps the signature attached to its call
+          // for Gemini-3 replay.
+          if (p.thoughtSignature) call.signature = p.thoughtSignature;
         }
       }
       const finishReason = chunk.candidates?.[0]?.finishReason;
@@ -261,6 +332,26 @@ export async function* geminiEventsFromResponse(
       } (response ended after thinking only)`,
     };
     return;
+  }
+
+  // Flush the accumulated function calls — exactly one `tool_call` per
+  // logical call, carrying its complete args and thoughtSignature. The
+  // `callId` is the call's stable ordinal (not a per-chunk random
+  // value), so re-parsing the same stream is deterministic and the id is
+  // identical across the args/signature that arrived on different chunks.
+  for (const [slot, call] of pending) {
+    // Skip a slot that never got a name — a stray empty partial, never
+    // dispatchable — so a turn with N real calls still yields exactly N
+    // events. A named call with empty args is legitimate (a no-arg tool)
+    // and is kept.
+    if (!call.name) continue;
+    yield {
+      kind: 'tool_call',
+      callId: `gem_${slot}`,
+      name: call.name,
+      args: call.args,
+      ...(call.signature ? { signature: call.signature } : {}),
+    };
   }
 
   yield {
