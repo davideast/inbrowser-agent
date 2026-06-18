@@ -10,7 +10,6 @@
 import {
   type ClientMessage,
   createResumableClient as createGenericClient,
-  installBrowserLifecycle,
 } from '@inbrowser/resumable/client';
 import type { InferenceEvent, NormalizedRequest } from '../types.js';
 
@@ -72,4 +71,4 @@ export function createResumableClient(opts: ResumableClientOpts): ResumableClien
   };
 }
 
-export { installBrowserLifecycle };
+export { installBrowserLifecycle } from './browser.js';
