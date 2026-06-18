@@ -1,6 +1,14 @@
+import type { LoadProgress } from '@inbrowser/model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChatStore } from '../../lib/chat-store';
-import { streamAgent } from '../../lib/stream-client';
+import {
+  type OnDevicePreset,
+  PRESET_META,
+  hasWebGPU,
+  loadOnDeviceEngine,
+  streamOnDeviceAgent,
+} from '../../lib/on-device-agent';
+import { type AgentStreamHandlers, streamAgent } from '../../lib/stream-client';
 import { getSuggestions } from '../../lib/suggestions';
 import { PackageCards } from '../PackageCards';
 import { PoweredByStrip } from '../PoweredByStrip';
@@ -8,6 +16,12 @@ import { SiteHeader } from '../SiteHeader';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatThread } from './ChatThread';
 import { Composer } from './Composer';
+
+type ModelStatus =
+  | { phase: 'idle' }
+  | { phase: 'loading'; detail: string }
+  | { phase: 'ready'; backend: string }
+  | { phase: 'error'; msg: string };
 
 /** Centered docs chat: a prompt box to begin, an in-flow composer, and a
  *  toggle-only session drawer. */
@@ -20,6 +34,9 @@ export function ChatApp() {
   const [phase, setPhase] = useState<'agent' | 'relay' | null>(null);
   const [error, setError] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [onDevice, setOnDevice] = useState(false);
+  const [preset, setPreset] = useState<OnDevicePreset>('smollm2_360m');
+  const [modelStatus, setModelStatus] = useState<ModelStatus>({ phase: 'idle' });
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -70,6 +87,33 @@ export function ChatApp() {
     window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
   }, []);
 
+  // Download + compile the chosen on-device preset (in a Web Worker). The
+  // weights (~180-350 MB) are fetched once, then cached for instant reloads.
+  const loadModel = useCallback(async () => {
+    setModelStatus({ phase: 'loading', detail: 'starting…' });
+    const backend = hasWebGPU() ? 'webgpu' : 'wasm';
+    try {
+      await loadOnDeviceEngine(preset, {
+        onProgress: (p: LoadProgress) => {
+          if (p.phase === 'fetch') {
+            const pct = p.totalBytes ? Math.round((p.loadedBytes / p.totalBytes) * 100) : 0;
+            const file = p.file.split('/').pop() ?? p.file;
+            setModelStatus({ phase: 'loading', detail: `downloading ${file} ${pct}%` });
+          } else if (p.phase === 'init') {
+            // The engine reports the configured backend ('auto'); show the
+            // resolved one we inferred from WebGPU presence instead.
+            setModelStatus({ phase: 'loading', detail: `compiling (${backend})…` });
+          } else if (p.phase === 'warmup') {
+            setModelStatus({ phase: 'loading', detail: 'warming up…' });
+          }
+        },
+      });
+      setModelStatus({ phase: 'ready', backend });
+    } catch (e) {
+      setModelStatus({ phase: 'error', msg: e instanceof Error ? e.message : String(e) });
+    }
+  }, [preset]);
+
   const send = useCallback(
     async (explicit?: string) => {
       const text = (explicit ?? input).trim();
@@ -95,28 +139,42 @@ export function ChatApp() {
       const ctrl = new AbortController();
       abortRef.current = ctrl;
 
+      if (onDevice && modelStatus.phase !== 'ready') {
+        setError('Load the on-device model first (use the bar above).');
+        finalize();
+        return;
+      }
+
+      const handlers: AgentStreamHandlers = {
+        onToken: (t) => {
+          setPhase('relay');
+          store.appendAssistantText(sid, t);
+        },
+        onTool: (name, detail) => {
+          setPhase('agent');
+          store.addAssistantStep(sid, { name, detail });
+        },
+        onVisited: (card) => store.addAssistantCard(sid, card),
+        onError: (message) => {
+          setError(message);
+          finalize();
+        },
+        onDone: finalize,
+      };
+
       try {
-        await streamAgent(
-          '/api/chat',
-          { messages: convo },
-          {
-            onToken: (t) => {
-              setPhase('relay');
-              store.appendAssistantText(sid, t);
-            },
-            onTool: (name, detail) => {
-              setPhase('agent');
-              store.addAssistantStep(sid, { name, detail });
-            },
-            onVisited: (card) => store.addAssistantCard(sid, card),
-            onError: (message) => {
-              setError(message);
-              finalize();
-            },
-            onDone: finalize,
-          },
-          ctrl.signal,
-        );
+        if (onDevice) {
+          // Run the agent entirely in the browser: retrieval strategy + the
+          // on-device engine, no server round-trip.
+          await streamOnDeviceAgent(
+            text,
+            convo.slice(0, -1) as { role: 'user' | 'assistant'; text: string }[],
+            handlers,
+            ctrl.signal,
+          );
+        } else {
+          await streamAgent('/api/chat', { messages: convo }, handlers, ctrl.signal);
+        }
         finalize();
       } catch (e) {
         if ((e as Error)?.name === 'AbortError') {
@@ -127,7 +185,7 @@ export function ChatApp() {
         finalize();
       }
     },
-    [input, busy, store, finalize, setUrl],
+    [input, busy, store, finalize, setUrl, onDevice, modelStatus.phase],
   );
 
   const stop = useCallback(() => {
@@ -179,6 +237,18 @@ export function ChatApp() {
     <div className="h-dvh flex flex-col">
       <SiteHeader onMenu={() => setDrawerOpen((o) => !o)} menuOpen={drawerOpen} onHome={goEmpty} />
 
+      <OnDeviceBar
+        onDevice={onDevice}
+        onToggle={setOnDevice}
+        preset={preset}
+        onPreset={(p) => {
+          setPreset(p);
+          setModelStatus({ phase: 'idle' });
+        }}
+        status={modelStatus}
+        onLoad={loadModel}
+      />
+
       {drawerOpen ? (
         <button
           type="button"
@@ -201,8 +271,9 @@ export function ChatApp() {
         <>
           <PoweredByStrip
             agentLive={busy && phase === 'agent'}
-            relayLive={busy && phase === 'relay'}
-            resumableLive={busy}
+            relayLive={!onDevice && busy && phase === 'relay'}
+            resumableLive={!onDevice && busy}
+            modelLive={onDevice && busy && phase === 'relay'}
           />
           {/* Scroll the conversation; the composer is docked below so it is
               always fully visible (no mid-screen float, no mobile-toolbar clip). */}
@@ -278,6 +349,77 @@ export function ChatApp() {
           </div>
         </main>
       )}
+    </div>
+  );
+}
+
+/** Thin control bar to enable on-device inference + load a small model.
+ *  Experimental: cloud (Gemini) stays the default; this runs the whole agent
+ *  in the browser for testing. */
+function OnDeviceBar({
+  onDevice,
+  onToggle,
+  preset,
+  onPreset,
+  status,
+  onLoad,
+}: {
+  onDevice: boolean;
+  onToggle: (v: boolean) => void;
+  preset: OnDevicePreset;
+  onPreset: (p: OnDevicePreset) => void;
+  status: ModelStatus;
+  onLoad: () => void;
+}) {
+  return (
+    <div className="shrink-0 border-b border-border bg-bg">
+      <div className="max-w-[760px] mx-auto px-4 md:px-6 min-h-9 flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-[11px] text-secondary">
+        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={onDevice}
+            onChange={(e) => onToggle(e.target.checked)}
+            className="accent-[color:var(--color-primary,currentColor)]"
+          />
+          <span>Run on-device</span>
+          <span className="text-dim-text">experimental</span>
+        </label>
+        {onDevice ? (
+          <>
+            <select
+              value={preset}
+              onChange={(e) => onPreset(e.target.value as OnDevicePreset)}
+              disabled={status.phase === 'loading'}
+              className="bg-bg border border-border px-1.5 py-0.5 text-[11px] text-secondary"
+            >
+              {(Object.keys(PRESET_META) as OnDevicePreset[]).map((p) => (
+                <option key={p} value={p}>
+                  {PRESET_META[p].label}
+                </option>
+              ))}
+            </select>
+            {status.phase === 'idle' ? (
+              <button type="button" onClick={onLoad} className="text-primary hover:underline">
+                download &amp; load · {PRESET_META[preset].note}
+              </button>
+            ) : status.phase === 'loading' ? (
+              <span className="text-dim-text">{status.detail}</span>
+            ) : status.phase === 'ready' ? (
+              <span className="text-primary">
+                <span aria-hidden="true">▸ </span>ready · {status.backend}
+              </span>
+            ) : (
+              <span className="text-secondary">
+                load failed: {status.msg}{' '}
+                <button type="button" onClick={onLoad} className="text-primary underline">
+                  retry
+                </button>
+              </span>
+            )}
+            {!hasWebGPU() ? <span className="text-dim-text">· no WebGPU → WASM</span> : null}
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }
