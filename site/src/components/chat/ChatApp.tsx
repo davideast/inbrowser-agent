@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChatStore } from '../../lib/chat-store';
 import { streamAgent } from '../../lib/stream-client';
 import { getSuggestions } from '../../lib/suggestions';
+import { SiteHeader } from '../SiteHeader';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatThread } from './ChatThread';
 import { Composer } from './Composer';
@@ -135,26 +136,7 @@ export function ChatApp() {
 
   return (
     <div className="h-dvh flex flex-col">
-      <header className="h-12 shrink-0 border-b border-border flex items-center justify-between px-4 md:px-6">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="text-secondary hover:text-primary text-[18px] leading-none"
-            aria-label="Toggle sessions"
-            aria-expanded={drawerOpen}
-            aria-controls="chat-sidebar"
-            onClick={() => setDrawerOpen((o) => !o)}
-          >
-            ☰
-          </button>
-          <a href="/" className="text-[13px] text-secondary hover:text-primary">
-            inbrowser <span className="text-dim-text">/ chat</span>
-          </a>
-        </div>
-        <a href="/" className="text-[12px] text-secondary hover:text-primary">
-          Docs <span aria-hidden="true">→</span>
-        </a>
-      </header>
+      <SiteHeader onMenu={() => setDrawerOpen((o) => !o)} menuOpen={drawerOpen} />
 
       {drawerOpen ? (
         <button
@@ -201,15 +183,15 @@ export function ChatApp() {
           <div className="max-w-[640px] mx-auto px-4 md:px-6 min-h-full flex flex-col justify-center py-16">
             <div className="mb-5">
               <span className="text-[11px] font-medium uppercase tracking-widest text-label leading-none">
-                Docs assistant
+                The in-browser AI stack
               </span>
             </div>
             <h1 className="text-[32px] md:text-[40px] leading-[1.1] tracking-[-0.02em] font-normal text-primary mb-4">
-              Ask the docs
+              Resumable, grounded AI in the browser
             </h1>
-            <p className="text-secondary text-[14px] leading-[1.75] mb-8 max-w-[52ch]">
-              A local agent looks up your question across the inbrowser packages and answers,
-              grounded, with links to the source pages.
+            <p className="text-secondary text-[14px] leading-[1.75] mb-8 max-w-[54ch]">
+              This assistant is built on it: the agent runs the lookup and the relay streams the
+              answer, grounded in these docs. Ask it anything about the packages.
             </p>
             <Composer
               inputRef={composerRef}
