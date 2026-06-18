@@ -53,10 +53,10 @@ export function BreadcrumbBar({ crumbs }: BreadcrumbBarProps) {
           </ol>
         </nav>
         <a
-          href="/chat"
+          href="/"
           className="text-[12px] text-secondary hover:text-primary transition-colors shrink-0"
         >
-          Chat <span aria-hidden="true">→</span>
+          Ask <span aria-hidden="true">→</span>
         </a>
       </div>
     </header>

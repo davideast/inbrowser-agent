@@ -20,6 +20,9 @@ export default defineConfig({
   adapter: node({ mode: 'standalone' }),
   integrations: [react()],
 
+  // One chat everywhere: the home is the chat, so /chat redirects to it.
+  redirects: { '/chat': '/' },
+
   markdown: {
     remarkPlugins: [[remarkRewriteLinks, { routeMap, repoRoot }]],
     rehypePlugins: [rehypeStripFirstH1, rehypeTuiFrames],
