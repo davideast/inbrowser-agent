@@ -58,6 +58,14 @@ export function ChatApp() {
     abortRef.current = null;
   }, []);
 
+  // Reflect the active session in the URL, so Back escapes a conversation, a
+  // chat is linkable, and a refresh restores it. `/` is the home (empty) state.
+  const setUrl = useCallback((id: string | null, mode: 'push' | 'replace') => {
+    const url = id ? `/?c=${encodeURIComponent(id)}` : '/';
+    if (url === window.location.pathname + window.location.search) return;
+    window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
+  }, []);
+
   const send = useCallback(
     async (explicit?: string) => {
       const text = (explicit ?? input).trim();
@@ -72,6 +80,7 @@ export function ChatApp() {
       ];
       const sid = store.ensureActiveId();
       store.addUserTurn(sid, text);
+      setUrl(sid, 'push');
 
       setInput('');
       setError('');
@@ -114,7 +123,7 @@ export function ChatApp() {
         finalize();
       }
     },
-    [input, busy, store, finalize],
+    [input, busy, store, finalize, setUrl],
   );
 
   const stop = useCallback(() => {
@@ -128,36 +137,43 @@ export function ChatApp() {
       finalize();
       setError('');
       store.selectSession(id);
+      setUrl(id, 'push');
       setDrawerOpen(false);
       focusComposer();
     },
-    [store, finalize, focusComposer],
+    [store, finalize, focusComposer, setUrl],
   );
 
-  const newChat = useCallback(() => {
+  // Go to the home (empty) state. With URL state, "empty" is simply no active
+  // session (the URL becomes `/`); sending creates the session lazily, so this
+  // never piles up blank sessions. Used by the wordmark and "new chat".
+  const goEmpty = useCallback(() => {
     abortRef.current?.abort();
     finalize();
     setError('');
-    store.newSession();
+    store.selectSession(null);
+    setUrl(null, 'push');
     setDrawerOpen(false);
     focusComposer();
-  }, [store, finalize, focusComposer]);
+  }, [store, finalize, focusComposer, setUrl]);
 
-  // Return to the landing (empty state). Start a fresh session only if the
-  // current one has content, so clicking the wordmark while already home does
-  // not pile up empty sessions.
-  const goHome = useCallback(() => {
-    abortRef.current?.abort();
-    finalize();
-    setError('');
-    if ((store.active?.messages.length ?? 0) > 0) store.newSession();
-    setDrawerOpen(false);
-    focusComposer();
-  }, [store, finalize, focusComposer]);
+  // Sync the active session when the user navigates with Back/Forward.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: store identity is stable enough; re-subscribing per render is harmless
+  useEffect(() => {
+    const onPop = () => {
+      abortRef.current?.abort();
+      finalize();
+      setError('');
+      const id = new URLSearchParams(window.location.search).get('c');
+      store.selectSession(id && store.sessions.some((s) => s.id === id) ? id : null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [store, finalize]);
 
   return (
     <div className="h-dvh flex flex-col">
-      <SiteHeader onMenu={() => setDrawerOpen((o) => !o)} menuOpen={drawerOpen} onHome={goHome} />
+      <SiteHeader onMenu={() => setDrawerOpen((o) => !o)} menuOpen={drawerOpen} onHome={goEmpty} />
 
       {drawerOpen ? (
         <button
@@ -172,7 +188,7 @@ export function ChatApp() {
         sessions={store.sessions}
         activeId={store.activeId}
         onSelect={switchTo}
-        onNew={newChat}
+        onNew={goEmpty}
         onDelete={store.deleteSession}
         onClose={() => setDrawerOpen(false)}
       />

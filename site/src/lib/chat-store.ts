@@ -84,7 +84,8 @@ export interface ChatStore {
   activeId: string | null;
   active: Session | null;
   newSession(): void;
-  selectSession(id: string): void;
+  /** Select a session, or `null` for the home (empty) state. */
+  selectSession(id: string | null): void;
   deleteSession(id: string): void;
   /** Ensure an active session exists and return its id (synchronous). */
   ensureActiveId(): string;
@@ -110,11 +111,15 @@ export function useChatStore(): ChatStore {
     setActiveIdState(id);
   }, []);
 
-  // Load once on mount (client only).
+  // Load once on mount (client only). The active session is taken from the URL
+  // (`?c=<id>`), so `/` lands on the home/empty state and a chat link restores
+  // its conversation.
   useEffect(() => {
     const s = load();
     setSessions(s);
-    setActive(s[0]?.id ?? null);
+    const urlId =
+      typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('c');
+    setActive(urlId && s.some((x) => x.id === urlId) ? urlId : null);
     loaded.current = true;
   }, [setActive]);
 
@@ -165,7 +170,7 @@ export function useChatStore(): ChatStore {
     setActive(s.id);
   }, [setActive]);
 
-  const selectSession = useCallback((id: string) => setActive(id), [setActive]);
+  const selectSession = useCallback((id: string | null) => setActive(id), [setActive]);
 
   const deleteSession = useCallback(
     (id: string) => {
