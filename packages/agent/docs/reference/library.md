@@ -33,7 +33,7 @@ consumes.
 | Field | Type | Description |
 | --- | --- | --- |
 | `strategy` | `AgentStrategy` | The pluggable inference algorithm. |
-| `llm` | `LlmClient` | Provider client used for chat calls. |
+| `llm` | `ModelClient` | Model client used for chat calls. |
 | `tools` | `ToolDispatch` | Dispatcher the strategy runs tool calls against. |
 | `toolList` | `ToolHandler[]` | Tool declarations the LLM sees this turn. Empty disables function calling. |
 | `toolContext` | `() => ToolContext` | Factory producing a fresh `ToolContext` per tool execution. |
@@ -118,7 +118,7 @@ returns the strategy's event stream; the session translates it into
 | `history` | `ChatMessage[]` | Conversation history *before* this turn's prompt. The strategy appends `prompt` itself. |
 | `workspace` | `Workspace` | Live workspace. |
 | `runtime` | `RuntimeState` | Live runtime state. |
-| `llm` | `LlmClient` | Provider client. |
+| `llm` | `ModelClient` | Model client. |
 | `tools` | `ToolDispatch` | Dispatcher. |
 | `toolList` | `ToolHandler[]` | Already filtered by active capabilities. |
 | `toolContext` | `() => ToolContext` | Factory; called per tool execution. |
@@ -301,50 +301,101 @@ serves repeat calls to handlers tagged `pure`. The returned `MemoizedDispatch`
 extends `ToolDispatch` with cache controls and exposes `MemoStats`. Related
 types: `MemoKeyComponent`, `MemoOptions`, `MemoStats`.
 
-## LLM contract
+## Model contract
 
-### `LlmClient`
+The agent drives the model through `ModelClient` — the one model-call contract
+for the stack, defined in `@inbrowser/model/contract` and re-exported from
+`@inbrowser/agent`. The relay (transport) and the cloud providers speak the same
+contract, so a client built for one works in the others.
+
+### `ModelClient`
 
 ```ts
-interface LlmClient {
+interface ModelClient {
   readonly id: string;
   readonly supportsTools: boolean;
-  chat(req: ChatRequest, signal: AbortSignal): AsyncIterable<ChatEvent>;
+  chat(req: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent>;
 }
 ```
 
-The narrow provider interface. Implementations live in adapter packages. The
-client knows about model calls and streamed events; it knows nothing about
-BYOK forms, storage, model pickers, or pricing. `chat` yields `ChatEvent`s,
-enumerated in [events.md](./events.md).
+The narrow model interface. The cloud providers in `@inbrowser/model`
+(`geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`,
+`ollamaModelClient`, `claudeCliModelClient`, `claudeCodeModelClient`) are
+factories returning one. The client knows about model calls and streamed events;
+it knows nothing about BYOK forms, storage, model pickers, or pricing. `chat`
+yields `ModelEvent`s, enumerated in [events.md](./events.md). `id` is a stable
+metrics/provenance string such as `gemini:gemini-3.5-flash`.
 
-### `ChatRequest`
+### `ModelRequest`
 
 ```ts
-interface ChatRequest {
-  messages: NormalizedMessage[];
-  tools: ToolDeclaration[];
+interface ModelRequest {
+  messages: ModelMessage[];
+  tools: ToolSpec[];
   toolUseEnabled: boolean;
+  temperature?: number;
+  topP?: number;
+  topK?: number;
+  reasoningEffort?: ReasoningEffort; // 'off' | 'low' | 'medium' | 'high'
 }
 ```
 
 | Field | Description |
 | --- | --- |
 | `messages` | The message array to send. |
-| `tools` | Tool declarations the model may invoke. Empty array means plain chat. |
-| `toolUseEnabled` | Lighter than `tools.length === 0`; lets adapters skip tool-mode encoding entirely. |
+| `tools` | Tool specs the model may invoke. Empty array means plain chat. |
+| `toolUseEnabled` | Lighter than `tools.length === 0`; lets clients skip tool-mode encoding entirely. |
+| `temperature`, `topP`, `topK`, `reasoningEffort` | Optional sampling / reasoning controls. |
 
-### `ToolDeclaration`
+### `ToolSpec`
 
 ```ts
-interface ToolDeclaration {
-  name: string;
-  description: string;
-  parameters: JsonSchema;
+interface ToolSpec {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: unknown;
+  };
 }
 ```
 
-A tool surfaced to the model. `parameters` is a `JsonSchema`.
+A tool surfaced to the model in the OAI function-calling shape that modern chat
+templates accept directly. `parameters` is a JSON Schema object. (The agent
+builds these from its `ToolHandler` list.)
+
+### `ModelMessage`
+
+```ts
+interface ModelMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  text?: string;
+  toolCalls?: { id: string; name: string; args: unknown; signature?: string }[];
+  toolCallId?: string;
+  name?: string;
+  resultJson?: string;
+}
+```
+
+One turn handed to the model. Assistant turns carry `toolCalls[]` (each with an
+`id`); tool-result turns carry `toolCallId` (the call they answer), `name`, and
+`resultJson`.
+
+### `ModelUsage`
+
+```ts
+interface ModelUsage {
+  promptTokens: number;
+  outputTokens: number;
+  cachedTokens?: number;
+  reasoningTokens?: number;
+  costUsd?: number;
+}
+```
+
+Per-turn token usage, carried by the `usage` `ModelEvent`. Interpreted by
+`MetricsCollector` to derive `TurnMetrics`. `costUsd`, when present, bypasses
+pricing tables.
 
 ### `LlmConfig`
 
@@ -358,31 +409,18 @@ interface LlmConfig {
 }
 ```
 
-Construction-time config for an `LlmClient`. Passed explicitly so concurrent
-sessions can use different keys and models against the same provider.
+Agent-local construction-time config for a `ModelClient`. Passed explicitly so
+concurrent sessions can use different keys and models against the same provider.
 
 ### `LlmClientFactory`
 
 ```ts
 interface LlmClientFactory {
-  create(config: LlmConfig): LlmClient;
+  create(config: LlmConfig): ModelClient;
 }
 ```
 
-### `RawUsage`
-
-```ts
-interface RawUsage {
-  promptTokens: number;
-  completionTokens: number;
-  cachedTokens?: number;
-  reasoningTokens?: number;
-  costUsd?: number;
-}
-```
-
-Raw token usage as the provider reports it. Interpreted by `MetricsCollector`
-to derive `TurnMetrics`. `costUsd`, when present, bypasses pricing tables.
+Agent-local factory shape that builds a `ModelClient` from an `LlmConfig`.
 
 ### `callbackProviderAsLlmClient`
 
@@ -390,13 +428,14 @@ to derive `TurnMetrics`. `costUsd`, when present, bypasses pricing tables.
 function callbackProviderAsLlmClient(
   provider: CallbackProvider,
   id: string,
-): LlmClient;
+): ModelClient;
 ```
 
 Adapts a callback-style `CallbackProvider` (one that drives turns via
-`ProviderCallbacks`) into the streaming `LlmClient` interface. Related types:
-`CallbackProvider`, `ProviderTurnResult`, `ProviderCallbacks`,
-`ProviderChatMessage`, `ProviderToolDecl`, `ProviderUsage`,
+`ProviderCallbacks`) into the streaming `ModelClient` interface. It buffers the
+callbacks into a `ModelEvent` stream and emits the final `usage` event before
+the iterable returns. Related types: `CallbackProvider`, `ProviderTurnResult`,
+`ProviderCallbacks`, `ProviderChatMessage`, `ProviderToolDecl`, `ProviderUsage`,
 `ProviderTurnDetails`.
 
 ## Metrics
@@ -421,8 +460,8 @@ Builds a stateful `MetricsCollector` for one session.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `llmId` | `string` | Provider id (the `LlmClient.id`). |
-| `rawUsage` | `RawUsage` | Provider-reported usage. |
+| `llmId` | `string` | Model client id (the `ModelClient.id`). |
+| `rawUsage` | `ModelUsage` | Provider-reported usage. |
 | `model` | `string` | Model name (the pricing key with `llmId`). |
 | `durationMs` | `number` | Turn wall-clock. |
 | `isByok` | `boolean` (optional) | Whether the user supplied their own key. |
@@ -622,7 +661,9 @@ interface EventValueCodec {
 `@inbrowser/agent` re-exports many types consumed by hosts and adapters,
 including: `Workspace`, `StitchContext`, `ProjectContext`, `RuntimeState`,
 `TerminalEntry`, `RunSummary`, `DeployState`, `ChatMessage`, `ChatRole`,
-`TurnMetrics`, `TurnDetails`, `NormalizedMessage`, `Capabilities`,
+`TurnMetrics`, `TurnDetails`, the model-contract types (`ModelClient`,
+`ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`,
+`ReasoningEffort`) re-exported from `@inbrowser/model/contract`, `Capabilities`,
 `SandboxHandle`, `LintFn`, `LintWarning`, `StitchClient`, `Tracer`,
 `TraceEvent`, `MutationEvent`, `MutationTarget`, `ReverseOp`, `TargetKind`,
 `MutationPhase`, `EventLog`, `AppendDraft`, `AgentDefinition`, `AgentTool`,

@@ -1,112 +1,36 @@
-# Adapters and Worker Reference
+# Worker Reference
 
-This page describes the three subpath exports that bridge an `Engine` to
-other parts of the stack: `@inbrowser/model/relay`, `@inbrowser/model/agent`,
-and `@inbrowser/model/worker`.
+This page describes the `@inbrowser/model/worker` subpath, which hosts an
+`Engine` inside a Web Worker and exposes the same `Engine` shape on the main
+thread.
 
-For the `Engine` surface and the `EngineEvent` vocabulary these adapters
-translate, see [./engine.md](./engine.md).
+For the `Engine` surface and the `EngineEvent` vocabulary the worker transports,
+see [./engine.md](./engine.md).
 
-## `@inbrowser/model/relay`
+## Bridging the engine to the relay/agent (forthcoming)
 
-`@inbrowser/relay` is an optional peer dependency; this subpath is the only
-point in the package that imports from it.
+This package owns the one `ModelClient` contract that `@inbrowser/relay` and
+`@inbrowser/agent` consume (see [../README.md](../README.md) and
+[../../src/contract.ts](../../src/contract.ts)). The **cloud providers** already
+implement that contract directly — each `*ModelClient` factory returns a
+`ModelClient`, so they plug into the relay and agent as-is.
 
-### `createLocalInferenceProvider`
+The **on-device engine does not yet implement `ModelClient`**. It speaks
+`EngineEvent`, not the contract's `ModelEvent`. The earlier
+`@inbrowser/model/relay` and `@inbrowser/model/agent` adapter subpaths
+(`createLocalInferenceProvider` / `createLocalLlmClient`) — and the
+`InferenceProvider` / `LlmClient` contracts they targeted — **have been
+removed**. A single `createEngineModelClient(engine)` wrapper that widens
+`EngineEvent` to `ModelEvent` (mapping `token` → `text`, folding the engine's
+`usage` into a terminal `ModelEvent` `usage`, etc.) is the planned replacement,
+but it is **not built yet**.
 
-```ts
-function createLocalInferenceProvider(engine: Engine): InferenceProvider;
-```
-
-Adapts an `Engine` to the relay's `InferenceProvider` contract, so the relay's
-handlers, durable storage, and SSE wire format treat a local model
-indistinguishably from a cloud provider. `NormalizedRequest` fields with no
-on-device analogue (`apiKey`, `provider`, `model`) are ignored; the engine is
-bound to a single model at construction time.
-
-`req.tools` are forwarded to the engine when present (mapped into `ToolSpec`
-shape). The engine itself gates emission on `capabilities.supportsTools`, so
-passing tools to a non-tools preset is a no-op rather than an error.
-
-#### Message flattening
-
-The engine vocabulary has no `tool` role. A `tool`-role `ChatMessage` is
-flattened into a `user` message with text `[tool {name} result]\n{resultJson}`,
-so the model retains the context while the tool-call structure is dropped.
-`system`, `user`, and `assistant` messages map straight through.
-
-#### Event mapping
-
-The provider translates each `EngineEvent` to an `InferenceEvent`:
-
-| `EngineEvent` | `InferenceEvent` | Mapping |
-| --- | --- | --- |
-| `{ kind: 'token', text }` | `{ kind: 'text', chunk }` | `text` becomes `chunk`. |
-| `{ kind: 'thinking', text }` | `{ kind: 'thinking', chunk }` | `text` becomes `chunk`. |
-| `{ kind: 'tool_call', id, name, args }` | `{ kind: 'tool_call', callId, name, args }` | `id` becomes `callId`. |
-| `{ kind: 'usage', promptTokens, outputTokens, decodeMs }` | `{ kind: 'usage', promptTokens, outputTokens }` | `decodeMs` is dropped. |
-| `{ kind: 'error', message, recoverable }` | `{ kind: 'error', message }` | `recoverable` is dropped; the provider returns after emitting. |
-
-See the relay's own [reference](../../../relay/docs/reference.md) for the full
-`InferenceEvent` and `InferenceProvider` contracts. How-to:
-[../how-to/use-a-local-model-in-relay.md](../how-to/use-a-local-model-in-relay.md).
-
-## `@inbrowser/model/agent`
-
-`@inbrowser/agent` is an optional peer dependency; this subpath is the only
-point in the package that imports from it.
-
-### `createLocalLlmClient`
-
-```ts
-function createLocalLlmClient(engine: Engine, id: string): LlmClient;
-```
-
-Adapts an `Engine` to the agent runtime's `LlmClient`, so the runtime drives a
-local model identically to a cloud provider. Returns:
-
-| Member | Type | Description |
-| --- | --- | --- |
-| `id` | `string` | The client id passed to the factory. |
-| `supportsTools` | `boolean` | Mirrors `engine.capabilities.supportsTools`. |
-| `chat` | `(req: ChatRequest, signal: AbortSignal) => AsyncIterable<ChatEvent>` | Runs a turn. |
-
-#### Tool gate
-
-When `req.toolUseEnabled` is true and the engine does not natively support
-tools, `chat` declines: it yields a single `error` event and returns. The
-runtime can layer a tool-use polyfill (`withToolUsePolyfill`) over this client
-to lift it into a tool-capable one. `req.tools` are forwarded to the engine only
-when `req.toolUseEnabled` is set and tools are present.
-
-#### Message flattening
-
-Identical to the relay adapter: a `tool`-role `NormalizedMessage` becomes a
-`user` message with text `[tool {name} result]\n{resultJson}`; `system`, `user`,
-and `assistant` map straight through.
-
-#### Event mapping
-
-| `EngineEvent` | `ChatEvent` | Mapping |
-| --- | --- | --- |
-| `{ kind: 'token', text }` | `{ kind: 'text', chunk }` | `text` becomes `chunk`. |
-| `{ kind: 'thinking', text }` | `{ kind: 'thinking', chunk }` | `text` becomes `chunk`. |
-| `{ kind: 'tool_call', id, name, args }` | `{ kind: 'tool_call', id, name, args }` | Passed through. |
-| `{ kind: 'usage', promptTokens, outputTokens, decodeMs }` | (folded into terminal `turn_complete`) | Accumulated, not emitted directly. |
-| `{ kind: 'error', message, recoverable }` | `{ kind: 'error', message }` | `recoverable` is dropped; `chat` returns after emitting. |
-
-After the engine stream ends, `chat` emits a terminal event:
-
-```ts
-{
-  kind: 'turn_complete',
-  usage: { promptTokens, completionTokens },
-  details: { requestedModel: engine.model.modelId },
-}
-```
-
-`completionTokens` is the engine's `outputTokens`. How-to:
-[../how-to/use-a-local-model-in-the-agent.md](../how-to/use-a-local-model-in-the-agent.md).
+Until it lands, drive the engine directly via its `EngineEvent` stream
+(`engine.generate(...)`) rather than through the relay/agent. See
+[../how-to/use-a-local-model-in-relay.md](../how-to/use-a-local-model-in-relay.md)
+and
+[../how-to/use-a-local-model-in-the-agent.md](../how-to/use-a-local-model-in-the-agent.md)
+for the current state.
 
 ## `@inbrowser/model/worker`
 

@@ -7,41 +7,46 @@ clients can tail through SSE.
 
 A relay request has two HTTP phases:
 
-1. `handleStart(request)` parses a `NormalizedRequest`, chooses a provider, and
-   starts a `@inbrowser/resumable` job.
+1. `handleStart(request)` parses a `NormalizedRequest`, looks up the provider's
+   `ModelClientFactory`, constructs a `ModelClient` from `{ apiKey, model }`, and
+   starts a `@inbrowser/resumable` job that drives the client's `.chat()`.
 2. `handleStream(request, { jobId, from })` reads that job log and streams each
-   `InferenceEvent` as SSE.
+   `ModelEvent` as SSE.
 
-The provider runs once on the server. Clients may connect, disconnect, and
+The `ModelClient` runs once on the server. Clients may connect, disconnect, and
 reconnect while the job continues writing events to the store.
 
 The relay is not a distributed job scheduler. If the process running the
-provider is killed, the stored events remain durable, but this package does not
-restart the upstream provider call.
+client is killed, the stored events remain durable, but this package does not
+restart the upstream call.
 
-## Providers And Adapters Are Different
+## The Relay Is Transport; Providers Live In `@inbrowser/model`
 
-A provider knows an upstream LLM protocol. It converts a normalised request into
-Gemini, OpenRouter, Anthropic, or another provider's API and yields
-`InferenceEvent`s.
+The relay is a pure transport. It does not own providers — it consumes
+`ModelClient` factories. A provider knows an upstream LLM protocol: it converts a
+`ModelRequest` into Gemini, OpenRouter, Anthropic, or another API and yields
+`ModelEvent`s from `.chat()`. Those factories live in `@inbrowser/model`
+(`@inbrowser/model/providers/*`) and are registered in `createRelay`'s
+`providers` map. The same `ModelClient` contract is also what `@inbrowser/agent`
+consumes and what a page-direct call drives, so one client works everywhere.
 
 An adapter knows an HTTP framework. It converts framework request and response
 objects into the relay's Web-standard `Request` and `Response` shape.
 
-Keeping these separate means adding a provider does not require changing Astro,
-Express, or client code. Adding a framework adapter does not require knowing any
-LLM protocol.
+Keeping these separate means adding a provider (in `@inbrowser/model`) does not
+require changing the relay, Astro, Express, or client code. Adding a framework
+adapter does not require knowing any LLM protocol.
 
 ## What Is Stored
 
 The relay stores:
 
 - provider and model metadata on the job;
-- streamed `InferenceEvent`s in sequence order;
+- streamed `ModelEvent`s in sequence order;
 - terminal job state from the underlying engine.
 
-The relay passes `apiKey` to the selected provider but does not write it into
-job metadata.
+The relay resolves `apiKey`, passes it to the `ModelClientFactory`, but does not
+write it into job metadata.
 
 ## Replay Is Offset-Based
 

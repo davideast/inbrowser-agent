@@ -179,10 +179,12 @@ connects with `connectWorkerEngine`, and the returned object is the same
 - Choosing a model that fits your hardware matters more once you can afford to
   run a bigger one off the main thread. See
   [Choose A Preset](../how-to/choose-a-preset.md).
-- The worker engine is a drop-in `Engine`, which means it slots into the
-  adapters too. See
+- The worker engine is a drop-in `Engine`, so anything that drives the engine
+  directly drives the worker engine identically. Plugging a local engine into
+  the relay or agent (as a `ModelClient`) is not wired yet — see
   [Use A Local Model In Relay](../how-to/use-a-local-model-in-relay.md) and
-  [Use A Local Model In The Agent](../how-to/use-a-local-model-in-the-agent.md).
+  [Use A Local Model In The Agent](../how-to/use-a-local-model-in-the-agent.md)
+  for the current state and the forthcoming wrapper.
 - For the full handshake options and worker wire protocol, see the
   [Adapters and worker reference](../reference/adapters-and-worker.md) and the
   [Engine reference](../reference/engine.md).

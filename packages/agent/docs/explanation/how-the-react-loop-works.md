@@ -17,9 +17,9 @@ describe in full.
 
 It begins by composing the message array as `[system, ...history, user(prompt)]`:
 the system prompt, then any prior conversation, then the new user prompt. It then
-issues one chat call against the `LlmClient` with the current tool list attached,
-and streams the model's `text`, `thinking`, and `tool_call` events straight
-through to the caller so a UI can render them live.
+issues one chat call against the `ModelClient` with the current tool list
+attached, and streams the model's `text`, `thinking`, and `tool_call` events
+straight through to the caller so a UI can render them live.
 
 What happens next depends on whether the model asked to use any tools.
 
@@ -31,8 +31,8 @@ observe" half of the cycle, and it is what lets the agent take several steps to
 satisfy one prompt.
 
 If the model produced no tool calls, that turn is the final answer. The loop
-emits `turn_complete` and returns. No tool calls is the agent's way of saying it
-is done.
+emits a `turn_complete` `StrategyEvent` (carrying the turn's usage) and returns.
+No tool calls is the agent's way of saying it is done.
 
 That is the whole loop: compose, call, dispatch-and-feed-back on tool calls, stop
 on no tool calls.

@@ -8,32 +8,38 @@ services are required.
 
 ```ts
 import { createMemoryJobStore } from '@inbrowser/resumable/memory';
-import {
-  createRelay,
-  type InferenceEvent,
-  type InferenceProvider,
-} from '@inbrowser/relay';
+import { createRelay, type ModelEvent } from '@inbrowser/relay';
+import type { ModelClientFactory } from '@inbrowser/model';
 
-const fakeProvider: InferenceProvider = async function* (req) {
-  yield { kind: 'text', chunk: `hello from ${req.provider}/${req.model}` };
-  yield { kind: 'thinking', chunk: 'checking the durable log' };
-  yield {
-    kind: 'usage',
-    promptTokens: 4,
-    outputTokens: 8,
-  };
-};
+// A provider is a `ModelClientFactory`: the relay calls it with
+// `{ apiKey, model }` per request to build a `ModelClient`, then drives
+// its `.chat(req, signal)`.
+const fakeProvider: ModelClientFactory = ({ model }) => ({
+  id: `fake:${model}`,
+  supportsTools: false,
+  async *chat() {
+    yield { kind: 'text', text: `hello from fake/${model}` };
+    yield { kind: 'thinking', text: 'checking the durable log' };
+    yield {
+      kind: 'usage',
+      usage: { promptTokens: 4, outputTokens: 8 },
+    };
+  },
+});
 
 const relay = createRelay({
-  store: createMemoryJobStore<InferenceEvent>(),
+  store: createMemoryJobStore<ModelEvent>(),
   providers: {
     fake: fakeProvider,
   },
 });
 ```
 
-The provider is an async iterable. The relay will run it under a resumable job
-engine and store every yielded event.
+The factory returns a `ModelClient` whose `chat()` is an async iterable. The
+relay constructs one per request, runs it under a resumable job engine, and
+stores every `ModelEvent` it yields. The turn ends when the iterable returns;
+a `usage` event carries the final accounting (there is no `turn_complete`
+event).
 
 ## 2. Start A Job
 
@@ -75,11 +81,11 @@ The stream is SSE text:
 ```text
 : stream-open
 
-data: {"kind":"text","chunk":"hello from fake/demo-model"}
+data: {"kind":"text","text":"hello from fake/demo-model"}
 
-data: {"kind":"thinking","chunk":"checking the durable log"}
+data: {"kind":"thinking","text":"checking the durable log"}
 
-data: {"kind":"usage","promptTokens":4,"outputTokens":8}
+data: {"kind":"usage","usage":{"promptTokens":4,"outputTokens":8}}
 
 data: [DONE]
 ```

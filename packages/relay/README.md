@@ -1,54 +1,65 @@
 # @inbrowser/relay
 
-`@inbrowser/relay` is a resumable LLM inference relay. It wraps
-`@inbrowser/resumable` with LLM-specific request and event types, provider
-plug-ins, Web-standard request handlers, framework adapters, and a
-reconnecting browser-safe client.
+`@inbrowser/relay` is a resumable LLM inference relay. It is a **pure transport**:
+it wraps `@inbrowser/resumable` with Web-standard request handlers, framework
+adapters, and a reconnecting browser-safe client. The relay does not own any
+providers — it *consumes* `ModelClient` factories from
+[`@inbrowser/model`](../model) and serves them resumably over HTTP.
 
 The relay's primary value is resumability. A backgrounded browser tab, network
 drop, or stream handler handoff does not have to lose the events already
-produced by an in-flight generation. The provider runs server-side, writes
-`InferenceEvent`s to a durable event log, and clients reconnect from their last
+produced by an in-flight generation. The relay constructs a `ModelClient` for
+each request, runs its `.chat()` server-side, writes the streamed
+`ModelEvent`s to a durable event log, and clients reconnect from their last
 received offset.
 
 ## What It Provides
 
 - `createRelay`, which exposes `handleStart(request)` and
   `handleStream(request, ctx)` as Web `Request` to `Response` handlers.
-- A provider plug-in contract: `InferenceProvider` is an async iterable of
-  `InferenceEvent`s.
-- Built-in providers for Gemini, OpenRouter, Anthropic native Messages,
-  Ollama, and two subscription-backed Claude providers (the `claude` CLI in
-  print mode, and the Claude Agent SDK).
-- SSE helpers shared by providers, the relay, and the reconnecting client.
+- A provider lookup table of `ModelClientFactory`s: the relay calls
+  `factory({ apiKey, model })` per request to build a `ModelClient`, then drives
+  its `.chat(req, signal)` and stores the `ModelEvent`s it streams.
+- SSE helpers shared by the relay, any custom `ModelClient`, and the
+  reconnecting client.
 - Astro and Express adapters.
 - `createResumableClient`, which starts a job, tails the SSE stream, and
   reconnects with `from=<offset>` when a stream drops.
 
+The model contract (`ModelClient`, `ModelEvent`, `ModelRequest`, `ModelMessage`,
+`ToolSpec`, `ModelUsage`) lives in `@inbrowser/model/contract`. The relay
+re-exports those names for the registration site, and the cloud provider
+factories (`geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`,
+`ollamaModelClient`, `claudeCliModelClient`, `claudeCodeModelClient`) live in
+`@inbrowser/model/providers/*`.
+
 ## Quick Start
 
+Import the provider factories from `@inbrowser/model` and register them in the
+`providers` map. Each cloud provider factory already matches `ModelClientFactory`
+(its config is `{ apiKey?, model }`), so it can be registered directly:
+
 ```ts
+import { createRelay, type ModelEvent } from '@inbrowser/relay';
 import {
-  createRelay,
-  geminiProvider,
-  openrouterProvider,
-  type InferenceEvent,
-} from '@inbrowser/relay';
+  geminiModelClient,
+  openrouterModelClient,
+} from '@inbrowser/model';
 import {
   createRtdbJobStore,
   serviceAccountTokenProvider,
 } from '@inbrowser/resumable/rtdb';
 
 const relay = createRelay({
-  store: createRtdbJobStore<InferenceEvent>({
+  store: createRtdbJobStore<ModelEvent>({
     url: process.env.RTDB_URL!,
     auth: serviceAccountTokenProvider({ keyFile: './sa.json' }),
     rootPath: 'inference_jobs',
     defaultTtlMs: 7 * 24 * 60 * 60 * 1000,
   }),
   providers: {
-    gemini: geminiProvider,
-    openrouter: openrouterProvider,
+    gemini: geminiModelClient,
+    openrouter: openrouterModelClient,
   },
 });
 
@@ -82,12 +93,18 @@ key itself, so the browser never carries it on the wire. This is the "your app,
 your bill" mode.
 
 ```ts
+import {
+  geminiModelClient,
+  anthropicModelClient,
+  ollamaModelClient,
+} from '@inbrowser/model';
+
 const relay = createRelay({
   store,
   providers: {
-    gemini: geminiProvider,
-    anthropic: anthropicProvider,
-    ollama: ollamaProvider,
+    gemini: geminiModelClient,
+    anthropic: anthropicModelClient,
+    ollama: ollamaModelClient,
   },
   apiKeys: {
     gemini: () => process.env.GEMINI_API_KEY ?? '',
@@ -160,16 +177,18 @@ user need.
   the relay flow without real API keys.
 - [How to wire a web app](docs/how-to-wire-a-web-app.md) - connect server
   routes and the reconnecting client.
-- [How to write a provider](docs/how-to-write-a-provider.md) - add another
-  upstream LLM without changing the relay.
+- [How to write a provider](docs/how-to-write-a-provider.md) - implement a
+  `ModelClient` for an upstream LLM and register it without changing the relay.
 - [API reference](docs/reference.md) - facts about exports, types, handlers,
-  adapters, providers, and SSE.
+  adapters, the provider contract, and SSE.
 - [How the relay works](docs/how-it-works.md) - the design rationale and
   reconnection model.
 
 ## Package Exports
 
-- `@inbrowser/relay` - relay factory, public types, and built-in providers.
+- `@inbrowser/relay` - relay factory, transport types, the re-exported model
+  contract types, and the `ModelClientFactory` type for the registration site.
+  Providers are NOT exported here — import the factories from `@inbrowser/model`.
 - `@inbrowser/relay/sse` - SSE reader and encoder helpers.
 - `@inbrowser/relay/adapters/astro` - Astro route adapter.
 - `@inbrowser/relay/adapters/express` - Express-compatible adapter.

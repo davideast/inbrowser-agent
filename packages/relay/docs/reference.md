@@ -6,11 +6,16 @@ This page describes the public surface of `@inbrowser/relay`.
 
 | Import path | Exports |
 | --- | --- |
-| `@inbrowser/relay` | `createRelay`, relay types, request types, event types, provider contract, built-in providers |
+| `@inbrowser/relay` | `createRelay`; relay/transport types (`Relay`, `CreateRelayOpts`, `ApiKeySource`, `StreamCtx`, `NormalizedRequest`, `Logger`); the re-exported model contract types (`ModelEvent`, `ModelMessage`, `ModelRequest`, `ModelUsage`, `ToolSpec`, `ReasoningEffort`); the `ModelClientFactory` type for the registration site; the client and SSE re-exports |
 | `@inbrowser/relay/sse` | `readSseDataLines`, `encodeSseEvent`, `SSE_DONE_LINE`, `SSE_STREAM_OPEN` |
 | `@inbrowser/relay/adapters/astro` | `createAstroRoutes` |
 | `@inbrowser/relay/adapters/express` | `createExpressHandlers` |
 | `@inbrowser/relay/client` | `createResumableClient`, `installBrowserLifecycle` |
+
+The relay does **not** export any providers. Import the cloud provider factories
+(`geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`,
+`ollamaModelClient`, `claudeCliModelClient`, `claudeCodeModelClient`) from
+`@inbrowser/model` or `@inbrowser/model/providers/<name>`.
 
 ## `createRelay`
 
@@ -22,8 +27,8 @@ function createRelay(opts: CreateRelayOpts): Relay;
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `store` | `JobStore<InferenceEvent>` | Required resumable job store. |
-| `providers` | `Record<string, InferenceProvider>` | Provider map keyed by `NormalizedRequest.provider`. |
+| `store` | `JobStore<ModelEvent>` | Required resumable job store. |
+| `providers` | `Record<string, ModelClientFactory>` | Provider map keyed by `NormalizedRequest.provider`. Each value is a `ModelClientFactory` from `@inbrowser/model`: the relay calls `factory({ apiKey, model })` per request to build a `ModelClient`, then drives its `.chat()`. |
 | `logger` | `Logger` | Optional structured logger. Defaults to silent. |
 | `sweep` | `SweepSchedule` | Optional periodic sweep passed to `@inbrowser/resumable`. |
 | `apiKeys` | `Record<string, ApiKeySource>` | Optional per-provider server-managed keys. See [Server-managed API keys](#server-managed-api-keys). |
@@ -32,10 +37,10 @@ function createRelay(opts: CreateRelayOpts): Relay;
 
 | Member | Description |
 | --- | --- |
-| `handleStart(request)` | Parses a `NormalizedRequest`, starts a provider job, and returns `{ jobId }`. |
+| `handleStart(request)` | Parses a `NormalizedRequest`, constructs the provider's `ModelClient`, starts a resumable job, and returns `{ jobId }`. |
 | `handleStream(request, ctx)` | Streams the job log as SSE from `ctx.from` or the request query string. |
-| `engine` | Underlying `JobEngine<InferenceEvent>`. |
-| `stop()` | Stops the underlying engine. |
+| `engine` | Underlying `JobEngine<ModelEvent>`. |
+| `stop()` | Closes in-flight producers and stops the scheduled sweep. |
 
 `handleStart` returns:
 
@@ -56,25 +61,26 @@ function createRelay(opts: CreateRelayOpts): Relay;
 
 ## `NormalizedRequest`
 
+`NormalizedRequest` is the shared `ModelRequest` (from
+`@inbrowser/model/contract`) plus the relay-only transport fields:
+
 ```ts
-interface NormalizedRequest {
-  provider: string;
-  model: string;
-  messages: ChatMessage[];
-  tools: ToolDecl[];
+type NormalizedRequest = ModelRequest & {
+  // ModelRequest carries: messages: ModelMessage[]; tools: ToolSpec[];
+  // toolUseEnabled: boolean; temperature?; topP?; topK?; reasoningEffort?
+  provider: string; // routing key — looked up in createRelay's providers map
+  model: string; // upstream model id, passed to the ModelClientFactory
   apiKey?: string;
-  reasoningEffort?: 'off' | 'low' | 'medium' | 'high';
-  temperature?: number;
-  topP?: number;
-  topK?: number;
-  signal?: AbortSignal;
-}
+  signal?: AbortSignal; // page-direct consumer cancellation only
+};
 ```
 
-`provider` is the lookup key in the `providers` map. `apiKey` is passed to the
-selected provider and is not stored in job metadata by the relay. It is optional
-on the wire because the relay resolves it differently per mode (see below); by
-the time a provider runs, the relay has guaranteed a resolved value.
+`provider` is the lookup key in the `providers` map. `model` and `apiKey` are
+handed to the `ModelClientFactory` (`factory({ apiKey, model })`); the per-call
+settings (`messages`, `tools`, sampling) ride the `ModelRequest` into `.chat()`.
+`apiKey` is not stored in job metadata by the relay. It is optional on the wire
+because the relay resolves it differently per mode (see below); by the time a
+provider's `ModelClient` runs, the relay has guaranteed a resolved value.
 
 ## Server-managed API keys
 
@@ -83,13 +89,19 @@ the relay 400s if it is missing. To keep the key on the server instead, list the
 provider in `CreateRelayOpts.apiKeys`:
 
 ```ts
+import { geminiModelClient, anthropicModelClient, ollamaModelClient } from '@inbrowser/model';
+
 type ApiKeySource =
   | string
   | ((ctx: { req: NormalizedRequest; request: Request }) => string | Promise<string>);
 
 const relay = createRelay({
   store,
-  providers: { gemini: geminiProvider, anthropic: anthropicProvider, ollama: ollamaProvider },
+  providers: {
+    gemini: geminiModelClient,
+    anthropic: anthropicModelClient,
+    ollama: ollamaModelClient,
+  },
   apiKeys: {
     gemini: () => process.env.GEMINI_API_KEY ?? '',
     anthropic: () => process.env.ANTHROPIC_API_KEY ?? '',
@@ -121,53 +133,69 @@ apiKeys: {
 }
 ```
 
-## `InferenceEvent`
+## `ModelEvent`
+
+The relay's event type is `ModelEvent` from `@inbrowser/model/contract`,
+re-exported from `@inbrowser/relay`:
 
 ```ts
-type InferenceEvent =
-  | { kind: 'text'; chunk: string }
-  | { kind: 'thinking'; chunk: string }
-  | {
-      kind: 'tool_call';
-      callId: string;
-      name: string;
-      args: unknown;
-      signature?: string;
-    }
-  | {
-      kind: 'usage';
-      promptTokens: number;
-      outputTokens: number;
-      cachedTokens?: number;
-      costUsd?: number;
-    }
+type ModelEvent =
+  | { kind: 'text'; text: string }
+  | { kind: 'thinking'; text: string }
+  | { kind: 'tool_call'; id: string; name: string; args: unknown; signature?: string }
+  | { kind: 'usage'; usage: ModelUsage }
   | { kind: 'error'; message: string };
+
+interface ModelUsage {
+  promptTokens: number;
+  outputTokens: number;
+  cachedTokens?: number;
+  reasoningTokens?: number;
+  costUsd?: number;
+}
 ```
 
-Providers may add fields to existing event kinds when the field is
-provider-specific and optional. New event kinds require client coordination.
+The turn ends when the `chat()` iterable returns. On a normal end a `usage`
+event is emitted before the return (it carries the final accounting); there is
+no separate `turn_complete` event. An `error` event is itself terminal: after it
+the iterable returns with no `usage` event. Consumers can rely on exactly one of
+{a `usage` event, an `error` event} per turn.
 
-## `InferenceProvider`
+## Provider contract: `ModelClientFactory`
+
+A provider is a `ModelClient` from `@inbrowser/model/contract`, registered as a
+`ModelClientFactory`:
 
 ```ts
-type InferenceProvider = (
-  req: NormalizedRequest,
-) => AsyncIterable<InferenceEvent>;
+interface ModelClient {
+  readonly id: string;
+  readonly supportsTools: boolean;
+  chat(req: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent>;
+}
+
+// The shape createRelay's `providers` map holds (from @inbrowser/model):
+type ModelClientFactory = (config: { apiKey?: string; model: string }) => ModelClient;
 ```
 
-The relay drives the provider under `@inbrowser/resumable`. Providers own upstream
-protocol details only.
+The relay calls the factory per request with `{ apiKey, model }` (so BYOK
+per-request keys and routing both work), then drives `.chat(req, signal)` under
+`@inbrowser/resumable`. The `ModelClient` owns upstream protocol details only.
 
 ## Built-In Providers
 
-| Provider | Import | Notes |
+The relay ships none. The cloud provider factories live in `@inbrowser/model`
+and are imported from `@inbrowser/model` or `@inbrowser/model/providers/<name>`.
+Each is a factory that returns a `ModelClient`; the cloud ones match
+`ModelClientFactory` directly (config `{ apiKey?, model }`).
+
+| Provider | Factory (`@inbrowser/model`) | Notes |
 | --- | --- | --- |
-| Gemini | `geminiProvider` from `@inbrowser/relay` | Uses the Generative Language REST streaming endpoint. Includes retry handling for selected transient Gemini failures. |
-| OpenRouter | `openrouterProvider` from `@inbrowser/relay` | Uses OpenRouter chat completions SSE, reasoning deltas, tools, and usage cost when reported. |
-| Anthropic | `anthropicProvider` from `@inbrowser/relay` | Uses Anthropic native Messages streaming. Tool use is intentionally compact. |
-| Ollama | `ollamaProvider` from `@inbrowser/relay` | Talks to a local Ollama server. The request `apiKey` carries the base URL rather than a secret. |
-| Claude (CLI) | `claudeCliProvider`, `createClaudeCliProvider(opts?)` from `@inbrowser/relay` | Subscription auth. Spawns the `claude` binary in print mode (`claude -p`) and reads its streaming-JSON output. Node-only; rejects caller-defined tools. |
-| Claude (Agent SDK) | `claudeCodeProvider`, `createClaudeCodeProvider(opts?)` from `@inbrowser/relay` | Subscription auth. Drives `@anthropic-ai/claude-agent-sdk` (an optional peer dependency) in-process; strips `ANTHROPIC_API_KEY` so the call never falls back to per-token billing. Node-only; rejects caller-defined tools. |
+| Gemini | `geminiModelClient` | Uses the Generative Language REST streaming endpoint. Includes retry handling for selected transient Gemini failures. |
+| OpenRouter | `openrouterModelClient` | Uses OpenRouter chat completions SSE, reasoning deltas, tools, and usage cost when reported. |
+| Anthropic | `anthropicModelClient` | Uses Anthropic native Messages streaming. Tool use is intentionally compact. |
+| Ollama | `ollamaModelClient` | Talks to a local Ollama server. The request `apiKey` carries the base URL rather than a secret; or pass `baseUrl` via a wrapping factory. |
+| Claude (CLI) | `claudeCliModelClient` | Subscription auth. Spawns the `claude` binary in print mode (`claude -p`) and reads its streaming-JSON output. Accepts `ClaudeCliOptions` (`claudePath`, `timeoutMs`). Node-only; rejects caller-defined tools. |
+| Claude (Agent SDK) | `claudeCodeModelClient` | Subscription auth. Drives `@anthropic-ai/claude-agent-sdk` (an optional peer dependency) in-process; strips `ANTHROPIC_API_KEY` so the call never falls back to per-token billing. Accepts `oauthToken`. Node-only; rejects caller-defined tools. |
 
 The two Claude providers authorize from a logged-in subscription instead of an
 API key, so a client sends an empty `apiKey`. See [How to use a subscription
@@ -178,7 +206,7 @@ Claude provider](how-to-use-a-subscription-provider.md).
 Relay-to-client events are single-line SSE data events:
 
 ```text
-data: {"kind":"text","chunk":"hello"}
+data: {"kind":"text","text":"hello"}
 
 data: [DONE]
 ```
@@ -212,7 +240,7 @@ function createResumableClient(opts: ResumableClientOpts): ResumableClient;
 | `installLifecycle` | Hook for browser or host lifecycle integration. |
 | `fetchImpl` | Optional `fetch` implementation. |
 
-`client.stream(req)` starts a job and yields `InferenceEvent`s until the relay
+`client.stream(req)` starts a job and yields `ModelEvent`s until the relay
 emits `[DONE]`, an unrecoverable error occurs, or the caller aborts.
 
 ## Adapters

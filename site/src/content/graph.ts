@@ -96,7 +96,7 @@ export const NODES: DocNode[] = [
     route: '/agent',
     sourcePath: 'packages/agent/README.md',
     summary:
-      'Agent runtime plus an agent-friendly CLI: AgentSession, AgentStrategy, ToolRegistry, LlmClient, and an `agent` binary.',
+      'Agent runtime plus an agent-friendly CLI: AgentSession, AgentStrategy, ToolRegistry, ModelClient, and an `agent` binary.',
   },
   {
     id: 'agent/tutorials/drive-a-session-from-code',
@@ -132,11 +132,11 @@ export const NODES: DocNode[] = [
     id: 'agent/how-to/implement-llm-client',
     package: 'agent',
     category: 'how-to',
-    title: 'How to implement a custom LlmClient',
+    title: 'How to implement a custom ModelClient',
     route: '/agent/how-to/implement-llm-client',
     sourcePath: 'packages/agent/docs/how-to/implement-llm-client.md',
     summary:
-      'Plug an upstream LLM API into a session by implementing the narrow `LlmClient.chat()` async generator and mapping its stream to ChatEvents.',
+      'Plug an upstream LLM API into a session by implementing the narrow `ModelClient.chat()` async generator and mapping its stream to ModelEvents.',
   },
   {
     id: 'agent/how-to/consume-an-mcp-server',
@@ -248,7 +248,7 @@ export const NODES: DocNode[] = [
     route: '/relay',
     sourcePath: 'packages/relay/README.md',
     summary:
-      'Resumable LLM inference relay: a pluggable InferenceProvider contract, built-in providers, and a reconnecting browser client.',
+      'Resumable LLM inference relay: a pure transport that serves ModelClient factories from @inbrowser/model over HTTP, plus a reconnecting browser client.',
   },
   {
     id: 'relay/tutorial',
@@ -278,7 +278,7 @@ export const NODES: DocNode[] = [
     route: '/relay/write-a-provider',
     sourcePath: 'packages/relay/docs/how-to-write-a-provider.md',
     summary:
-      'Implement the InferenceProvider contract: parse SSE upstreams, emit tool calls, and register the provider.',
+      'Implement a ModelClient for an upstream LLM: parse SSE upstreams, emit ModelEvent tool calls, and register it as a ModelClientFactory.',
   },
   {
     id: 'relay/use-a-subscription-provider',
@@ -308,7 +308,7 @@ export const NODES: DocNode[] = [
     route: '/relay/reference',
     sourcePath: 'packages/relay/docs/reference.md',
     summary:
-      'createRelay, NormalizedRequest, InferenceEvent, the provider contract, built-in providers, and the client.',
+      'createRelay, NormalizedRequest, the re-exported ModelEvent/ModelClient contract types, ModelClientFactory, the handlers, adapters, SSE helpers, and the client.',
   },
 
   // ── @inbrowser/resumable ───────────────────────────────────────────
@@ -372,7 +372,7 @@ export const NODES: DocNode[] = [
     route: '/model',
     sourcePath: 'packages/model/README.md',
     summary:
-      'On-device LLM engine (POC stub) exposing a narrow Engine surface over @huggingface/transformers + ONNX, with relay + agent adapters. The engine wiring is not yet implemented.',
+      'The model layer: the one ModelClient contract, the cloud provider factories that implement it, and an on-device LLM engine over @huggingface/transformers + ONNX. The engine is not yet a ModelClient.',
   },
   {
     id: 'model/tutorials/run-a-model-in-the-browser',
@@ -412,7 +412,7 @@ export const NODES: DocNode[] = [
     route: '/model/how-to/use-a-local-model-in-relay',
     sourcePath: 'packages/model/docs/how-to/use-a-local-model-in-relay.md',
     summary:
-      'Serve an on-device engine through @inbrowser/relay so its durable storage, SSE wire format, and reconnection treat a local model like a cloud provider.',
+      'Register a cloud ModelClient factory in @inbrowser/relay today; serving the on-device engine the same way awaits the planned createEngineModelClient wrapper, so drive the engine directly meanwhile.',
   },
   {
     id: 'model/how-to/use-a-local-model-in-the-agent',
@@ -422,7 +422,7 @@ export const NODES: DocNode[] = [
     route: '/model/how-to/use-a-local-model-in-the-agent',
     sourcePath: 'packages/model/docs/how-to/use-a-local-model-in-the-agent.md',
     summary:
-      'Drive an on-device engine from an @inbrowser/agent session so the agent runtime treats a local model identically to a cloud provider.',
+      "Pass a cloud ModelClient as a session's llm today; wiring the on-device engine the same way awaits the planned createEngineModelClient wrapper, so drive the engine directly meanwhile.",
   },
   {
     id: 'model/how-to/handle-thinking-and-tool-calls',
@@ -458,11 +458,11 @@ export const NODES: DocNode[] = [
     id: 'model/reference/adapters-and-worker',
     package: 'model',
     category: 'reference',
-    title: 'Adapters and Worker Reference',
+    title: 'Worker Reference',
     route: '/model/reference/adapters-and-worker',
     sourcePath: 'packages/model/docs/reference/adapters-and-worker.md',
     summary:
-      'The three subpath exports that bridge an Engine to the rest of the stack: @inbrowser/model/relay, @inbrowser/model/agent, and @inbrowser/model/worker.',
+      'The @inbrowser/model/worker subpath that hosts an Engine in a Web Worker behind the same Engine surface, plus why the removed relay/agent adapters await the planned createEngineModelClient wrapper.',
   },
   {
     id: 'model/explanation/design',

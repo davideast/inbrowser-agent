@@ -1,7 +1,7 @@
 {
   "name": "@inbrowser/model",
   "version": "0.2.0",
-  "description": "The model-access layer for the inbrowser stack: the shared ModelClient contract, the cloud provider factories (Gemini, OpenRouter, Anthropic, Ollama, Claude-CLI, Claude-Code) in ./providers/*, a withRetry decorator, and the on-device LLM engine (wraps @huggingface/transformers + ONNX Runtime Web behind a narrow Engine surface; Gemma 4 E2B/E4B presets; Worker subpath). One import for a model — cloud or local — that @inbrowser/relay (transport) and @inbrowser/agent (runtime) both consume.",
+  "description": "The model layer for the inbrowser stack: it OWNS the shared ModelClient contract (./contract) that @inbrowser/relay (transport) and @inbrowser/agent (runtime) both consume, the cloud provider factories (Gemini, OpenRouter, Anthropic, Ollama, Claude-CLI, Claude-Code) in ./providers/* that each return a ModelClient, a withRetry decorator, and the on-device LLM engine (wraps @huggingface/transformers + ONNX Runtime Web behind a narrow EngineEvent-streaming Engine surface; Gemma 4 + Qwen + SmolLM2 presets; Worker subpath). The engine is not yet a ModelClient — a wrapper is planned.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
