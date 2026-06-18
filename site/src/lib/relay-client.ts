@@ -1,23 +1,27 @@
 /**
- * Adapts any @inbrowser/relay `InferenceProvider` (an async-generator) to the
- * unified `ModelClient` contract @inbrowser/agent consumes. Provider-agnostic:
- * the InferenceEvent -> ModelEvent mapping is identical for Gemini, Ollama, etc.
+ * Wraps any @inbrowser/relay `InferenceProvider` (an async-generator) as a
+ * `ModelClient` the @inbrowser/agent runtime consumes, adding a transient-
+ * error retry. Provider-agnostic: works for Gemini, Ollama, etc.
  * Runs server-side only.
  *
- * `apiKey` means whatever the chosen provider expects: a real API key for Gemini
- * (x-goog-api-key), the base URL for Ollama.
+ * Since relay now speaks the shared `@inbrowser/model/contract` — providers
+ * yield `ModelEvent` and consume `ModelMessage` + nested `ToolSpec` — this
+ * bridge is essentially a pass-through. The only transforms are:
+ *   - assemble the relay-only transport fields (`provider`/`model`/`apiKey`/
+ *     `temperature`) onto the incoming `ModelRequest`;
+ *   - gate tool advertising on `toolUseEnabled` (send `[]` when the loop
+ *     disabled tools this turn);
+ *   - retry transient upstream failures (only while nothing has streamed);
+ *   - guarantee a terminal `usage` event before returning.
  *
- * Event mapping (relay InferenceEvent -> ModelEvent):
- *   text/thinking    -> rename `chunk` -> `text`
- *   tool_call        -> rename `callId` -> `id`
- *   usage            -> nested under `usage`; emitted before the iterable returns
- *   error            -> passthrough, then stop
+ * `apiKey` means whatever the chosen provider expects: a real API key for
+ * Gemini (x-goog-api-key), the base URL for Ollama.
  *
  * Interim bridge: it disappears once the cloud providers move into
  * @inbrowser/model as native ModelClients (then relay speaks the contract too).
  */
 import type { ModelClient, ModelEvent, ModelRequest, ModelUsage } from '@inbrowser/agent';
-import type { ChatMessage, InferenceProvider, NormalizedRequest } from '@inbrowser/relay';
+import type { InferenceProvider, NormalizedRequest } from '@inbrowser/relay';
 
 export interface RelayLlmOptions {
   provider: InferenceProvider;
@@ -46,40 +50,21 @@ export function relayModelClient(opts: RelayLlmOptions): ModelClient {
     id: `${providerName}:${model}`,
     supportsTools: true,
     async *chat(req: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent> {
-      // ModelMessage -> relay ChatMessage (relay still uses `callId`).
-      const messages: ChatMessage[] = req.messages.map((m) => ({
-        role: m.role,
-        text: m.text ?? '',
-        ...(m.toolCalls
-          ? {
-              toolCalls: m.toolCalls.map((tc) => ({
-                callId: tc.id,
-                name: tc.name,
-                args: tc.args,
-                ...(tc.signature ? { signature: tc.signature } : {}),
-              })),
-            }
-          : {}),
-        ...(m.toolCallId ? { callId: m.toolCallId } : {}),
-        ...(m.name ? { name: m.name } : {}),
-        ...(m.resultJson !== undefined ? { resultJson: m.resultJson } : {}),
-      }));
-
+      // The relay provider speaks the same contract now: messages pass
+      // through as ModelMessage, tools pass through as nested ToolSpec.
+      // The only relay-only additions are the transport fields. Only
+      // advertise tools when the loop enabled them this turn.
       const nreq: NormalizedRequest = {
         provider: providerName,
         model,
-        messages,
-        // relay still speaks the flat tool shape; flatten the nested ToolSpec.
-        // Only advertise tools when the loop enabled them this turn.
-        tools: req.toolUseEnabled
-          ? req.tools.map((t) => ({
-              name: t.function.name,
-              description: t.function.description,
-              parameters: t.function.parameters,
-            }))
-          : [],
+        messages: req.messages,
+        tools: req.toolUseEnabled ? req.tools : [],
+        toolUseEnabled: req.toolUseEnabled,
+        ...(req.reasoningEffort ? { reasoningEffort: req.reasoningEffort } : {}),
         apiKey,
         ...(typeof temperature === 'number' ? { temperature } : {}),
+        ...(typeof req.topP === 'number' ? { topP: req.topP } : {}),
+        ...(typeof req.topK === 'number' ? { topK: req.topK } : {}),
         signal,
       };
 
@@ -91,35 +76,20 @@ export function relayModelClient(opts: RelayLlmOptions): ModelClient {
         let retryErr: string | null = null;
 
         for await (const e of provider(nreq)) {
-          if (e.kind === 'text') {
-            emitted = true;
-            yield { kind: 'text', text: e.chunk };
-          } else if (e.kind === 'thinking') {
-            emitted = true;
-            yield { kind: 'thinking', text: e.chunk };
-          } else if (e.kind === 'tool_call') {
-            emitted = true;
-            yield {
-              kind: 'tool_call',
-              id: e.callId,
-              name: e.name,
-              args: e.args,
-              ...(e.signature ? { signature: e.signature } : {}),
-            };
-          } else if (e.kind === 'usage') {
-            usage = {
-              promptTokens: e.promptTokens,
-              outputTokens: e.outputTokens,
-              ...(e.cachedTokens !== undefined ? { cachedTokens: e.cachedTokens } : {}),
-              ...(e.costUsd !== undefined ? { costUsd: e.costUsd } : {}),
-            };
+          if (e.kind === 'usage') {
+            // Hold the final accounting; emit it once before returning.
+            usage = e.usage;
           } else if (e.kind === 'error') {
             if (!emitted && !signal.aborted && attempt < MAX_ATTEMPTS && isTransient(e.message)) {
               retryErr = e.message;
               break;
             }
-            yield { kind: 'error', message: e.message };
+            yield e;
             return;
+          } else {
+            // text / thinking / tool_call are already ModelEvents — pass through.
+            emitted = true;
+            yield e;
           }
         }
 

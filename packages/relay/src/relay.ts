@@ -17,7 +17,7 @@ import {
   createJobEngine,
 } from '@inbrowser/resumable';
 import { sseFromJob } from '@inbrowser/resumable/http';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from './types.js';
+import type { InferenceProvider, ModelEvent, NormalizedRequest } from './types.js';
 
 /**
  * A server-managed API key for one provider. Either a static string
@@ -33,7 +33,7 @@ export type ApiKeySource =
 
 export interface CreateRelayOpts {
   /** Backing `JobStore` for resumable inference jobs. */
-  store: JobStore<InferenceEvent>;
+  store: JobStore<ModelEvent>;
   /**
    * Provider plug-in map, keyed by `NormalizedRequest.provider`.
    * Add new entries to support new upstream LLMs — no relay changes
@@ -82,7 +82,7 @@ export interface Relay {
   handleStream(request: Request, ctx: StreamCtx): Promise<Response>;
   /** Direct access to the underlying engine — useful for tests and
    *  for hosts that want to invoke `engine.get(jobId)` directly. */
-  readonly engine: JobEngine<InferenceEvent>;
+  readonly engine: JobEngine<ModelEvent>;
   /** Close in-flight producers + stop the scheduled sweep. */
   stop(): Promise<void>;
 }
@@ -96,7 +96,7 @@ const silentLogger: ResumableLogger = {
 
 export function createRelay(opts: CreateRelayOpts): Relay {
   const logger = opts.logger ?? silentLogger;
-  const engine = createJobEngine<InferenceEvent>({
+  const engine = createJobEngine<ModelEvent>({
     store: opts.store,
     logger,
     ...(opts.sweep ? { sweep: opts.sweep } : {}),

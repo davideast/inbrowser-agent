@@ -1,44 +1,45 @@
 /**
  * Public types for `@inbrowser/relay`.
  *
+ * The model-call shapes (`ModelEvent`, `ModelMessage`, `ToolSpec`,
+ * `ModelRequest`, `ModelUsage`, `ReasoningEffort`) are NOT relay-owned —
+ * they are the one shared contract in `@inbrowser/model/contract`, which
+ * the cloud providers, the on-device engine, the relay (transport), and
+ * the agent (runtime) all speak. The relay re-exports them so its
+ * provider/handler/client code (and downstream consumers) keep a single
+ * import site, and adds the relay-only transport extension on top.
+ *
  * The relay routes on `NormalizedRequest.provider` — a string keyed
  * into the `providers` map at `createRelay` time. The chosen
- * `InferenceProvider` is just an async generator of `InferenceEvent`s;
+ * `InferenceProvider` is just an async generator of `ModelEvent`s;
  * the relay drives it under a `@inbrowser/resumable` engine, so every
  * provider gets durability + resume "for free" without per-provider
  * code.
  */
 
+import type { ModelEvent, ModelRequest } from '@inbrowser/model/contract';
+
 /**
- * One message in a chat-completion request. Provider-agnostic shape;
- * each provider adapter (Gemini, OpenRouter, Anthropic) translates
- * this into its native wire format.
+ * The shared model-call contract, re-homed under the relay's import
+ * site. These are the SAME types `@inbrowser/agent` consumes — relay no
+ * longer owns its own `ChatMessage` / `ToolDecl` / `InferenceEvent`.
  */
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  text?: string;
-  toolCalls?: { callId: string; name: string; args: unknown; signature?: string }[];
-  callId?: string;
-  name?: string;
-  resultJson?: string;
-}
-
-/** One tool declaration advertised to the LLM. */
-export interface ToolDecl {
-  name: string;
-  description: string;
-  parameters: unknown;
-}
+export type {
+  ModelEvent,
+  ModelMessage,
+  ModelRequest,
+  ModelUsage,
+  ReasoningEffort,
+  ToolSpec,
+} from '@inbrowser/model/contract';
 
 /**
- * Reasoning effort. OpenRouter's REST surface uses this; Gemini
- * ignores it. New providers may interpret it however they like.
- */
-export type ReasoningEffort = 'off' | 'low' | 'medium' | 'high';
-
-/**
- * The wire shape the relay accepts at `handleStart`. `provider` is
- * the routing key — looked up in `createRelay`'s `providers` map.
+ * The wire shape the relay accepts at `handleStart`. It is the shared
+ * `ModelRequest` plus the relay-only transport concerns: `provider` (the
+ * routing key, looked up in `createRelay`'s `providers` map), the model
+ * id, the wire `apiKey`, and a consumer-side `signal`. Those are
+ * transport details — NOT part of the model contract — so they live
+ * here, not in `@inbrowser/model/contract`.
  *
  * `apiKey` is optional because the relay supports two modes:
  *   - BYOK (default): the client supplies the key and it round-trips
@@ -51,16 +52,12 @@ export type ReasoningEffort = 'off' | 'low' | 'medium' | 'high';
  * By the time a provider's generator runs, the relay has guaranteed a
  * resolved key, so providers read `req.apiKey` directly.
  */
-export interface NormalizedRequest {
+export type NormalizedRequest = ModelRequest & {
+  /** Routing key — looked up in `createRelay`'s `providers` map. */
   provider: string;
+  /** Model id passed through to the provider's upstream call. */
   model: string;
-  messages: ChatMessage[];
-  tools: ToolDecl[];
   apiKey?: string;
-  reasoningEffort?: ReasoningEffort;
-  temperature?: number;
-  topP?: number;
-  topK?: number;
   /**
    * Optional — propagated to the provider and used to abort upstream
    * fetches when the caller cancels. The relay layer manages its own
@@ -68,41 +65,11 @@ export interface NormalizedRequest {
    * cancellation when the call runs page-direct.
    */
   signal?: AbortSignal;
-}
-
-/**
- * The streamed event union producers yield: incremental text and
- * thinking, structured `tool_call`s, terminal `usage`, and `error`.
- *
- * The shape is intentionally provider-agnostic — Gemini's
- * `thoughtSignature` is a free-form `signature` field; OpenRouter's
- * dollar cost is a free-form `costUsd`. New providers extend the
- * union by adding fields, not new kinds.
- */
-export type InferenceEvent =
-  | { kind: 'text'; chunk: string }
-  | { kind: 'thinking'; chunk: string }
-  | {
-      kind: 'tool_call';
-      callId: string;
-      name: string;
-      args: unknown;
-      /** Gemini 3 thoughtSignature — opaque, echoed on tool-result. */
-      signature?: string;
-    }
-  | {
-      kind: 'usage';
-      promptTokens: number;
-      outputTokens: number;
-      cachedTokens?: number;
-      /** Real dollar cost when the provider reports it (OpenRouter). */
-      costUsd?: number;
-    }
-  | { kind: 'error'; message: string };
+};
 
 /**
  * The provider plug-in surface. Each provider is just an async
- * generator of `InferenceEvent`s for a given `NormalizedRequest`.
+ * generator of `ModelEvent`s for a given `NormalizedRequest`.
  * Pure function — the relay handles durability, resumability, and
  * HTTP transport; the provider only handles the upstream protocol.
  *
@@ -111,7 +78,7 @@ export type InferenceEvent =
  * the client, yield `{ kind: 'error', message }` and return — same
  * effect, but the event also flows down the stream.
  */
-export type InferenceProvider = (req: NormalizedRequest) => AsyncIterable<InferenceEvent>;
+export type InferenceProvider = (req: NormalizedRequest) => AsyncIterable<ModelEvent>;
 
 /**
  * Pluggable logger — matches the `@inbrowser/resumable` `Logger` shape so

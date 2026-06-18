@@ -19,7 +19,7 @@ import {
   geminiEventsFromResponse,
   geminiProvider,
 } from '../src/providers/gemini';
-import type { InferenceEvent, NormalizedRequest } from '../src/types';
+import type { ModelEvent, NormalizedRequest } from '../src/types';
 
 function makeSseResponse(chunks: unknown[]): Response {
   const body = chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('');
@@ -43,15 +43,15 @@ function chunk(parts: unknown[], finishReason?: string): unknown {
 
 const USAGE = { usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 } };
 
-async function collect(it: AsyncIterable<InferenceEvent>): Promise<InferenceEvent[]> {
-  const out: InferenceEvent[] = [];
+async function collect(it: AsyncIterable<ModelEvent>): Promise<ModelEvent[]> {
+  const out: ModelEvent[] = [];
   for await (const e of it) out.push(e);
   return out;
 }
 
-function toolCalls(events: InferenceEvent[]) {
+function toolCalls(events: ModelEvent[]) {
   return events.filter((e) => e.kind === 'tool_call') as Extract<
-    InferenceEvent,
+    ModelEvent,
     { kind: 'tool_call' }
   >[];
 }
@@ -78,7 +78,7 @@ describe('geminiEventsFromResponse — function-call accumulation', () => {
     expect(calls[0].name).toBe('bash');
     expect(calls[0].args).toEqual({ command: 'npm create vite' });
     // Stable, deterministic id — not a per-chunk random value.
-    expect(calls[0].callId).toBe('gem_0');
+    expect(calls[0].id).toBe('gem_0');
   });
 
   it('never emits an empty-arg partial for a required-arg call', async () => {
@@ -163,12 +163,12 @@ describe('geminiEventsFromResponse — function-call accumulation', () => {
     const calls = toolCalls(events);
     expect(calls).toHaveLength(2);
     expect(calls[0]).toMatchObject({
-      callId: 'gem_0',
+      id: 'gem_0',
       args: { command: 'mkdir src' },
       signature: 'SIG_A',
     });
     expect(calls[1]).toMatchObject({
-      callId: 'gem_1',
+      id: 'gem_1',
       args: { command: 'npm i' },
       signature: 'SIG_B',
     });
@@ -212,7 +212,7 @@ describe('geminiEventsFromResponse — function-call accumulation', () => {
     );
     const calls = toolCalls(events);
     expect(calls).toHaveLength(2);
-    expect(calls.map((c) => c.callId)).toEqual(['gem_0', 'gem_1']);
+    expect(calls.map((c) => c.id)).toEqual(['gem_0', 'gem_1']);
   });
 
   it('emits a no-arg call exactly once with empty args', async () => {
@@ -256,7 +256,7 @@ describe('geminiEventsFromResponse — function-call accumulation', () => {
         ]),
       ),
     );
-    const text = events.filter((e) => e.kind === 'text').map((e) => (e as { chunk: string }).chunk);
+    const text = events.filter((e) => e.kind === 'text').map((e) => (e as { text: string }).text);
     expect(text).toEqual(['Scaffolding ', 'the app.']); // not duplicated
     const calls = toolCalls(events);
     expect(calls).toHaveLength(1);
@@ -292,6 +292,7 @@ describe('geminiEventsFromResponse — function-call accumulation', () => {
         model: 'gemini-3-flash-preview',
         messages: [{ role: 'user', text: 'build it' }],
         tools: [],
+        toolUseEnabled: false,
         apiKey: 'sk-test',
       };
       const calls = toolCalls(await collect(geminiProvider(req)));
@@ -337,7 +338,7 @@ describe('Gemini signature replay round-trip (the request’s "confirm" item)', 
         {
           role: 'assistant',
           toolCalls: captured.map((c) => ({
-            callId: c.callId,
+            id: c.id,
             name: c.name,
             args: c.args,
             ...(c.signature ? { signature: c.signature } : {}),
@@ -345,6 +346,7 @@ describe('Gemini signature replay round-trip (the request’s "confirm" item)', 
         },
       ],
       tools: [],
+      toolUseEnabled: false,
       apiKey: 'sk-test',
     };
     const body = JSON.parse(await buildGeminiRequest(req).text()) as {

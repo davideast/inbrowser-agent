@@ -62,6 +62,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@inbrowser/model": "workspace:*",
     "@inbrowser/resumable": "workspace:*"
   },
   "peerDependencies": {

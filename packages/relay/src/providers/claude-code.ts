@@ -1,4 +1,4 @@
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types.js';
+import type { InferenceProvider, ModelEvent, NormalizedRequest } from '../types.js';
 import { renderPrompt } from './claude-cli.js';
 
 /**
@@ -185,7 +185,7 @@ export function createClaudeCodeProvider(options: ClaudeCodeOptions = {}): Infer
       return { query: mod.query };
     });
 
-  return async function* claudeCode(req: NormalizedRequest): AsyncIterable<InferenceEvent> {
+  return async function* claudeCode(req: NormalizedRequest): AsyncIterable<ModelEvent> {
     if (req.signal?.aborted) return;
 
     if (req.tools.length > 0) {
@@ -263,9 +263,9 @@ export function createClaudeCodeProvider(options: ClaudeCodeOptions = {}): Infer
           const delta = msg.event.delta;
           if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
             sawText = true;
-            yield { kind: 'text', chunk: delta.text };
+            yield { kind: 'text', text: delta.text };
           } else if (delta?.type === 'thinking_delta' && typeof delta.thinking === 'string') {
-            yield { kind: 'thinking', chunk: delta.thinking };
+            yield { kind: 'thinking', text: delta.thinking };
           }
           continue;
         }
@@ -299,7 +299,7 @@ export function createClaudeCodeProvider(options: ClaudeCodeOptions = {}): Infer
           // streamed (some SDK paths skip partial events).
           if (!sawText) {
             const text = typeof msg.result === 'string' && msg.result ? msg.result : fallbackText;
-            if (text) yield { kind: 'text', chunk: text };
+            if (text) yield { kind: 'text', text };
           }
           promptTokens = msg.usage?.input_tokens ?? promptTokens;
           outputTokens = msg.usage?.output_tokens ?? outputTokens;
@@ -308,10 +308,12 @@ export function createClaudeCodeProvider(options: ClaudeCodeOptions = {}): Infer
           }
           yield {
             kind: 'usage',
-            promptTokens,
-            outputTokens,
-            ...(typeof cachedTokens === 'number' ? { cachedTokens } : {}),
-            // costUsd intentionally omitted — subscription is N/A.
+            usage: {
+              promptTokens,
+              outputTokens,
+              ...(typeof cachedTokens === 'number' ? { cachedTokens } : {}),
+              // costUsd intentionally omitted — subscription is N/A.
+            },
           };
           return;
         }

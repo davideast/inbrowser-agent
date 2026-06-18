@@ -86,6 +86,7 @@
       "name": "@inbrowser/relay",
       "version": "0.3.0",
       "dependencies": {
+        "@inbrowser/model": "workspace:*",
         "@inbrowser/resumable": "workspace:*",
       },
       "devDependencies": {

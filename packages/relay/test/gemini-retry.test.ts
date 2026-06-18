@@ -15,7 +15,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { geminiProvider } from '../src/providers/gemini';
-import type { InferenceEvent, NormalizedRequest } from '../src/types';
+import type { ModelEvent, NormalizedRequest } from '../src/types';
 
 function makeSseResponse(chunks: unknown[]): Response {
   const body = chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('');
@@ -31,12 +31,13 @@ function baseReq(): NormalizedRequest {
     model: 'gemini-3-flash-preview',
     messages: [{ role: 'user', text: 'hi' }],
     tools: [],
+    toolUseEnabled: false,
     apiKey: 'sk-test',
   };
 }
 
-async function collect(it: AsyncIterable<InferenceEvent>): Promise<InferenceEvent[]> {
-  const out: InferenceEvent[] = [];
+async function collect(it: AsyncIterable<ModelEvent>): Promise<ModelEvent[]> {
+  const out: ModelEvent[] = [];
   for await (const e of it) out.push(e);
   return out;
 }
@@ -89,7 +90,7 @@ describe('geminiProvider retry', () => {
     expect(errors).toEqual([]); // first-attempt error was swallowed
     expect(events.find((e) => e.kind === 'text')).toEqual({
       kind: 'text',
-      chunk: 'hello',
+      text: 'hello',
     });
   });
 

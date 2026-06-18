@@ -1,5 +1,5 @@
 import { readSseDataLines } from '../sse.js';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types.js';
+import type { InferenceProvider, ModelEvent, NormalizedRequest } from '../types.js';
 /**
  * Gemini provider — raw fetch against the Generative Language REST
  * API, parsing SSE directly. The `@google/genai` SDK is intentionally
@@ -16,7 +16,7 @@ import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../ty
  * re-sends the growing `content.parts[]` list every chunk, so emitting
  * a `tool_call` per chunk would duplicate every call.
  */
-import type { ChatMessage, ToolDecl } from '../types.js';
+import type { ToolSpec } from '../types.js';
 
 const ENDPOINT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -97,10 +97,10 @@ function toGeminiBody(req: NormalizedRequest): GeminiBody {
   if (systemText) body.systemInstruction = { parts: [{ text: systemText }] };
 
   if (req.tools.length > 0) {
-    const functionDeclarations = req.tools.map((t: ToolDecl) => ({
-      name: t.name,
-      description: t.description,
-      parameters: sanitizeGeminiSchema(t.parameters),
+    const functionDeclarations = req.tools.map((t: ToolSpec) => ({
+      name: t.function.name,
+      description: t.function.description,
+      parameters: sanitizeGeminiSchema(t.function.parameters),
     }));
     body.tools = [{ functionDeclarations }];
   }
@@ -198,7 +198,7 @@ function describeError(e: unknown): string {
 }
 
 /**
- * Parse an already-fetched Gemini SSE response into `InferenceEvent`s.
+ * Parse an already-fetched Gemini SSE response into `ModelEvent`s.
  * `signal` is optional — the relay passes the consumer's signal in,
  * the page-direct caller passes `req.signal`.
  *
@@ -210,7 +210,7 @@ function describeError(e: unknown): string {
 export async function* geminiEventsFromResponse(
   response: Response,
   signal?: AbortSignal,
-): AsyncGenerator<InferenceEvent> {
+): AsyncGenerator<ModelEvent> {
   if (!response.ok) {
     const text = await response.text().catch(() => response.statusText);
     yield { kind: 'error', message: `Gemini ${response.status}: ${text.slice(0, 240)}` };
@@ -261,10 +261,10 @@ export async function* geminiEventsFromResponse(
       for (const p of parts) {
         if (typeof p.text === 'string' && p.text.length > 0) {
           if (p.thought === true) {
-            yield { kind: 'thinking', chunk: p.text };
+            yield { kind: 'thinking', text: p.text };
           } else {
             sawOutput = true;
-            yield { kind: 'text', chunk: p.text };
+            yield { kind: 'text', text: p.text };
           }
         }
         if (p.functionCall) {
@@ -336,9 +336,9 @@ export async function* geminiEventsFromResponse(
 
   // Flush the accumulated function calls — exactly one `tool_call` per
   // logical call, carrying its complete args and thoughtSignature. The
-  // `callId` is the call's stable ordinal (not a per-chunk random
-  // value), so re-parsing the same stream is deterministic and the id is
-  // identical across the args/signature that arrived on different chunks.
+  // `id` is the call's stable ordinal (not a per-chunk random value), so
+  // re-parsing the same stream is deterministic and the id is identical
+  // across the args/signature that arrived on different chunks.
   for (const [slot, call] of pending) {
     // Skip a slot that never got a name — a stray empty partial, never
     // dispatchable — so a turn with N real calls still yields exactly N
@@ -347,7 +347,7 @@ export async function* geminiEventsFromResponse(
     if (!call.name) continue;
     yield {
       kind: 'tool_call',
-      callId: `gem_${slot}`,
+      id: `gem_${slot}`,
       name: call.name,
       args: call.args,
       ...(call.signature ? { signature: call.signature } : {}),
@@ -356,9 +356,11 @@ export async function* geminiEventsFromResponse(
 
   yield {
     kind: 'usage',
-    promptTokens,
-    outputTokens: completionTokens,
-    ...(cachedTokens > 0 ? { cachedTokens } : {}),
+    usage: {
+      promptTokens,
+      outputTokens: completionTokens,
+      ...(cachedTokens > 0 ? { cachedTokens } : {}),
+    },
   };
 }
 
@@ -387,7 +389,7 @@ const MAX_GEMINI_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 500;
 
 /** Substrings that identify a retryable provider error. Matched
- *  against `InferenceEvent.message` from `geminiEventsFromResponse`. */
+ *  against `ModelEvent.message` from `geminiEventsFromResponse`. */
 const RETRYABLE_ERROR_MARKERS = [
   'MALFORMED_FUNCTION_CALL',
   'finishReason=STOP',

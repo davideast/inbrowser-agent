@@ -44,10 +44,11 @@ export function createGeminiBriefcastServices(
           },
         ],
         tools: [],
+        toolUseEnabled: false,
       };
 
       for await (const event of geminiProvider(req)) {
-        if (event.kind === 'text') yield event.chunk;
+        if (event.kind === 'text') yield event.text;
         if (event.kind === 'error') throw new Error(event.message);
       }
     },

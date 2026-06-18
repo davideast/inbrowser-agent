@@ -1,5 +1,5 @@
 import { readSseDataLines } from '../sse.js';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types.js';
+import type { InferenceProvider, NormalizedRequest } from '../types.js';
 /**
  * Anthropic provider — talks to Anthropic's native Messages API
  * (`POST /v1/messages` with `stream: true`).
@@ -25,7 +25,7 @@ import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../ty
  * complex tool flows may want to extend this — the file is
  * intentionally compact so it's easy to fork.
  */
-import type { ChatMessage, ToolDecl } from '../types.js';
+import type { ModelMessage, ToolSpec } from '../types.js';
 
 const ENDPOINT = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -61,7 +61,7 @@ interface AnthropicBody {
   }>;
 }
 
-function toAnthropic(messages: ChatMessage[]): {
+function toAnthropic(messages: ModelMessage[]): {
   system: string;
   msgs: AnthropicMessage[];
 } {
@@ -82,7 +82,7 @@ function toAnthropic(messages: ChatMessage[]): {
       for (const c of m.toolCalls ?? []) {
         blocks.push({
           type: 'tool_use',
-          id: c.callId,
+          id: c.id,
           name: c.name,
           input: c.args ?? {},
         });
@@ -99,7 +99,7 @@ function toAnthropic(messages: ChatMessage[]): {
         content: [
           {
             type: 'tool_result',
-            tool_use_id: m.callId ?? '',
+            tool_use_id: m.toolCallId ?? '',
             content: m.resultJson ?? '',
           },
         ],
@@ -109,12 +109,12 @@ function toAnthropic(messages: ChatMessage[]): {
   return { system, msgs };
 }
 
-function toAnthropicTools(tools: ToolDecl[]): AnthropicBody['tools'] {
+export function toAnthropicTools(tools: ToolSpec[]): AnthropicBody['tools'] {
   if (tools.length === 0) return undefined;
   return tools.map((t) => ({
-    name: t.name,
-    description: t.description,
-    input_schema: t.parameters,
+    name: t.function.name,
+    description: t.function.description,
+    input_schema: t.function.parameters,
   }));
 }
 
@@ -220,7 +220,7 @@ export const anthropicProvider: InferenceProvider = async function* (req: Normal
         });
       } else if (evt.type === 'content_block_delta' && evt.delta) {
         if (evt.delta.type === 'text_delta' && typeof evt.delta.text === 'string') {
-          yield { kind: 'text', chunk: evt.delta.text };
+          yield { kind: 'text', text: evt.delta.text };
         } else if (
           evt.delta.type === 'input_json_delta' &&
           typeof evt.delta.partial_json === 'string' &&
@@ -249,7 +249,7 @@ export const anthropicProvider: InferenceProvider = async function* (req: Normal
     }
     yield {
       kind: 'tool_call',
-      callId: p.id || `anth_${Math.random().toString(36).slice(2, 10)}`,
+      id: p.id || `anth_${Math.random().toString(36).slice(2, 10)}`,
       name: p.name,
       args: parsed,
     };
@@ -257,7 +257,9 @@ export const anthropicProvider: InferenceProvider = async function* (req: Normal
 
   yield {
     kind: 'usage',
-    promptTokens,
-    outputTokens,
+    usage: {
+      promptTokens,
+      outputTokens,
+    },
   };
 };

@@ -341,7 +341,7 @@ async function* groundedCompletion(
     },
     signal,
   )) {
-    if (e.kind === 'text') yield e.chunk;
+    if (e.kind === 'text') yield e.text;
     else if (e.kind === 'error') return;
   }
 }
