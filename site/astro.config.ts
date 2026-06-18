@@ -32,10 +32,10 @@ export default defineConfig({
   },
 
   vite: {
-    // Allow the dev server to be reached through a Cloudflare quick tunnel
-    // (otherwise Vite blocks the unknown *.trycloudflare.com Host header).
+    // Allow the dev server to be reached through a Cloudflare quick tunnel or a
+    // Tailscale serve proxy (otherwise Vite blocks the unknown Host header).
     server: {
-      allowedHosts: ['.trycloudflare.com'],
+      allowedHosts: ['.trycloudflare.com', '.ts.net'],
     },
     // Cast: duplicate vite versions in the dep tree make @tailwindcss/vite's
     // Plugin type mismatch Astro's expected PluginOption. Runtime is fine.
