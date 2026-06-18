@@ -1,64 +1,11 @@
 ---
-import { BreadcrumbBar } from '../components/BreadcrumbBar';
-import { Keystone } from '../components/Keystone';
-import { nodesByPackage } from '../content/graph';
+import { ChatApp } from '../components/chat/ChatApp';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
-// Landing — opens with the keystone agent demo, then a package index
-// for direct browsing.
-const groups = nodesByPackage();
+// The home is the chat. Its empty state is the landing (hero + suggestions +
+// package cards); asking a question turns it into the conversation. One chat
+// everywhere: `/chat` redirects here (see astro.config.ts).
 ---
-<BaseLayout title="inbrowser docs">
-  <a
-    href="#main"
-    class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-surface focus:text-primary focus:px-3 focus:py-2 focus:border focus:border-border-strong"
-  >
-    Skip to content
-  </a>
-  <BreadcrumbBar crumbs={[{ label: "Home" }]} />
-  <main id="main">
-    <div class="max-w-[860px] mx-auto px-6 pt-24 pb-24">
-      <div class="mb-5">
-        <span class="text-[11px] font-medium uppercase tracking-widest text-label leading-none">
-          Documentation
-        </span>
-      </div>
-      <h1 class="text-[44px] leading-[1.1] tracking-[-0.02em] font-normal text-primary mb-6">
-        inbrowser
-      </h1>
-      <div class="h-[1px] bg-subtle-white w-full mb-8"></div>
-      <p class="text-[14px] leading-[1.75] text-secondary mb-16 max-w-[60ch]">
-        A resumable job engine, an inference relay, an agent runtime, and an
-        on-device model engine. Ask a question below — a local agent looks it up
-        across these docs — or browse the packages directly.
-      </p>
-
-      <Keystone client:load />
-
-      {
-        groups.map((group) => (
-          <section class="mb-16">
-            <h2 class="text-[11px] font-medium uppercase tracking-widest text-label mb-6">
-              {group.label}
-            </h2>
-            <ul class="space-y-5">
-              {group.nodes.map((node) => (
-                <li>
-                  <a
-                    class="text-primary hover:underline text-[15px]"
-                    href={node.route}
-                  >
-                    {node.title}
-                  </a>
-                  <p class="text-secondary text-[13px] leading-[1.6] mt-1 max-w-[68ch]">
-                    {node.summary}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
-      }
-    </div>
-  </main>
+<BaseLayout title="inbrowser — resumable, grounded AI in the browser">
+  <ChatApp client:load />
 </BaseLayout>
