@@ -24,24 +24,45 @@ export const GET: APIRoute = async ({ params, request, url }) => {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (s: string) => controller.enqueue(encoder.encode(s));
+      // The consumer can disconnect at any time (reload, reconnect, abort),
+      // which closes the controller out from under us. Guard enqueue/close so a
+      // late event never throws "Controller is already closed".
+      let closed = false;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          /* already closed by the consumer */
+        }
+      };
+      const send = (s: string) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(s));
+        } catch {
+          closed = true; // consumer went away mid-send
+        }
+      };
       send(': stream-open\n\n'); // flush any proxy buffers
       try {
         for await (const ev of subscribeDocsJob(jobId, from, ctrl.signal)) {
+          if (closed) break;
           if (ev.kind === 'event') {
             send(`data: ${JSON.stringify(ev.value)}\n\n`);
           } else if (ev.kind === 'terminal') {
             send('data: [DONE]\n\n'); // job reached terminal state
-            controller.close();
+            close();
             return;
           }
         }
         // Subscribe ended without a terminal marker (aborted): close without
         // [DONE] so the client decides whether to reconnect.
-        controller.close();
+        close();
       } catch (e) {
         console.error('[api/chat stream] error:', e);
-        controller.close();
+        close();
       }
     },
     cancel() {
