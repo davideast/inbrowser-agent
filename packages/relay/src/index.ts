@@ -11,29 +11,11 @@ export {
   type Relay,
   type StreamCtx,
 } from './relay.js';
-export { geminiProvider } from './providers/gemini.js';
-export { openrouterProvider } from './providers/openrouter.js';
-export { anthropicProvider } from './providers/anthropic.js';
-// ollamaProvider was added in the 0.2.0 cycle; the original three are
-// re-exported from root for one-import-convenience, so include the
-// fourth too (consistency, fixes a real consumer-side gotcha).
-export { ollamaProvider } from './providers/ollama.js';
-// claude-cli is Node-only (spawns a subprocess) but SSR-safe to import:
-// nothing runs until the provider function is invoked.
-export {
-  type ClaudeCliOptions,
-  claudeCliProvider,
-  createClaudeCliProvider,
-} from './providers/claude-cli.js';
-// claude-code uses the Claude Code Agent SDK programmatically. The
-// SDK is an OPTIONAL peer dep — consumers who don't use this provider
-// don't need to install it. Importing this file is SSR-safe; the SDK
-// is lazy-loaded inside the provider's generator.
-export {
-  type ClaudeCodeOptions,
-  claudeCodeProvider,
-  createClaudeCodeProvider,
-} from './providers/claude-code.js';
+// The relay no longer owns providers — they live in `@inbrowser/model`
+// as `ModelClientFactory`s (clean break, stage 4). Hosts import the
+// factories from `@inbrowser/model/providers/<name>` and register them in
+// `createRelay({ providers })`. `ModelClientFactory` is re-exported below
+// for the registration site.
 
 // Reconnecting consumer client. Available at `./client` for users who
 // want narrow imports; also re-exported here because the common case
@@ -49,9 +31,9 @@ export {
 } from './client/index.js';
 
 // SSE wire-format utilities. Re-exported because anyone writing a
-// custom InferenceProvider needs them to parse upstream SSE feeds.
-// Internal use today is via `./sse`; root re-export removes the
-// "didn't know it existed" gotcha.
+// custom `ModelClient` that wraps an upstream SSE API needs them to
+// parse the feed. Internal use today is via `./sse`; root re-export
+// removes the "didn't know it existed" gotcha.
 export {
   encodeSseEvent,
   readSseDataLines,
@@ -59,8 +41,12 @@ export {
   SSE_STREAM_OPEN,
 } from './sse.js';
 
+// `ModelClientFactory` is the shape `createRelay`'s `providers` map holds
+// (sourced from `@inbrowser/model`); re-exported here for the registration
+// site so a host can type its provider map without a second import.
+export type { ModelClientFactory } from '@inbrowser/model';
+
 export type {
-  InferenceProvider,
   Logger,
   NormalizedRequest,
   // The shared model-call contract, re-exported from the relay's import

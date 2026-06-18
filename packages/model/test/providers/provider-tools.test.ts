@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { toAnthropicTools } from '../src/providers/anthropic';
-import { buildGeminiRequest } from '../src/providers/gemini';
-import { toOaiTools as ollamaTools } from '../src/providers/ollama';
-import { toOaiTools as openrouterTools } from '../src/providers/openrouter';
-import type { NormalizedRequest, ToolSpec } from '../src/types';
+import type { ModelRequest, ToolSpec } from '../../src/contract';
+import { toAnthropicTools } from '../../src/providers/anthropic';
+import { buildGeminiRequest } from '../../src/providers/gemini';
+import { toOaiTools as ollamaTools } from '../../src/providers/ollama';
+import { toOaiTools as openrouterTools } from '../../src/providers/openrouter';
 
 // The unified ModelClient contract carries tools in the nested OAI `ToolSpec`
 // shape ({ type:'function', function:{ name, description, parameters } }). Each
@@ -66,15 +66,14 @@ describe('provider tool-wire encoding (nested ToolSpec)', () => {
   });
 
   it('gemini: functionDeclarations from the nested ToolSpec', async () => {
-    const req: NormalizedRequest = {
-      provider: 'gemini',
-      model: 'gemini-3.5-flash',
+    const req: ModelRequest = {
       messages: [{ role: 'user', text: 'hi' }],
       tools: TOOLS,
       toolUseEnabled: true,
-      apiKey: 'sk-test',
     };
-    const body = JSON.parse(await buildGeminiRequest(req).text()) as {
+    const body = JSON.parse(
+      await buildGeminiRequest({ apiKey: 'sk-test', model: 'gemini-3.5-flash' }, req).text(),
+    ) as {
       tools?: {
         functionDeclarations: { name: string; description: string; parameters: unknown }[];
       }[];

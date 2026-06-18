@@ -1,6 +1,6 @@
 /**
- * Retry behavior for `geminiProvider`. Exercises the three retryable
- * failure modes against a stubbed `fetch`:
+ * Retry behavior for the Gemini `ModelClient`. Exercises the three
+ * retryable failure modes against a stubbed `fetch`:
  *
  *   - MALFORMED_FUNCTION_CALL  — Gemini's own validation rejects its
  *     own function call.
@@ -14,8 +14,8 @@
  * restore in `afterEach`.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { geminiProvider } from '../src/providers/gemini';
-import type { ModelEvent, NormalizedRequest } from '../src/types';
+import type { ModelEvent, ModelRequest } from '../../src/contract';
+import { geminiModelClient } from '../../src/providers/gemini';
 
 function makeSseResponse(chunks: unknown[]): Response {
   const body = chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('');
@@ -25,15 +25,16 @@ function makeSseResponse(chunks: unknown[]): Response {
   });
 }
 
-function baseReq(): NormalizedRequest {
+function baseReq(): ModelRequest {
   return {
-    provider: 'gemini',
-    model: 'gemini-3-flash-preview',
     messages: [{ role: 'user', text: 'hi' }],
     tools: [],
     toolUseEnabled: false,
-    apiKey: 'sk-test',
   };
+}
+
+function client() {
+  return geminiModelClient({ apiKey: 'sk-test', model: 'gemini-3-flash-preview' });
 }
 
 async function collect(it: AsyncIterable<ModelEvent>): Promise<ModelEvent[]> {
@@ -42,7 +43,7 @@ async function collect(it: AsyncIterable<ModelEvent>): Promise<ModelEvent[]> {
   return out;
 }
 
-describe('geminiProvider retry', () => {
+describe('gemini ModelClient retry', () => {
   let originalFetch: typeof fetch;
   let calls: number;
   let responses: Response[];
@@ -84,7 +85,7 @@ describe('geminiProvider retry', () => {
       ]),
     ];
 
-    const events = await collect(geminiProvider(baseReq()));
+    const events = await collect(client().chat(baseReq(), new AbortController().signal));
     expect(calls).toBe(2);
     const errors = events.filter((e) => e.kind === 'error');
     expect(errors).toEqual([]); // first-attempt error was swallowed
@@ -110,7 +111,7 @@ describe('geminiProvider retry', () => {
       ]),
     ];
 
-    const events = await collect(geminiProvider(baseReq()));
+    const events = await collect(client().chat(baseReq(), new AbortController().signal));
     expect(calls).toBe(2);
     expect(events.filter((e) => e.kind === 'error')).toEqual([]);
     expect(events.find((e) => e.kind === 'text')?.kind).toBe('text');
@@ -139,7 +140,7 @@ describe('geminiProvider retry', () => {
       ]),
     ];
 
-    const events = await collect(geminiProvider(baseReq()));
+    const events = await collect(client().chat(baseReq(), new AbortController().signal));
     expect(calls).toBe(2);
     expect(events.filter((e) => e.kind === 'error')).toEqual([]);
   });
@@ -158,7 +159,7 @@ describe('geminiProvider retry', () => {
       ]),
     ];
 
-    const events = await collect(geminiProvider(baseReq()));
+    const events = await collect(client().chat(baseReq(), new AbortController().signal));
     expect(calls).toBe(1); // no retry
     const error = events.find((e) => e.kind === 'error');
     expect(error?.kind).toBe('error');
@@ -182,7 +183,7 @@ describe('geminiProvider retry', () => {
       ]);
     responses = [failure(), failure(), failure()];
 
-    const events = await collect(geminiProvider(baseReq()));
+    const events = await collect(client().chat(baseReq(), new AbortController().signal));
     expect(calls).toBe(3);
     const error = events.find((e) => e.kind === 'error');
     expect(error?.kind).toBe('error');

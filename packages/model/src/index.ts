@@ -18,6 +18,53 @@ export { createEngine, definePreset } from './engine.js';
 export { parseToolCalls, type ToolCallParseOpts } from './parse-tool-calls.js';
 export { splitThinking, type ThinkingSplitOpts } from './think.js';
 
+// Cloud provider factories. Each returns a `ModelClient`; construction
+// settings (apiKey / model / baseUrl) come in the factory config, per-call
+// settings (messages / tools / sampling) come in the `ModelRequest`. Also
+// reachable via the `@inbrowser/model/providers/<name>` subpaths.
+export {
+  geminiModelClient,
+  buildGeminiRequest,
+  geminiEventsFromResponse,
+  sanitizeGeminiSchema,
+  type GeminiConfig,
+} from './providers/gemini.js';
+export {
+  openrouterModelClient,
+  toOaiTools as toOpenRouterTools,
+  type OpenRouterConfig,
+} from './providers/openrouter.js';
+export {
+  anthropicModelClient,
+  toAnthropicTools,
+  type AnthropicConfig,
+} from './providers/anthropic.js';
+// ollama exports its own `toOaiTools`; alias it so the two OAI helpers
+// don't collide at the root surface.
+export {
+  ollamaModelClient,
+  toOaiTools as toOllamaTools,
+  type OllamaConfig,
+} from './providers/ollama.js';
+// claude-cli is Node-only (spawns a subprocess) but SSR-safe to import:
+// nothing runs until the client's `chat` is invoked.
+export {
+  claudeCliModelClient,
+  renderPrompt,
+  type ClaudeCliConfig,
+  type ClaudeCliOptions,
+} from './providers/claude-cli.js';
+// claude-code uses the Claude Code Agent SDK programmatically. The SDK is
+// an OPTIONAL peer dep — consumers who don't use this provider don't need
+// it. Importing this file is SSR-safe; the SDK is lazy-loaded inside chat.
+export { claudeCodeModelClient, type ClaudeCodeConfig } from './providers/claude-code.js';
+
+// The reusable transient-retry decorator (was the site's relay bridge).
+export { withRetry, type WithRetryOpts } from './with-retry.js';
+
+// Shared provider config + the factory type relay routes on.
+export type { CloudProviderConfig, ModelClientFactory } from './providers/types.js';
+
 // Bundled presets are also reachable via the `./presets` subpath for
 // users who want narrow imports. Lifted here for ergonomics — these
 // are pure data (~6 KB total) with no peer-dep activation, no

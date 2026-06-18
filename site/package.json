@@ -18,7 +18,7 @@
     "@astrojs/node": "^9.0.0",
     "@astrojs/react": "^4.4.2",
     "@inbrowser/agent": "workspace:*",
-    "@inbrowser/relay": "workspace:*",
+    "@inbrowser/model": "workspace:*",
     "@inbrowser/resumable": "workspace:*",
     "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.2.14",

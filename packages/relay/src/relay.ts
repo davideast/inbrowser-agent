@@ -1,3 +1,4 @@
+import type { ModelClientFactory, ModelRequest } from '@inbrowser/model';
 /**
  * `createRelay` — wraps `@inbrowser/resumable`'s `JobEngine` with two
  * HTTP-shaped methods (`handleStart`, `handleStream`) and a provider
@@ -17,7 +18,7 @@ import {
   createJobEngine,
 } from '@inbrowser/resumable';
 import { sseFromJob } from '@inbrowser/resumable/http';
-import type { InferenceProvider, ModelEvent, NormalizedRequest } from './types.js';
+import type { ModelEvent, NormalizedRequest } from './types.js';
 
 /**
  * A server-managed API key for one provider. Either a static string
@@ -36,10 +37,13 @@ export interface CreateRelayOpts {
   store: JobStore<ModelEvent>;
   /**
    * Provider plug-in map, keyed by `NormalizedRequest.provider`.
-   * Add new entries to support new upstream LLMs — no relay changes
-   * required.
+   * Each value is a `ModelClientFactory` from `@inbrowser/model`: the
+   * relay constructs one `ModelClient` per request from `{ apiKey, model }`
+   * (so BYOK per-request keys + routing both work), then drives its
+   * `.chat()`. Add new entries to support new upstream LLMs — no relay
+   * changes required.
    */
-  providers: Record<string, InferenceProvider>;
+  providers: Record<string, ModelClientFactory>;
   /** Optional structured logger. Default is silent. */
   logger?: ResumableLogger;
   /**
@@ -115,8 +119,8 @@ export function createRelay(opts: CreateRelayOpts): Relay {
     if (!body || typeof body !== 'object' || !body.provider) {
       return json({ error: 'provider is required' }, 400);
     }
-    const provider = opts.providers[body.provider];
-    if (!provider) {
+    const factory = opts.providers[body.provider];
+    if (!factory) {
       return json(
         {
           error: `unknown provider: ${body.provider}. Known: ${Object.keys(opts.providers).join(', ') || '(none)'}`,
@@ -155,12 +159,24 @@ export function createRelay(opts: CreateRelayOpts): Relay {
     let jobId: string;
     try {
       const result = await engine.start(
-        async function* () {
-          // The signal passed to the producer ctx isn't surfaced via
-          // NormalizedRequest — the engine's signal is internal. A
-          // consumer who wants to cancel does it via the HTTP layer
-          // (job delete) once that surface exists.
-          for await (const evt of provider(body)) {
+        async function* ({ signal }) {
+          // Construct the ModelClient for THIS request: BYOK/server-managed
+          // key + model id are per-request, so the factory is called here
+          // rather than once at createRelay time. Per-call settings
+          // (messages / tools / sampling) ride the ModelRequest. The
+          // engine's producer signal is threaded into `.chat()` so an
+          // aborted job stops the upstream fetch.
+          const client = factory({ apiKey: body.apiKey, model: body.model });
+          const modelRequest: ModelRequest = {
+            messages: body.messages,
+            tools: body.tools,
+            toolUseEnabled: body.toolUseEnabled,
+            ...(typeof body.temperature === 'number' ? { temperature: body.temperature } : {}),
+            ...(typeof body.topP === 'number' ? { topP: body.topP } : {}),
+            ...(typeof body.topK === 'number' ? { topK: body.topK } : {}),
+            ...(body.reasoningEffort ? { reasoningEffort: body.reasoningEffort } : {}),
+          };
+          for await (const evt of client.chat(modelRequest, signal)) {
             yield evt;
           }
         },

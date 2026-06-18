@@ -10,14 +10,14 @@
  * import site, and adds the relay-only transport extension on top.
  *
  * The relay routes on `NormalizedRequest.provider` — a string keyed
- * into the `providers` map at `createRelay` time. The chosen
- * `InferenceProvider` is just an async generator of `ModelEvent`s;
- * the relay drives it under a `@inbrowser/resumable` engine, so every
- * provider gets durability + resume "for free" without per-provider
- * code.
+ * into the `providers` map at `createRelay` time. The chosen value is a
+ * `ModelClientFactory` (from `@inbrowser/model`): the relay constructs a
+ * `ModelClient` per request and drives its `.chat()` under a
+ * `@inbrowser/resumable` engine, so every provider gets durability +
+ * resume "for free" without per-provider code.
  */
 
-import type { ModelEvent, ModelRequest } from '@inbrowser/model/contract';
+import type { ModelRequest } from '@inbrowser/model/contract';
 
 /**
  * The shared model-call contract, re-homed under the relay's import
@@ -49,8 +49,10 @@ export type {
  *     `CreateRelayOpts.apiKeys`, the relay resolves the key itself,
  *     and the client must NOT send one (a non-empty value is a 400).
  *
- * By the time a provider's generator runs, the relay has guaranteed a
- * resolved key, so providers read `req.apiKey` directly.
+ * By the time the relay constructs a provider's `ModelClient`, it has
+ * guaranteed a resolved key: it passes `{ apiKey: body.apiKey, model:
+ * body.model }` to the `ModelClientFactory`, and the per-call settings
+ * (messages / tools / sampling) ride the `ModelRequest` into `.chat()`.
  */
 export type NormalizedRequest = ModelRequest & {
   /** Routing key — looked up in `createRelay`'s `providers` map. */
@@ -59,26 +61,13 @@ export type NormalizedRequest = ModelRequest & {
   model: string;
   apiKey?: string;
   /**
-   * Optional — propagated to the provider and used to abort upstream
-   * fetches when the caller cancels. The relay layer manages its own
-   * signal for the durable producer; this one is for consumer-side
+   * Optional — used to abort upstream fetches when the caller cancels.
+   * The relay layer manages its own signal for the durable producer
+   * (threaded into `.chat()`); this one is for consumer-side
    * cancellation when the call runs page-direct.
    */
   signal?: AbortSignal;
 };
-
-/**
- * The provider plug-in surface. Each provider is just an async
- * generator of `ModelEvent`s for a given `NormalizedRequest`.
- * Pure function — the relay handles durability, resumability, and
- * HTTP transport; the provider only handles the upstream protocol.
- *
- * A provider that throws is wrapped by the engine as
- * `finish(jobId, 'error', message)`. To surface a clean error to
- * the client, yield `{ kind: 'error', message }` and return — same
- * effect, but the event also flows down the stream.
- */
-export type InferenceProvider = (req: NormalizedRequest) => AsyncIterable<ModelEvent>;
 
 /**
  * Pluggable logger — matches the `@inbrowser/resumable` `Logger` shape so

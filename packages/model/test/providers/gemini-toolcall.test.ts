@@ -14,12 +14,12 @@
  * "N calls -> N events; full args; signatures present").
  */
 import { describe, expect, it } from 'bun:test';
+import type { ModelEvent, ModelRequest } from '../../src/contract';
 import {
   buildGeminiRequest,
   geminiEventsFromResponse,
-  geminiProvider,
-} from '../src/providers/gemini';
-import type { ModelEvent, NormalizedRequest } from '../src/types';
+  geminiModelClient,
+} from '../../src/providers/gemini';
 
 function makeSseResponse(chunks: unknown[]): Response {
   const body = chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('');
@@ -266,9 +266,9 @@ describe('geminiEventsFromResponse — function-call accumulation', () => {
     expect(firstCall).toBeGreaterThan(lastText);
   });
 
-  it('yields exactly N events for an N-call turn flowing through geminiProvider', async () => {
-    // End-to-end through the retry wrapper to confirm the flush survives
-    // the provider layer that piebox actually consumes.
+  it('yields exactly N events for an N-call turn flowing through the ModelClient', async () => {
+    // End-to-end through the retry-bearing client to confirm the flush
+    // survives the provider layer that piebox actually consumes.
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () =>
       makeSseResponse([
@@ -287,15 +287,13 @@ describe('geminiEventsFromResponse — function-call accumulation', () => {
         USAGE,
       ])) as typeof fetch;
     try {
-      const req: NormalizedRequest = {
-        provider: 'gemini',
-        model: 'gemini-3-flash-preview',
+      const req: ModelRequest = {
         messages: [{ role: 'user', text: 'build it' }],
         tools: [],
         toolUseEnabled: false,
-        apiKey: 'sk-test',
       };
-      const calls = toolCalls(await collect(geminiProvider(req)));
+      const client = geminiModelClient({ apiKey: 'sk-test', model: 'gemini-3-flash-preview' });
+      const calls = toolCalls(await collect(client.chat(req, new AbortController().signal)));
       expect(calls).toHaveLength(2);
       expect(calls[0]).toMatchObject({ name: 'write', args: { path: 'a.ts' } });
       expect(calls[1]).toMatchObject({ name: 'bash', args: { command: 'tsc' } });
@@ -330,9 +328,7 @@ describe('Gemini signature replay round-trip (the request’s "confirm" item)', 
     expect(captured).toHaveLength(2);
 
     // Feed them back as an assistant turn and rebuild the upstream request.
-    const req: NormalizedRequest = {
-      provider: 'gemini',
-      model: 'gemini-3-flash-preview',
+    const req: ModelRequest = {
       messages: [
         { role: 'user', text: 'scaffold it' },
         {
@@ -347,9 +343,10 @@ describe('Gemini signature replay round-trip (the request’s "confirm" item)', 
       ],
       tools: [],
       toolUseEnabled: false,
-      apiKey: 'sk-test',
     };
-    const body = JSON.parse(await buildGeminiRequest(req).text()) as {
+    const body = JSON.parse(
+      await buildGeminiRequest({ apiKey: 'sk-test', model: 'gemini-3-flash-preview' }, req).text(),
+    ) as {
       contents: { role: string; parts: Record<string, unknown>[] }[];
     };
 
