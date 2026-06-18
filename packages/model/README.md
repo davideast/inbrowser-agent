@@ -4,10 +4,12 @@ On-device LLM engine. Loads ONNX models in the browser via
 `@huggingface/transformers` + ONNX Runtime Web (WebGPU / WASM), and
 exposes them behind a narrow `Engine` surface.
 
-> **Status: POC stub.** Types, presets, adapter surface, and worker
-> RPC frames are in place. The `@huggingface/transformers` wiring
-> inside `createEngine` is not yet implemented — `generate()` yields
-> an `error` event today. See `src/engine.ts`.
+> **Status: early but functional.** `createEngine` loads a model
+> through `@huggingface/transformers` and `generate()` streams real
+> tokens; the relay and agent adapters and the worker transport work
+> against it. The end-to-end load path runs in the browser example
+> (`examples/local-llm-poc`, headless-verified). Known gap:
+> `GenerateOpts.stop` sequences are accepted but not yet enforced.
 
 ## One-liner
 
