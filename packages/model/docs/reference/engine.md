@@ -4,22 +4,34 @@ This page describes the root `@inbrowser/model` export: the engine factory,
 the `Engine` surface, the event vocabulary, and the stream transformers.
 
 For preset data and the shared static types they carry, see
-[./presets.md](./presets.md). For the relay, agent, and worker subpaths, see
+[./presets.md](./presets.md). For the worker subpath, see
 [./adapters-and-worker.md](./adapters-and-worker.md).
+
+This page covers the on-device engine. The same package also owns the cloud
+providers and the shared `ModelClient` contract — see the package
+[README](../../README.md) and [contract source](../../src/contract.ts) for
+those.
 
 ## Exports
 
 | Import path | Exports |
 | --- | --- |
-| `@inbrowser/model` | `createEngine`, `definePreset`, `parseToolCalls`, `splitThinking`, the six bundled presets, and engine types |
+| `@inbrowser/model` (engine half) | `createEngine`, `definePreset`, `parseToolCalls`, `splitThinking`, the six bundled presets, and engine types |
+| `@inbrowser/model` (model half) | The cloud provider factories (`geminiModelClient`, …), `withRetry`, and the `ModelClient` contract types |
+| `@inbrowser/model/contract` | `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` (type-only) |
 | `@inbrowser/model/presets` | The six bundled presets. See [./presets.md](./presets.md). |
-| `@inbrowser/model/relay` | `createLocalInferenceProvider`. See [./adapters-and-worker.md](./adapters-and-worker.md). |
-| `@inbrowser/model/agent` | `createLocalLlmClient`. See [./adapters-and-worker.md](./adapters-and-worker.md). |
+| `@inbrowser/model/providers/<name>` | A single cloud provider factory. |
+| `@inbrowser/model/with-retry` | `withRetry`. |
 | `@inbrowser/model/worker` | `hostEngineInWorker`, `connectWorkerEngine`. See [./adapters-and-worker.md](./adapters-and-worker.md). |
 
 The bundled presets (`deepseek_r1_qwen_1_5b`, `gemma4_E2B`, `gemma4_E4B`,
 `qwen2_5_coder_1_5b`, `qwen3_1_7b`, `smollm2_360m`) are re-exported from the
 root as well as from `@inbrowser/model/presets`.
+
+> The removed `@inbrowser/model/relay` and `@inbrowser/model/agent` adapter
+> subpaths are gone. The engine is not yet a `ModelClient`; a
+> `createEngineModelClient` wrapper is planned. See
+> [./adapters-and-worker.md](./adapters-and-worker.md).
 
 ## `createEngine`
 

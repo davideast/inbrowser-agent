@@ -1,53 +1,88 @@
 # How To Use A Local Model In Relay
 
-Serve an on-device engine through `@inbrowser/relay` so the relay's durable storage, SSE wire format, and reconnection treat a local model the same as a cloud provider.
+> **Status: the on-device path into the relay is not wired yet.** The relay
+> consumes a [`ModelClient`](../../src/contract.ts) (the contract this package
+> owns), and the **cloud providers already implement it** — so a Gemini /
+> OpenRouter / Anthropic / Ollama model drops into `createRelay` today. The
+> **on-device engine does not implement `ModelClient` yet**: it streams
+> `EngineEvent`, not the contract's `ModelEvent`. The old
+> `@inbrowser/model/relay` adapter (`createLocalInferenceProvider`) and the
+> `InferenceProvider` contract it targeted have been removed. A
+> `createEngineModelClient(engine)` wrapper that lets a local engine serve over
+> the relay is **planned but not built**. This page records both the working
+> path (cloud) and what to do with a local engine until the wrapper lands.
 
-`@inbrowser/relay` is a peer dependency, and the `@inbrowser/model/relay` subpath is the only place `@inbrowser/model` imports from it. Install both.
+## A cloud model over the relay (works today)
 
-## Wrap An Engine As A Provider
-
-Build an engine from a preset, then wrap it with `createLocalInferenceProvider`. The result is a relay [`InferenceProvider`](../../../relay/docs/reference.md): the same async-generator contract a Gemini-over-HTTP provider implements.
-
-```ts
-import { createEngine } from '@inbrowser/model';
-import { qwen3_1_7b } from '@inbrowser/model/presets';
-import { createLocalInferenceProvider } from '@inbrowser/model/relay';
-
-const engine = createEngine(qwen3_1_7b);
-const local = createLocalInferenceProvider(engine);
-```
-
-The engine is bound to a single model at construction, so the provider ignores `NormalizedRequest` fields with no on-device analogue (`apiKey`, `provider`, and `model` routing).
-
-## Register It Under A Provider Key
-
-Add the provider to the `providers` map you pass to `createRelay`. The key is what clients select with `provider:` in their request.
+The relay's `providers` map holds `ModelClientFactory`s — functions that
+construct a `ModelClient` per request (so a BYOK key can be threaded in). Import
+a cloud provider factory from this package and register it under a key:
 
 ```ts
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
 import { createRelay } from '@inbrowser/relay';
 
 const relay = createRelay({
-  store,
+  store, // a JobStore<ModelEvent> — see the relay docs
   providers: {
-    local,
+    // Each factory is called per request with `{ apiKey, model }`.
+    gemini: ({ apiKey, model }) => geminiModelClient({ apiKey, model }),
   },
+  // Server-managed keys (optional): a static string (or a per-request
+  // function) so clients don't have to send their own key.
+  apiKeys: { gemini: process.env.GEMINI_KEY! },
 });
 ```
 
-Clients then run a job against `provider: 'local'`. For wiring the store and the client side of a relay, see [how to wire a web app](../../../relay/docs/how-to-wire-a-web-app.md). For authoring providers in general, see [how to write a provider](../../../relay/docs/how-to-write-a-provider.md).
+Clients then run a job against `provider: 'gemini'`. For wiring the relay's
+store and the client side, see the relay's own
+[how-to](../../../relay/docs/how-to-wire-a-web-app.md).
 
-## Know What The Adapter Widens
+## A local engine until the wrapper lands
 
-The adapter translates the engine's narrow [`EngineEvent`](../reference/engine.md) vocabulary into the relay's wider `InferenceEvent`. The mappings:
+There is no supported way to register the on-device engine in `createRelay`
+right now. Two honest options:
 
-- `token` becomes a `text` chunk (`{ kind: 'text', chunk }`).
-- `thinking` passes through as `{ kind: 'thinking', chunk }`. The engine only emits `thinking` when you wrapped its stream with `splitThinking` upstream, so if you want a reasoning channel on the wire, compose it before building the engine generator (see [how to handle thinking and tool calls](./handle-thinking-and-tool-calls.md)).
-- `tool_call` is rekeyed: the engine's `id` becomes `callId`. `name` and `args` carry through.
-- `usage` carries `promptTokens` and `outputTokens`; the engine's `decodeMs` is dropped, since the relay's `usage` event has no such field.
-- `error` becomes `{ kind: 'error', message }` and ends the stream.
+1. **Drive the engine directly**, off to the side of the relay. Build it from a
+   preset and consume its `EngineEvent` stream yourself:
 
-## Forward Tools Safely
+   ```ts
+   import { createEngine } from '@inbrowser/model';
+   import { qwen3_1_7b } from '@inbrowser/model/presets';
 
-If a request brings tool declarations, the adapter forwards them to the engine in OpenAI function format. The engine itself gates emission on `capabilities.supportsTools`, so passing tools to a non-tools preset is a no-op rather than an error. To actually get tool calls back, bind a tools-capable preset (`qwen2_5_coder_1_5b` or `qwen3_1_7b`); see [how to choose a preset](./choose-a-preset.md).
+   const engine = createEngine(qwen3_1_7b);
+   await engine.ensureReady();
 
-For the adapter's exact signature and the full `EngineEvent` to `InferenceEvent` table, see [the adapters reference](../reference/adapters-and-worker.md).
+   for await (const evt of engine.generate([{ role: 'user', text: 'hi' }])) {
+     if (evt.kind === 'token') process.stdout.write(evt.text);
+   }
+   ```
+
+   See [run a model in the browser](../tutorials/01-run-a-model-in-the-browser.md).
+
+2. **Wait for `createEngineModelClient`.** The planned wrapper will adapt an
+   `Engine` to a `ModelClient` — widening `EngineEvent` to the contract's
+   `ModelEvent` (e.g. `token` → `{ kind: 'text' }`, the engine's terminal
+   `usage` into a `ModelEvent` `usage`) — so that a local engine registers in
+   `createRelay({ providers })` exactly like a cloud factory. When it ships, the
+   shape will mirror the cloud example above.
+
+## What the wrapper will have to translate
+
+For reference, the engine's narrow [`EngineEvent`](../reference/engine.md)
+vocabulary differs from the contract's `ModelEvent` in a few ways the wrapper
+will reconcile:
+
+- `token` carries `text`; the contract's `text` event carries `text` too, so
+  this is a straight rename of the `kind`.
+- `thinking` maps to the contract's `thinking` event.
+- `tool_call` carries `id`, `name`, `args` on both sides.
+- the engine's `usage` carries `promptTokens`, `outputTokens`, `decodeMs`; the
+  contract's `usage` carries a `ModelUsage` (`promptTokens`, `outputTokens`, and
+  optional cost/cached fields). `decodeMs` has no contract home.
+- `error` is terminal on both sides.
+
+The engine gates `tool_call` emission on `capabilities.supportsTools`, so a
+non-tools preset simply never emits them. To get tool calls back, bind a
+tools-capable preset (`qwen2_5_coder_1_5b` or `qwen3_1_7b`); see
+[how to choose a preset](./choose-a-preset.md).

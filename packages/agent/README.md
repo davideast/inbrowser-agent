@@ -33,7 +33,7 @@ import {
 
 const session = createAgentSession({
   strategy: createReactLoopStrategy(),
-  llm: yourLlmClient,
+  llm: yourModelClient,
   tools: createDispatch(createToolRegistry()),
   toolContext: () => ({ workspace, runtime, sandbox, lint, signal: new AbortController().signal }),
   metrics: createMetricsCollector(),
@@ -105,7 +105,7 @@ Documentation is organised under [`docs/`](./docs/) following the [Diataxis](htt
 - **Building an agent in code?** Start with [Drive a session from your code](./docs/tutorials/01-drive-a-session-from-code.md).
 - **Running the CLI?** Start with [Run the agent CLI](./docs/tutorials/02-run-the-agent-cli.md).
 - **Exposing tools to an external host?** Start with [Serve agents over MCP](./docs/tutorials/03-serve-agents-over-mcp.md).
-- **Implementing a new LLM provider?** See [Implement a custom `LlmClient`](./docs/how-to/implement-llm-client.md).
+- **Implementing a new LLM provider?** See [Implement a custom `ModelClient`](./docs/how-to/implement-llm-client.md).
 
 ## Position in the stack
 

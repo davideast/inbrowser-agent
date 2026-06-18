@@ -7,20 +7,20 @@ the reconnecting client.
 
 Create one relay instance for the process:
 
+The provider factories come from `@inbrowser/model`; the relay only routes to
+them. Each cloud factory already matches `ModelClientFactory` (its config is
+`{ apiKey?, model }`), so it registers directly:
+
 ```ts
-import {
-  createRelay,
-  geminiProvider,
-  openrouterProvider,
-  type InferenceEvent,
-} from '@inbrowser/relay';
+import { createRelay, type ModelEvent } from '@inbrowser/relay';
+import { geminiModelClient, openrouterModelClient } from '@inbrowser/model';
 import {
   createRtdbJobStore,
   serviceAccountTokenProvider,
 } from '@inbrowser/resumable/rtdb';
 
 export const relay = createRelay({
-  store: createRtdbJobStore<InferenceEvent>({
+  store: createRtdbJobStore<ModelEvent>({
     url: process.env.RTDB_URL!,
     auth: serviceAccountTokenProvider({
       keyFile: process.env.SERVICE_ACCOUNT_FILE!,
@@ -29,13 +29,27 @@ export const relay = createRelay({
     defaultTtlMs: 7 * 24 * 60 * 60 * 1000,
   }),
   providers: {
-    gemini: geminiProvider,
-    openrouter: openrouterProvider,
+    gemini: geminiModelClient,
+    openrouter: openrouterModelClient,
   },
   sweep: {
     intervalMs: 60 * 60 * 1000,
   },
 });
+```
+
+If a provider needs construction options beyond `{ apiKey, model }` — for
+example pinning a `baseUrl` or a temperature, or passing a Claude subscription
+token — wrap the factory so the relay-supplied `{ apiKey, model }` is merged
+with your extras:
+
+```ts
+import { ollamaModelClient } from '@inbrowser/model';
+
+providers: {
+  // Pin Ollama's base URL instead of carrying it on the wire via apiKey.
+  ollama: (c) => ollamaModelClient({ ...c, baseUrl: 'http://localhost:11434' }),
+}
 ```
 
 Use a durable store in production. The memory store is useful for tests and
@@ -130,7 +144,7 @@ for await (const event of client.stream({
   apiKey: userApiKey,
 })) {
   if (event.kind === 'text') {
-    appendText(event.chunk);
+    appendText(event.text);
   }
 }
 ```

@@ -1,28 +1,27 @@
 # How To Use A Local Model In The Agent
 
-Drive an on-device engine from an `@inbrowser/agent` session so the agent runtime treats a local model identically to a cloud provider.
+> **Status: the on-device path into the agent is not wired yet.** An
+> `@inbrowser/agent` session is driven by a [`ModelClient`](../../src/contract.ts)
+> (the contract this package owns — the agent's old `LlmClient` IS now
+> `ModelClient`). The **cloud providers already implement it**, so a Gemini /
+> OpenRouter / Anthropic / Ollama / Claude model drives a session today. The
+> **on-device engine does not implement `ModelClient` yet**: it streams
+> `EngineEvent`, not the contract's `ModelEvent`. The old
+> `@inbrowser/model/agent` adapter (`createLocalLlmClient`) and the `LlmClient`
+> contract it targeted have been removed. A `createEngineModelClient(engine)`
+> wrapper is **planned but not built**. This page records the working path
+> (cloud) and what to do with a local engine until the wrapper lands.
 
-`@inbrowser/agent` is a peer dependency, and the `@inbrowser/model/agent` subpath is the only place `@inbrowser/model` imports from it. Install both.
+## A cloud model in a session (works today)
 
-## Wrap An Engine As An LlmClient
-
-Build an engine from a preset, then wrap it with `createLocalLlmClient`. The result is an agent `LlmClient`: `{ id, supportsTools, chat(req, signal) }`. The `id` is yours to choose; `supportsTools` is read straight off `engine.capabilities.supportsTools`.
-
-```ts
-import { createEngine } from '@inbrowser/model';
-import { qwen3_1_7b } from '@inbrowser/model/presets';
-import { createLocalLlmClient } from '@inbrowser/model/agent';
-
-const engine = createEngine(qwen3_1_7b);
-const llm = createLocalLlmClient(engine, 'local-qwen3');
-```
-
-## Wire It Into A Session
-
-Pass the client as the `llm` field of `createAgentSession`. The session drives it through the same `chat(req, signal) → AsyncIterable<ChatEvent>` surface a cloud client uses.
+Build a `ModelClient` from a cloud provider factory and pass it as the `llm`
+field of `createAgentSession`:
 
 ```ts
+import { geminiModelClient } from '@inbrowser/model';
 import { createAgentSession } from '@inbrowser/agent';
+
+const llm = geminiModelClient({ apiKey: process.env.GEMINI_KEY, model: 'gemini-3.5-flash' });
 
 const session = createAgentSession({
   llm,
@@ -36,22 +35,58 @@ const session = createAgentSession({
 });
 ```
 
-For the rest of the session configuration (`strategy`, `tools`, `toolList`, `systemPromptBuilder`, and how to run a turn), see the [agent documentation](../../../agent/README.md).
+The session drives the client through `chat(req, signal) →
+AsyncIterable<ModelEvent>`. For the rest of the session configuration
+(`strategy`, `tools`, `toolList`, `systemPromptBuilder`, and how to run a turn),
+see the [agent documentation](../../../agent/README.md).
 
-## Pick A Tools-Capable Preset For Tool Use
+If you have a callback-style provider rather than a `ModelClient`, the agent
+ships `callbackProviderAsLlmClient(provider, id)`, which returns a `ModelClient`
+you can pass as `llm`.
 
-If the chosen preset declares `supportsTools: false` and the request enables tool use, the client declines: it yields a single `{ kind: 'error' }` event and stops. So when your session needs tools, bind a tools-capable preset (`qwen2_5_coder_1_5b` or `qwen3_1_7b`); see [how to choose a preset](./choose-a-preset.md).
+## A local engine until the wrapper lands
 
-The runtime can instead layer its own prompt-engineered tool-use polyfill over a non-tools client to lift it into a tool-capable one. That polyfill lives in `@inbrowser/agent`, not here.
+There is no supported way to pass the on-device engine as a session's `llm`
+right now — `llm` must be a `ModelClient`, and the engine is not one yet. Until
+`createEngineModelClient(engine)` ships, drive the engine directly via its
+`EngineEvent` stream, outside the session:
 
-## Know What The Adapter Maps
+```ts
+import { createEngine } from '@inbrowser/model';
+import { qwen3_1_7b } from '@inbrowser/model/presets';
 
-The adapter translates the engine's narrow [`EngineEvent`](../reference/engine.md) vocabulary into the agent's `ChatEvent`:
+const engine = createEngine(qwen3_1_7b);
+await engine.ensureReady();
 
-- `token` becomes a `text` chunk.
-- `thinking` passes through (the engine only emits it when you wrapped its stream with `splitThinking` upstream; see [how to handle thinking and tool calls](./handle-thinking-and-tool-calls.md)).
-- `tool_call` carries `id`, `name`, and `args` through unchanged.
-- `usage` is accumulated and reported once at the end as a `turn_complete` event whose `usage` holds `promptTokens` and `completionTokens`.
-- `error` ends the stream.
+for await (const evt of engine.generate([{ role: 'user', text: 'hi' }])) {
+  if (evt.kind === 'token') process.stdout.write(evt.text);
+}
+```
 
-For the adapter's exact signature, see [the adapters reference](../reference/adapters-and-worker.md).
+See [run a model in the browser](../tutorials/01-run-a-model-in-the-browser.md).
+
+When the wrapper lands, a local engine will become a `ModelClient` and pass to
+`createAgentSession({ llm })` exactly like the cloud example above.
+
+## Tool use, for when the wrapper exists
+
+When it lands, the wrapper's `supportsTools` will mirror
+`engine.capabilities.supportsTools`. A preset that declares `supportsTools:
+false` cannot emit native tool calls; the agent runtime can layer its own
+prompt-engineered tool-use polyfill over a non-tools client to lift it into a
+tool-capable one. That polyfill lives in `@inbrowser/agent`, not here. To get
+native tool calls, bind a tools-capable preset (`qwen2_5_coder_1_5b` or
+`qwen3_1_7b`); see [how to choose a preset](./choose-a-preset.md).
+
+## What the wrapper will have to translate
+
+The engine's narrow [`EngineEvent`](../reference/engine.md) vocabulary maps onto
+the contract's `ModelEvent` as follows (the wrapper will do this):
+
+- `token` becomes the contract's `{ kind: 'text', text }`.
+- `thinking` becomes `{ kind: 'thinking', text }`.
+- `tool_call` carries `id`, `name`, `args` through.
+- the engine's `usage` (`promptTokens`, `outputTokens`, `decodeMs`) becomes a
+  terminal `{ kind: 'usage', usage }` `ModelEvent`; the turn ends when the
+  iterable returns. There is no `turn_complete` event in the contract.
+- `error` is terminal on both sides.

@@ -26,7 +26,7 @@ import {
   createToolRegistry,
   createDispatch,
   createMetricsCollector,
-  type LlmClient,
+  type ModelClient,
   type ToolHandler,
 } from '@inbrowser/agent';
 ```
@@ -73,7 +73,7 @@ tool.
 
 ## 3. Write A Scripted LLM
 
-The bare runtime ships no built-in model, so we provide our own `LlmClient`. A
+The bare runtime ships no built-in model, so we provide our own `ModelClient`. A
 real client streams chunks from a provider; ours follows a fixed script so the
 lesson is perfectly repeatable.
 
@@ -82,7 +82,7 @@ the second turn (after it has seen the tool result) it writes a sentence and
 finishes:
 
 ```ts
-const scriptedLlm: LlmClient = {
+const scriptedLlm: ModelClient = {
   id: 'scripted-demo',
   supportsTools: true,
   chat(req, signal) {
@@ -92,37 +92,31 @@ const scriptedLlm: LlmClient = {
     return (async function* () {
       if (toolTurns === 0) {
         // First turn: ask to call the tool.
-        yield { kind: 'thinking', chunk: 'I should check the clock.\n' };
+        yield { kind: 'thinking', text: 'I should check the clock.\n' };
         yield {
           kind: 'tool_call',
           id: 'call-1',
           name: 'get_time',
           args: { zone: 'UTC' },
         };
-        yield {
-          kind: 'turn_complete',
-          usage: { promptTokens: 20, completionTokens: 8 },
-          details: { requestedModel: 'scripted-demo' },
-        };
+        yield { kind: 'usage', usage: { promptTokens: 20, outputTokens: 8 } };
         return;
       }
       // Second turn: the tool result is now in `req.messages`. Reply.
       for (const word of 'Here is the time you asked for.'.split(' ')) {
-        yield { kind: 'text', chunk: word + ' ' };
+        yield { kind: 'text', text: word + ' ' };
       }
-      yield {
-        kind: 'turn_complete',
-        usage: { promptTokens: 30, completionTokens: 7 },
-        details: { requestedModel: 'scripted-demo' },
-      };
+      yield { kind: 'usage', usage: { promptTokens: 30, outputTokens: 7 } };
     })();
   },
 };
 ```
 
-Notice the two `turn_complete` events. Each one carries `usage` (token counts)
-and `details` (the model name). The session needs both to record metrics and
-emit a `turn_completed` event, so a scripted client must always send them.
+Notice the `usage` event at the end of each turn. It carries the final token
+counts, and a turn ends when the generator returns — there is no separate
+`turn_complete` event. The session reads `usage` to record metrics and emit its
+own `turn_completed` event, so a scripted client should always emit one before
+it finishes (the session synthesizes the model name from the client `id`).
 
 ## 4. Assemble The Session
 
@@ -212,9 +206,9 @@ the whole submit has finished.
 ## What You Built
 
 You drove a full agent session in code with no external services. You
-registered a tool, scripted an `LlmClient` to call it, assembled a session with
+registered a tool, scripted a `ModelClient` to call it, assembled a session with
 `createAgentSession`, and consumed the typed `SessionEvent` stream. This is the
-same library surface the playground UI consumes; only the LLM client differs.
+same library surface the playground UI consumes; only the model client differs.
 
 Try changing the scripted reply text and running it again. Then add a second
 property to `clockTool`'s schema and have the script pass it in `args`. The loop
@@ -223,6 +217,6 @@ stays the same; only your script changes.
 ## Next
 
 - To swap the scripted client for a real provider, follow
-  [Implement a custom `LlmClient`](../how-to/implement-llm-client.md).
+  [Implement a custom `ModelClient`](../how-to/implement-llm-client.md).
 - For the full list of event kinds and their fields, see the
   [`SessionEvent` reference](../reference/events.md).

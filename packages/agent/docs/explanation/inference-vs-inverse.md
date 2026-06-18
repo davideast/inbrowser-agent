@@ -12,7 +12,7 @@ the safety story lives) follows from that one choice.
 The two modes are named for the direction the control flows.
 
 In **inference mode** your code drives the model. You hold an `AgentSession`,
-you give it an `LlmClient` and a `ToolRegistry`, and you call `session.submit()`.
+you give it a `ModelClient` and a `ToolRegistry`, and you call `session.submit()`.
 The agent then runs a ReAct loop: it asks the model what to do, the model calls
 your tools, the loop feeds the results back, and it keeps going until the model
 produces a final answer. The model is something you drive. The playground UI is

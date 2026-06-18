@@ -26,7 +26,7 @@ build something working end to end.
 Goal-oriented directions. Reach for these when you already know what you want to
 accomplish.
 
-- [Implement a custom `LlmClient`](./how-to/implement-llm-client.md)
+- [Implement a custom `ModelClient`](./how-to/implement-llm-client.md)
 - [Consume an MCP server](./how-to/consume-an-mcp-server.md)
 - [Define and register tools](./how-to/define-and-register-tools.md)
 - [Inspect and undo with the event log](./how-to/inspect-and-undo-with-the-event-log.md)

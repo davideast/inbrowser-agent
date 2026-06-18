@@ -8,11 +8,13 @@ layer.
 | --- | --- | --- | --- |
 | `SessionEvent` | `kind` | `AgentSession.submit(prompt, signal)` | The host. |
 | `StrategyEvent` | `kind` | `AgentStrategy.run(input, signal)` | The session (translates into `SessionEvent`). |
-| `ChatEvent` | `kind` | `LlmClient.chat(req, signal)` | The strategy. |
+| `ModelEvent` | `kind` | `ModelClient.chat(req, signal)` | The strategy. |
 
-The flow is layered: `chat` yields `ChatEvent`s to the strategy, the strategy
+The flow is layered: `chat` yields `ModelEvent`s to the strategy, the strategy
 yields `StrategyEvent`s to the session, and the session yields `SessionEvent`s
-to the host.
+to the host. `ModelEvent` is the shared contract from
+`@inbrowser/model/contract` (re-exported from `@inbrowser/agent`); the other two
+streams are agent-internal types layered on top of it.
 
 ---
 
@@ -56,7 +58,7 @@ Yielded by `AgentStrategy.run`. The session maps each variant onto a
 | `thinking` | `chunk: string` | `thinking` |
 | `tool_call` | `id: string`, `name: string`, `args: unknown`, `signature?: string` | `tool_started` |
 | `tool_result` | `id: string`, `result: ToolResult` | `tool_finished` (plus `workspace_changed` / `runtime_changed` when the result carries patches) |
-| `turn_complete` | `usage: RawUsage`, `details: TurnDetails` | `turn_completed` (after the session records metrics from `usage`) |
+| `turn_complete` | `usage: ModelUsage`, `details: TurnDetails` | `turn_completed` (after the session records metrics from `usage`) |
 | `error` | `message: string` | `error` (terminates the run) |
 | `custom` | `name: string`, `data?: unknown` | `strategy_event` |
 
@@ -75,45 +77,44 @@ Notes:
 
 ---
 
-## `ChatEvent`
+## `ModelEvent`
 
-Yielded by `LlmClient.chat`. The provider-level stream the strategy consumes.
+Yielded by `ModelClient.chat`. The provider-level stream the strategy consumes.
+This is the shared contract from `@inbrowser/model/contract`, re-exported from
+`@inbrowser/agent`.
 
 | `kind` | Fields | Meaning |
 | --- | --- | --- |
-| `text` | `chunk: string` | A chunk of assistant output text. |
-| `thinking` | `chunk: string` | A chunk of hidden reasoning text. |
+| `text` | `text: string` | A chunk of assistant output text. |
+| `thinking` | `text: string` | A chunk of hidden reasoning text. |
 | `tool_call` | `id: string`, `name: string`, `args: unknown`, `signature?: string` | The model requested a tool call. |
-| `turn_complete` | `usage: RawUsage`, `details: TurnDetails` | The model's reply is complete. Carries token usage and turn details. |
-| `error` | `message: string` | The provider call failed. |
+| `usage` | `usage: ModelUsage` | Final per-turn accounting. Emitted once, just before the iterable returns. |
+| `error` | `message: string` | The provider call failed. Terminal. |
 
-`RawUsage`:
+`ModelUsage`:
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `promptTokens` | `number` | Input tokens. |
-| `completionTokens` | `number` | Output tokens. |
+| `outputTokens` | `number` | Output tokens. |
 | `cachedTokens` | `number` (optional) | Cache-hit input tokens. |
 | `reasoningTokens` | `number` (optional) | Reasoning tokens. |
 | `costUsd` | `number` (optional) | Provider-supplied cost; bypasses pricing tables when present. |
 
-`TurnDetails`:
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `requestedModel` | `string` | The model name the host requested. |
-| `servedModel` | `string` (optional) | The model the provider actually served. |
-| `fingerprint` | `string` (optional) | Provider-stable fingerprint when offered. |
-| `routing` | `Record<string, unknown>` (optional) | Free-form provider routing info. |
-
 Notes:
 
+- The turn ends when the async iterable returns; there is no `turn_complete`
+  event. On a normal end a `usage` event is emitted before the return — it
+  carries the final accounting. An `error` event is itself terminal: after it
+  the iterable returns with no `usage` event. Consumers can rely on exactly one
+  of {a `usage` event, an `error` event} per turn.
 - `signature` carries a provider-specific token (for example a Gemini
   thoughtSignature) through round-trips. It is absent on providers that do not
   emit one.
-- A well-behaved client emits a terminal `turn_complete` (or `error`). The
-  strategy treats a stream that ends without `turn_complete` as a turn with no
-  recorded usage.
+- The strategy translates this stream into `StrategyEvent`s: `text`/`thinking`
+  fragments are re-emitted (as `chunk`), and the `usage` event becomes the
+  strategy's `turn_complete`, where the session synthesizes `TurnDetails`
+  (`{ requestedModel }`) from the client `id` before recording metrics.
 
 ---
 

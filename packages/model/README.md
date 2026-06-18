@@ -1,17 +1,62 @@
 # @inbrowser/model
 
-On-device LLM engine. Loads ONNX models in the browser via
-`@huggingface/transformers` + ONNX Runtime Web (WebGPU / WASM), and
-exposes them behind a narrow `Engine` surface.
+The model layer for the stack. It owns the one model-call contract —
+`ModelClient` — plus the cloud providers that implement it and the
+on-device LLM engine. `@inbrowser/relay` (transport) and
+`@inbrowser/agent` (runtime) both consume a `ModelClient`, so this is the
+single shared definition of "an LLM" for everything downstream.
 
-> **Status: early but functional.** `createEngine` loads a model
-> through `@huggingface/transformers` and `generate()` streams real
-> tokens; the relay and agent adapters and the worker transport work
-> against it. The end-to-end load path runs in the browser example
-> (`examples/local-llm-poc`, headless-verified). Known gap:
-> `GenerateOpts.stop` sequences are accepted but not yet enforced.
+Two halves, one package:
 
-## One-liner
+- **The contract + cloud providers.** `@inbrowser/model/contract`
+  defines `ModelClient` / `ModelRequest` / `ModelEvent`. The cloud
+  providers (`geminiModelClient`, `openrouterModelClient`,
+  `anthropicModelClient`, `ollamaModelClient`, `claudeCliModelClient`,
+  `claudeCodeModelClient`) are factories that each return a
+  `ModelClient`. `withRetry` decorates one.
+- **The on-device engine.** `createEngine` loads ONNX models in the
+  browser via `@huggingface/transformers` + ONNX Runtime Web (WebGPU /
+  WASM) and exposes them behind a narrow `Engine` surface that streams
+  `EngineEvent`s.
+
+> **Status.** Contract + cloud providers are the live integration path:
+> relay and agent both consume a `ModelClient`. `createEngine` loads a
+> model through `@huggingface/transformers` and `generate()` streams real
+> tokens (the end-to-end load path runs in `examples/local-llm-poc`,
+> headless-verified). Known gaps: `GenerateOpts.stop` sequences are
+> accepted but not yet enforced, and the engine is **not yet a
+> `ModelClient`** — today you drive it directly via its `EngineEvent`
+> stream. A `createEngineModelClient` wrapper that lets the engine plug
+> into the relay/agent is planned but not built; the old
+> `@inbrowser/model/relay` and `@inbrowser/model/agent` adapter subpaths
+> have been removed.
+
+## A cloud model as a `ModelClient`
+
+```ts
+import { geminiModelClient } from '@inbrowser/model';
+// or: import { geminiModelClient } from '@inbrowser/model/providers/gemini';
+
+const client = geminiModelClient({ apiKey: process.env.GEMINI_KEY, model: 'gemini-3.5-flash' });
+
+for await (const evt of client.chat(
+  {
+    messages: [{ role: 'user', text: 'Explain WebGPU in one paragraph.' }],
+    tools: [],
+    toolUseEnabled: false,
+  },
+  new AbortController().signal,
+)) {
+  if (evt.kind === 'text') process.stdout.write(evt.text);
+  else if (evt.kind === 'usage') console.error(evt.usage);
+}
+```
+
+The turn ends when the iterable returns; a `usage` event (or a terminal
+`error` event) is the last thing emitted. There is no `turn_complete`
+event.
+
+## An on-device model via the engine
 
 ```ts
 import { createEngine } from '@inbrowser/model';
@@ -27,16 +72,24 @@ for await (const evt of engine.generate([
 }
 ```
 
+The engine speaks `EngineEvent` (`token` / `thinking` / `tool_call` /
+`usage` / `error`), not `ModelEvent`. It is not yet a `ModelClient`; to
+use a local model from the relay or agent today you drive the engine
+directly, and the `createEngineModelClient` wrapper is forthcoming.
+
 ## Surface
 
 | Export | What it gives you |
 |---|---|
-| `createEngine(preset)` | Runtime `Engine` — owns load state + decode loop |
+| `@inbrowser/model/contract` | `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` — the shared contract (type-only) |
+| `geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`, `ollamaModelClient`, `claudeCliModelClient`, `claudeCodeModelClient` | Cloud provider factories; each returns a `ModelClient`. Also at `@inbrowser/model/providers/<name>` |
+| `withRetry(client, opts?)` | Decorator that retries transient upstream errors while nothing has streamed. Also at `@inbrowser/model/with-retry` |
+| `CloudProviderConfig`, `ModelClientFactory` | Shared provider config + the factory type the relay routes on |
+| `createEngine(preset)` | Runtime `Engine` — owns load state + decode loop, streams `EngineEvent` |
 | `definePreset(p)` | Type-safe identity helper for community presets |
-| `ModelPreset`, `Engine`, `EngineEvent`, … | Public types |
-| `@inbrowser/model/presets` | `gemma4_E2B`, `gemma4_E4B` |
-| `@inbrowser/model/relay` | `createLocalInferenceProvider(engine)` → relay `InferenceProvider` |
-| `@inbrowser/model/agent` | `createLocalLlmClient(engine, id)` → agent `LlmClient` |
+| `parseToolCalls`, `splitThinking` | Stream transformers over an `EngineEvent` stream |
+| `ModelPreset`, `Engine`, `EngineEvent`, … | Public engine types |
+| `@inbrowser/model/presets` | `gemma4_E2B`, `gemma4_E4B`, `qwen2_5_coder_1_5b`, `qwen3_1_7b`, `deepseek_r1_qwen_1_5b`, `smollm2_360m` (also re-exported from root) |
 | `@inbrowser/model/worker` | `hostEngineInWorker(self)` + `connectWorkerEngine(opts)` |
 
 ## Vocabulary anchor
@@ -56,10 +109,11 @@ for await (const evt of engine.generate([
 - One factory (`createEngine`), many presets. No `createGemmaEngine`.
 - `capabilities` is on the preset, not the engine — interrogable
   pre-load (`gemma4_E2B.capabilities.contextWindow`).
-- `EngineEvent` is narrower than `InferenceEvent`/`ChatEvent`.
-  Adapters widen.
-- Worker subpath returns the same `Engine` shape; the agent runtime
-  cannot tell whether it holds a direct or remote engine.
+- `EngineEvent` is narrower than the contract's `ModelEvent` (no
+  cost, no `thoughtSignature`). A `ModelClient` wrapper for the engine
+  is the planned place to widen it; that wrapper is not built yet.
+- Worker subpath returns the same `Engine` shape; a consumer cannot
+  tell whether it holds a direct or remote engine.
 - Tool calling is not native to Gemma 4. The polyfill (prompt-engineered
   tool calling + structured-output parsing) lives in `@inbrowser/agent`,
   not here.

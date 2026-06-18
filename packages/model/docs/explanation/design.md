@@ -69,13 +69,18 @@ those fields, every on-device consumer would handle ideas that never apply to
 on-device inference, and the type would grow each time some upstream API
 invented a new field.
 
-The wider shapes that consumers actually want still exist; they are produced
-at the boundary. The relay adapter widens `EngineEvent` into the relay's
-`InferenceEvent`; the agent adapter widens it into the agent's `ChatEvent`.
-Widening at the adapter, rather than fattening the core, keeps a clean
-division of labour: the engine knows about decoding, the adapters know about
-the protocols their consumers speak. A field that only the relay cares about
-lives in the relay adapter, not in the type every consumer imports.
+The wider shape that consumers actually want is the stack's one
+`ModelClient` contract and its `ModelEvent` — owned by this same package
+(`@inbrowser/model/contract`) and implemented directly by the cloud providers.
+The engine deliberately does *not* implement that contract itself; the
+intended bridge is a single boundary, the planned `createEngineModelClient`
+wrapper, that widens `EngineEvent` into `ModelEvent` once. (The earlier
+per-consumer adapters — one widening to the relay, one to the agent — have been
+removed in favour of that single contract.) Widening at one boundary, rather
+than fattening the core, keeps a clean division of labour: the engine knows
+about decoding, the wrapper knows about the contract its consumers speak. A
+cloud-only field like cost lives on `ModelUsage`, not on the `EngineEvent` type
+every on-device consumer imports.
 
 The cost of a narrow core is real: a consumer who wants a richer event must go
 through an adapter rather than reading it straight off the engine. That is the
