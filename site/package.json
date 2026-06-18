@@ -5,9 +5,10 @@
   "version": "0.0.0",
   "scripts": {
     "build-graph": "bun run scripts/build-graph.ts",
-    "predev": "bun run scripts/build-graph.ts",
+    "build-chunk-index": "bun run scripts/build-chunk-index.ts",
+    "predev": "bun run scripts/build-graph.ts && bun run scripts/build-chunk-index.ts",
     "dev": "astro dev",
-    "prebuild": "bun run scripts/build-graph.ts",
+    "prebuild": "bun run scripts/build-graph.ts && bun run scripts/build-chunk-index.ts",
     "build": "astro build",
     "preview": "astro preview",
     "typecheck": "astro check",

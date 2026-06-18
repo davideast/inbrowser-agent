@@ -18,7 +18,7 @@
  *
  * Downloads the model (~23 MB) on first run, then caches it.
  */
-import { mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pipeline } from '@huggingface/transformers';
 import graphData from '../src/generated/docs-graph.json';
@@ -179,6 +179,25 @@ function round6(v: number[]): number[] {
 }
 
 async function main() {
+  const outDir = path.resolve(import.meta.dir, '../src/generated');
+  const outFile = path.join(outDir, 'chunk-index.json');
+  const graphFile = path.join(outDir, 'docs-graph.json');
+
+  // Freshness guard: re-embedding takes ~30s, so skip it on dev/build when the
+  // index already exists and is newer than the graph it derives from. Set
+  // FORCE_CHUNK_INDEX=1 to rebuild regardless (e.g. after changing chunking).
+  if (!process.env.FORCE_CHUNK_INDEX && existsSync(outFile) && existsSync(graphFile)) {
+    const indexMtime = statSync(outFile).mtimeMs;
+    const graphMtime = statSync(graphFile).mtimeMs;
+    if (indexMtime >= graphMtime) {
+      console.log(
+        `[build-chunk-index] up to date (newer than docs-graph.json) — skipping. ` +
+          `Set FORCE_CHUNK_INDEX=1 to rebuild.`,
+      );
+      return;
+    }
+  }
+
   const graph = graphData as GraphFile;
 
   const raw: RawChunk[] = [];
@@ -206,9 +225,7 @@ async function main() {
     if ((i + 1) % 50 === 0) console.log(`  embedded ${i + 1}/${raw.length}`);
   }
 
-  const outDir = path.resolve(import.meta.dir, '../src/generated');
   mkdirSync(outDir, { recursive: true });
-  const outFile = path.join(outDir, 'chunk-index.json');
   const payload = { dim: DIM, model: MODEL, chunks };
   writeFileSync(outFile, JSON.stringify(payload));
 

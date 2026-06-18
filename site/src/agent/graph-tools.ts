@@ -6,6 +6,56 @@
  */
 import { type ToolHandler, type ToolRegistry, createToolRegistry } from '@inbrowser/agent';
 import { getNode, listDocs, listPackages, relatedDocs, searchDocs } from '../lib/graph';
+import { hybridRetrieve } from '../lib/semantic-retrieval';
+
+/** A search hit, shaped for `get_doc`, the Sources cards, and the
+ *  retrieval strategy's `data.hits[].route` extractor. */
+interface SearchHit {
+  route: string;
+  title: string;
+  package: string;
+  summary: string;
+  score?: number;
+}
+
+/**
+ * Hybrid (semantic + keyword) ranking, deduped to whole docs in rank order.
+ * Pulls a generous chunk pool, keeps each route's first (best-ranked) chunk,
+ * resolves it to its graph node, and returns the top `limit` distinct docs.
+ * Falls back to plain keyword search if the embedder/index can't load so the
+ * chat never hard-fails.
+ */
+async function hybridDocHits(query: string, limit: number): Promise<SearchHit[]> {
+  try {
+    const chunks = await hybridRetrieve(query, 12);
+    const hits: SearchHit[] = [];
+    const seen = new Set<string>();
+    for (const chunk of chunks) {
+      if (seen.has(chunk.route)) continue;
+      const node = getNode(chunk.route);
+      if (!node) continue;
+      seen.add(chunk.route);
+      hits.push({
+        route: node.route,
+        title: node.title,
+        package: node.package,
+        summary: node.summary,
+        score: hits.length + 1, // rank-derived (1 = best)
+      });
+      if (hits.length >= limit) break;
+    }
+    if (hits.length > 0) return hits;
+  } catch {
+    // Embedder/index failed to load — fall through to keyword search.
+  }
+  return searchDocs(query, limit).map((h) => ({
+    route: h.route,
+    title: h.title,
+    package: h.package,
+    summary: h.summary,
+    score: h.score,
+  }));
+}
 
 const list_packages: ToolHandler<Record<string, never>, unknown> = {
   name: 'list_packages',
@@ -51,17 +101,19 @@ const list_docs: ToolHandler<{ package: string }, unknown> = {
 const search_docs: ToolHandler<{ query: string }, unknown> = {
   name: 'search_docs',
   description:
-    'Search all docs by keyword. Returns the best-matching pages (title, package, summary, route). Follow up with get_doc to read a page before answering.',
+    'Search all docs by meaning + keyword. Returns the best-matching pages (title, package, summary, route). Follow up with get_doc to read a page before answering.',
   pure: true,
   parallelSafe: true,
   parameters: {
     type: 'object',
-    properties: { query: { type: 'string', description: 'Keywords to search for' } },
+    properties: { query: { type: 'string', description: 'What to search for' } },
     required: ['query'],
     additionalProperties: false,
   },
   async execute({ query }) {
-    const hits = searchDocs(query, 5);
+    // Hybrid (semantic + keyword) ranking, deduped to whole docs; falls back
+    // to keyword-only if the embedder can't load. Same return shape either way.
+    const hits = await hybridDocHits(query, 5);
     return {
       ok: true,
       summary: hits.length
