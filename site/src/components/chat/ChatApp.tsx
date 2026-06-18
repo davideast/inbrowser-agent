@@ -198,6 +198,7 @@ export function ChatApp() {
           <PoweredByStrip
             agentLive={busy && phase === 'agent'}
             relayLive={busy && phase === 'relay'}
+            resumableLive={busy}
           />
           {/* Scroll the conversation; the composer is docked below so it is
               always fully visible (no mid-screen float, no mobile-toolbar clip). */}
@@ -231,8 +232,9 @@ export function ChatApp() {
               Resumable, grounded AI in the browser
             </h1>
             <p className="text-secondary text-[14px] leading-[1.75] mb-8 max-w-[54ch]">
-              This assistant is built on it: the agent runs the lookup and the relay streams the
-              answer, grounded in these docs. Ask it anything about the packages.
+              This assistant is built on it: the agent runs the lookup, the relay streams the
+              answer, and resumable keeps it alive if your connection drops. Ask it anything about
+              the packages.
             </p>
             <Composer
               inputRef={composerRef}
