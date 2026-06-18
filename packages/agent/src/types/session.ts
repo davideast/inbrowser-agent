@@ -9,7 +9,7 @@
  */
 
 import type { ChatMessage, TurnDetails, TurnMetrics } from './chat.js';
-import type { LlmClient } from './llm.js';
+import type { ModelClient } from './llm.js';
 import type { MetricsCollector } from './metrics.js';
 import type { RuntimeState } from './runtime.js';
 import type { AgentStrategy } from './strategy.js';
@@ -20,7 +20,7 @@ import type { Workspace } from './workspace.js';
 export interface AgentSessionConfig {
   /** Pluggable inference algorithm. See `./strategy.ts`. */
   strategy: AgentStrategy;
-  llm: LlmClient;
+  llm: ModelClient;
   tools: ToolDispatch;
   /** Tool declarations the LLM should see this turn. Caller filters by
    *  capabilities before construction. Empty list disables function

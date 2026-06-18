@@ -1,7 +1,7 @@
 /**
  * In-branch evidence for the reflexion effect.
  *
- * A stateful stub `LlmClient` emits three scripted turns:
+ * A stateful stub `ModelClient` emits three scripted turns:
  *
  *   1. First main-loop turn: the WRONG final-answer text.
  *   2. Critique call: a JSON verdict `{ok: false, feedback: "..."}`.
@@ -21,11 +21,11 @@
 
 import { describe, expect, test } from 'bun:test';
 import {
-  type ChatEvent,
-  type ChatRequest,
   EMPTY_RUNTIME,
   EMPTY_WORKSPACE,
-  type LlmClient,
+  type ModelClient,
+  type ModelEvent,
+  type ModelRequest,
   type StrategyEvent,
   type ToolContext,
   createDispatch,
@@ -37,7 +37,7 @@ const WRONG = 'The capital of France is Berlin.';
 const RIGHT = 'The capital of France is Paris.';
 
 interface WrongThenRightStub {
-  client: LlmClient;
+  client: ModelClient;
   /** How many chat() calls the strategy made. */
   callCount(): number;
 }
@@ -56,31 +56,30 @@ interface WrongThenRightStub {
  */
 function wrongThenRightStub(): WrongThenRightStub {
   let i = 0;
-  const client: LlmClient = {
+  const client: ModelClient = {
     id: 'wrong-then-right-stub',
     supportsTools: true,
-    chat(_req: ChatRequest): AsyncIterable<ChatEvent> {
+    chat(_req: ModelRequest): AsyncIterable<ModelEvent> {
       const current = i++;
-      const completed: ChatEvent = {
-        kind: 'turn_complete',
-        usage: { promptTokens: 50, completionTokens: 10 },
-        details: { requestedModel: 'wrong-then-right-stub' },
+      const completed: ModelEvent = {
+        kind: 'usage',
+        usage: { promptTokens: 50, outputTokens: 10 },
       };
-      const events: ChatEvent[] = [];
+      const events: ModelEvent[] = [];
       if (current === 0) {
-        events.push({ kind: 'text', chunk: WRONG }, completed);
+        events.push({ kind: 'text', text: WRONG }, completed);
       } else if (current === 1) {
         events.push(
           {
             kind: 'text',
-            chunk: '{"ok": false, "feedback": "Berlin is not the capital of France."}',
+            text: '{"ok": false, "feedback": "Berlin is not the capital of France."}',
           },
           completed,
         );
       } else if (current === 2) {
-        events.push({ kind: 'text', chunk: RIGHT }, completed);
+        events.push({ kind: 'text', text: RIGHT }, completed);
       } else if (current === 3) {
-        events.push({ kind: 'text', chunk: '{"ok": true}' }, completed);
+        events.push({ kind: 'text', text: '{"ok": true}' }, completed);
       }
       return (async function* () {
         for (const ev of events) yield ev;

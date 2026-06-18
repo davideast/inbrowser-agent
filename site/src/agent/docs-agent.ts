@@ -19,11 +19,11 @@ import {
   createMetricsCollector,
   createReactLoopStrategy,
 } from '@inbrowser/agent';
-import type { ChatMessage, LlmClient } from '@inbrowser/agent';
+import type { ChatMessage, ModelClient } from '@inbrowser/agent';
 import { geminiProvider, ollamaProvider } from '@inbrowser/relay';
 import type { DocsAgentEvent, TurnMessage, VisitedCard } from '../lib/agent-types';
 import { getNode, searchDocs } from '../lib/graph';
-import { relayLlmClient } from '../lib/relay-client';
+import { relayModelClient } from '../lib/relay-client';
 import { createGraphToolRegistry } from './graph-tools';
 
 export type { DocsAgentEvent, TurnMessage, VisitedCard } from '../lib/agent-types';
@@ -45,7 +45,7 @@ const isOllama = PROVIDER === 'ollama';
 
 function buildLlm() {
   if (isOllama) {
-    return relayLlmClient({
+    return relayModelClient({
       provider: ollamaProvider,
       providerName: 'ollama',
       model: MODEL,
@@ -53,7 +53,7 @@ function buildLlm() {
       temperature: 0.2,
     });
   }
-  return relayLlmClient({
+  return relayModelClient({
     provider: geminiProvider,
     providerName: 'gemini',
     model: MODEL,
@@ -324,7 +324,7 @@ function topSearchNodes(question: string) {
 async function* groundedCompletion(
   question: string,
   docs: { title: string; route: string; body: string }[],
-  llm: LlmClient,
+  llm: ModelClient,
   signal: AbortSignal,
 ): AsyncIterable<string> {
   const context = docs

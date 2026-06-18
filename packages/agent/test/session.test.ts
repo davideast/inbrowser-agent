@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import {
   type AgentStrategy,
-  type ChatEvent,
   type ChatMessage,
-  type ChatRequest,
   EMPTY_RUNTIME,
   EMPTY_WORKSPACE,
-  type LlmClient,
+  type ModelClient,
+  type ModelEvent,
+  type ModelRequest,
   type SessionEvent,
   type ToolContext,
   type ToolHandler,
@@ -17,7 +17,7 @@ import {
   createToolRegistry,
 } from '../src/index.js';
 
-function fakeLlm(scripts: ChatEvent[][]): LlmClient {
+function fakeLlm(scripts: ModelEvent[][]): ModelClient {
   let turn = 0;
   return {
     id: 'fake',
@@ -66,12 +66,8 @@ describe('createAgentSession', () => {
       strategy: createReactLoopStrategy(),
       llm: fakeLlm([
         [
-          { kind: 'text', chunk: 'hi back' },
-          {
-            kind: 'turn_complete',
-            usage: { promptTokens: 1, completionTokens: 1 },
-            details: { requestedModel: 'fake' },
-          },
+          { kind: 'text', text: 'hi back' },
+          { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
         ],
       ]),
       tools: createDispatch(createToolRegistry()),
@@ -115,19 +111,11 @@ describe('createAgentSession', () => {
             name: 'writeRules',
             args: { source: 'rules_version="2"' },
           },
-          {
-            kind: 'turn_complete',
-            usage: { promptTokens: 1, completionTokens: 1 },
-            details: { requestedModel: 'fake' },
-          },
+          { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
         ],
         [
-          { kind: 'text', chunk: 'done' },
-          {
-            kind: 'turn_complete',
-            usage: { promptTokens: 1, completionTokens: 1 },
-            details: { requestedModel: 'fake' },
-          },
+          { kind: 'text', text: 'done' },
+          { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
         ],
       ]),
       tools: createDispatch(registry),
@@ -149,12 +137,8 @@ describe('createAgentSession', () => {
       strategy: createReactLoopStrategy(),
       llm: fakeLlm([
         [
-          { kind: 'text', chunk: 'will be cancelled' },
-          {
-            kind: 'turn_complete',
-            usage: { promptTokens: 1, completionTokens: 1 },
-            details: { requestedModel: 'fake' },
-          },
+          { kind: 'text', text: 'will be cancelled' },
+          { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
         ],
       ]),
       tools: createDispatch(createToolRegistry()),
@@ -191,18 +175,14 @@ describe('createAgentSession', () => {
     registry.register(writeRulesTool);
 
     let seenToolCount = -1;
-    const spyLlm: LlmClient = {
+    const spyLlm: ModelClient = {
       id: 'spy',
       supportsTools: true,
       chat(req) {
         seenToolCount = req.tools.length;
         return (async function* () {
-          yield { kind: 'text', chunk: 'ok' } as ChatEvent;
-          yield {
-            kind: 'turn_complete',
-            usage: { promptTokens: 1, completionTokens: 1 },
-            details: { requestedModel: 'spy' },
-          } as ChatEvent;
+          yield { kind: 'text', text: 'ok' } as ModelEvent;
+          yield { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } } as ModelEvent;
         })();
       },
     };
@@ -239,7 +219,7 @@ describe('createAgentSession', () => {
         yield { kind: 'text', chunk: `reply to ${input.prompt}` };
         yield {
           kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
+          usage: { promptTokens: 1, outputTokens: 1 },
           details: { requestedModel: 'spy' },
         };
       },
@@ -273,21 +253,17 @@ describe('createAgentSession', () => {
 
   test('LLM requests carry the user prompt exactly once (session + react loop)', async () => {
     // End-to-end pin of the double-append fix: drive a real react-loop
-    // strategy through the session and inspect the actual ChatRequest
+    // strategy through the session and inspect the actual ModelRequest
     // message arrays the LLM receives across two submits.
-    const requests: ChatRequest[] = [];
-    const spyLlm: LlmClient = {
+    const requests: ModelRequest[] = [];
+    const spyLlm: ModelClient = {
       id: 'spy',
       supportsTools: true,
-      chat(req): AsyncIterable<ChatEvent> {
+      chat(req): AsyncIterable<ModelEvent> {
         requests.push(req);
         return (async function* () {
-          yield { kind: 'text', chunk: 'ok' } as ChatEvent;
-          yield {
-            kind: 'turn_complete',
-            usage: { promptTokens: 1, completionTokens: 1 },
-            details: { requestedModel: 'spy' },
-          } as ChatEvent;
+          yield { kind: 'text', text: 'ok' } as ModelEvent;
+          yield { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } } as ModelEvent;
         })();
       },
     };

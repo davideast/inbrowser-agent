@@ -7,7 +7,7 @@
  * implementations.
  */
 
-import type { RawUsage, TurnMetrics } from './llm.js';
+import type { ModelUsage, TurnMetrics } from './llm.js';
 
 export interface MetricsCollector {
   /** Stamp a turn-completion event. Returns the typed metrics shape. */
@@ -20,7 +20,7 @@ export interface MetricsCollector {
 
 export interface RecordTurnInput {
   llmId: string;
-  rawUsage: RawUsage;
+  rawUsage: ModelUsage;
   model: string;
   durationMs: number;
   isByok?: boolean;

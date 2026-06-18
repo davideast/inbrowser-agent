@@ -13,7 +13,7 @@
  *   - truthfulnessViolationRate never shows winner-baseline (no
  *     truthfulness regression).
  *
- * Cost metrics (wallClockMs, promptTokens, completionTokens) are
+ * Cost metrics (wallClockMs, promptTokens, outputTokens) are
  * intentionally not asserted: reflexion adds at minimum a critique LLM
  * call and frequently a retry turn, so its predicted cost profile is
  * worse on those dimensions. The brief calls those trade-offs
@@ -35,9 +35,9 @@ import { describe, expect, test } from 'bun:test';
 import type { RunRecord } from '../../src/eval/run-record.js';
 import { registerAllSpecs } from '../../src/eval/spec-helpers.js';
 import {
-  type ChatEvent,
-  type ChatRequest,
-  type LlmClient,
+  type ModelClient,
+  type ModelEvent,
+  type ModelRequest,
   type SpecResult,
   type TaskFixture,
   collectMetrics,
@@ -124,24 +124,23 @@ const FIXTURE_TOKENS: Readonly<Record<string, string>> = {
  * within-side spreads stay at zero — comparison labels are driven
  * purely by the across-side delta, not by stochastic noise.
  */
-function createWrongThenRightStub(magicToken: string): LlmClient {
+function createWrongThenRightStub(magicToken: string): ModelClient {
   let i = 0;
   return {
     id: 'reflexion-wrong-then-right-stub',
     supportsTools: true,
-    chat(_req: ChatRequest): AsyncIterable<ChatEvent> {
+    chat(_req: ModelRequest): AsyncIterable<ModelEvent> {
       const current = i++;
-      const completed: ChatEvent = {
-        kind: 'turn_complete',
-        usage: { promptTokens: 80, completionTokens: 20 },
-        details: { requestedModel: 'reflexion-wrong-then-right-stub' },
+      const completed: ModelEvent = {
+        kind: 'usage',
+        usage: { promptTokens: 80, outputTokens: 20 },
       };
-      const events: ChatEvent[] = [];
+      const events: ModelEvent[] = [];
       if (current === 0) {
         events.push(
           {
             kind: 'text',
-            chunk: 'Initial answer that omits the magic token by design.',
+            text: 'Initial answer that omits the magic token by design.',
           },
           completed,
         );
@@ -149,17 +148,17 @@ function createWrongThenRightStub(magicToken: string): LlmClient {
         events.push(
           {
             kind: 'text',
-            chunk: `{"ok": false, "feedback": "Response is missing the required '${magicToken}' signal."}`,
+            text: `{"ok": false, "feedback": "Response is missing the required '${magicToken}' signal."}`,
           },
           completed,
         );
       } else if (current === 2) {
         events.push(
-          { kind: 'text', chunk: `Revised answer that includes ${magicToken}.` },
+          { kind: 'text', text: `Revised answer that includes ${magicToken}.` },
           completed,
         );
       } else if (current === 3) {
-        events.push({ kind: 'text', chunk: '{"ok": true}' }, completed);
+        events.push({ kind: 'text', text: '{"ok": true}' }, completed);
       }
       return (async function* () {
         for (const ev of events) yield ev;

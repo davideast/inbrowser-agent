@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import type { RunRecord } from '../../src/eval/run-record.js';
 import {
-  type ChatEvent,
-  type LlmClient,
+  type ModelClient,
+  type ModelEvent,
   type RunFixturesDeps,
   type TaskFixture,
   type ToolHandler,
@@ -13,11 +13,11 @@ import {
 } from '../../src/index.js';
 
 /**
- * Build a fake LLM that yields a scripted sequence of `ChatEvent`s
+ * Build a fake LLM that yields a scripted sequence of `ModelEvent`s
  * per turn. The same instance can drive multiple turns because the
  * underlying ReAct loop calls `chat()` once per iteration.
  */
-function fakeLlm(scripts: ChatEvent[][]): LlmClient {
+function fakeLlm(scripts: ModelEvent[][]): ModelClient {
   let turn = 0;
   return {
     id: 'fake',
@@ -32,11 +32,12 @@ function fakeLlm(scripts: ChatEvent[][]): LlmClient {
   };
 }
 
-/** A canned `turn_complete` event reused across scripts. */
-const turnComplete: ChatEvent = {
-  kind: 'turn_complete',
-  usage: { promptTokens: 1, completionTokens: 1 },
-  details: { requestedModel: 'fake' },
+/** A canned `usage` event reused across scripts. The turn ends when
+ *  the script's async iterable returns; this is the final accounting
+ *  emitted just before that. */
+const usageEvent: ModelEvent = {
+  kind: 'usage',
+  usage: { promptTokens: 1, outputTokens: 1 },
 };
 
 /** Minimal valid fixture; tests override fields as needed. */
@@ -51,7 +52,7 @@ function makeFixture(overrides: Partial<TaskFixture> = {}): TaskFixture {
   };
 }
 
-function emptyDeps(llm: LlmClient): RunFixturesDeps {
+function emptyDeps(llm: ModelClient): RunFixturesDeps {
   return {
     llm,
     tools: createDispatch(createToolRegistry()),
@@ -61,7 +62,7 @@ function emptyDeps(llm: LlmClient): RunFixturesDeps {
 
 describe('runFixture', () => {
   test('drives a no-tool fixture to completion and captures a trace', async () => {
-    const llm = fakeLlm([[{ kind: 'text', chunk: 'all good' }, turnComplete]]);
+    const llm = fakeLlm([[{ kind: 'text', text: 'all good' }, usageEvent]]);
     const record = await runFixture({
       fixture: makeFixture(),
       llm,
@@ -105,9 +106,9 @@ describe('runFixture', () => {
           name: 'writeRules',
           args: { source: 'rules_version="2"' },
         },
-        turnComplete,
+        usageEvent,
       ],
-      [{ kind: 'text', chunk: 'done' }, turnComplete],
+      [{ kind: 'text', text: 'done' }, usageEvent],
     ]);
 
     const record = await runFixture({
@@ -127,7 +128,7 @@ describe('runFixture', () => {
   });
 
   test('seeds the workspace from the fixture initialState', async () => {
-    const llm = fakeLlm([[{ kind: 'text', chunk: 'noted' }, turnComplete]]);
+    const llm = fakeLlm([[{ kind: 'text', text: 'noted' }, usageEvent]]);
     const fixture = makeFixture({
       initialState: { rules: 'seeded-rules', code: 'seeded-code' },
     });
@@ -157,13 +158,13 @@ describe('runFixture', () => {
     // the aborted signal.
     const controller = new AbortController();
     let started = false;
-    const llm: LlmClient = {
+    const llm: ModelClient = {
       id: 'slow',
       supportsTools: true,
       chat(_req, signal) {
         return (async function* () {
           started = true;
-          yield { kind: 'text', chunk: 'partial...' } as ChatEvent;
+          yield { kind: 'text', text: 'partial...' } as ModelEvent;
           // Wait until aborted, then yield error.
           await new Promise<void>((resolve) => {
             if (signal.aborted) return resolve();
@@ -172,7 +173,7 @@ describe('runFixture', () => {
             // so the test does not depend on real time.
             setTimeout(() => controller.abort(), 5);
           });
-          yield { kind: 'error', message: 'aborted by signal' } as ChatEvent;
+          yield { kind: 'error', message: 'aborted by signal' } as ModelEvent;
         })();
       },
     };
@@ -195,17 +196,17 @@ describe('runFixture', () => {
   });
 
   test('exceeding maxWallClockMs terminates with a clear error', async () => {
-    const llm: LlmClient = {
+    const llm: ModelClient = {
       id: 'hang',
       supportsTools: true,
       chat(_req, signal) {
         return (async function* () {
-          yield { kind: 'text', chunk: 'thinking' } as ChatEvent;
+          yield { kind: 'text', text: 'thinking' } as ModelEvent;
           await new Promise<void>((resolve) => {
             if (signal.aborted) return resolve();
             signal.addEventListener('abort', () => resolve(), { once: true });
           });
-          yield { kind: 'error', message: 'aborted' } as ChatEvent;
+          yield { kind: 'error', message: 'aborted' } as ModelEvent;
         })();
       },
     };
@@ -223,7 +224,7 @@ describe('runFixture', () => {
   });
 
   test('echoes seed onto the produced record when provided', async () => {
-    const llm = fakeLlm([[{ kind: 'text', chunk: 'ok' }, turnComplete]]);
+    const llm = fakeLlm([[{ kind: 'text', text: 'ok' }, usageEvent]]);
     const record = await runFixture({
       fixture: makeFixture(),
       llm,
@@ -235,12 +236,12 @@ describe('runFixture', () => {
   });
 
   test('records a session-emitted error in RunRecord.error', async () => {
-    const llm: LlmClient = {
+    const llm: ModelClient = {
       id: 'broken',
       supportsTools: true,
       chat() {
         return (async function* () {
-          yield { kind: 'error', message: 'provider exploded' } as ChatEvent;
+          yield { kind: 'error', message: 'provider exploded' } as ModelEvent;
         })();
       },
     };
@@ -259,9 +260,9 @@ describe('runFixtures', () => {
     // Each call to chat() corresponds to one strategy iteration. A
     // no-tool fixture takes one iteration, and we run 3 trials for 2
     // fixtures → 6 total scripts.
-    const scripts: ChatEvent[][] = Array.from({ length: 6 }, (_, i) => [
-      { kind: 'text', chunk: `t${i}` },
-      turnComplete,
+    const scripts: ModelEvent[][] = Array.from({ length: 6 }, (_, i) => [
+      { kind: 'text', text: `t${i}` },
+      usageEvent,
     ]);
     const llm = fakeLlm(scripts);
 
@@ -290,16 +291,16 @@ describe('runFixtures', () => {
   });
 
   test('defaults to one trial per fixture when trials is omitted', async () => {
-    const llm = fakeLlm([[{ kind: 'text', chunk: 'once' }, turnComplete]]);
+    const llm = fakeLlm([[{ kind: 'text', text: 'once' }, usageEvent]]);
     const records = await runFixtures([makeFixture()], emptyDeps(llm));
     expect(records.length).toBe(1);
     expect(records[0]?.trial).toBe(0);
   });
 
   test('threads seed factory through to each record', async () => {
-    const scripts: ChatEvent[][] = Array.from({ length: 2 }, () => [
-      { kind: 'text', chunk: 'ok' },
-      turnComplete,
+    const scripts: ModelEvent[][] = Array.from({ length: 2 }, () => [
+      { kind: 'text', text: 'ok' },
+      usageEvent,
     ]);
     const llm = fakeLlm(scripts);
     const records = await runFixtures([makeFixture()], emptyDeps(llm), {

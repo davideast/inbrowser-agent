@@ -5,21 +5,21 @@
  * any API credentials.
  */
 
-import type { ChatEvent, LlmClient, SandboxHandle, ToolHandler } from '../index.js';
+import type { ModelClient, ModelEvent, SandboxHandle, ToolHandler } from '../index.js';
 
 export type ScenarioId = 'echo' | 'write-rules';
 
-export function scriptedLlm(scenario: ScenarioId, marker = ''): LlmClient {
+export function scriptedLlm(scenario: ScenarioId, marker = ''): ModelClient {
   let callCount = 0;
   return {
     id: `fixture-${scenario}`,
     supportsTools: true,
-    chat(req): AsyncIterable<ChatEvent> {
+    chat(req): AsyncIterable<ModelEvent> {
       const turn = callCount++;
       return (async function* () {
         if (scenario === 'write-rules') {
           if (turn === 0) {
-            yield { kind: 'thinking', chunk: 'Planning a minimal owner-only rule.\n' };
+            yield { kind: 'thinking', text: 'Planning a minimal owner-only rule.\n' };
             yield {
               kind: 'tool_call',
               id: `c1${marker ? `-${marker}` : ''}`,
@@ -28,19 +28,11 @@ export function scriptedLlm(scenario: ScenarioId, marker = ''): LlmClient {
                 source: `// ${marker || 'default'} rules\nrules_version='2';\nservice cloud.firestore {\n  match /{path=**} {\n    allow read, write: if request.auth != null;\n  }\n}\n`,
               },
             };
-            yield {
-              kind: 'turn_complete',
-              usage: { promptTokens: 200, completionTokens: 50 },
-              details: { requestedModel: 'fixture-1' },
-            };
+            yield { kind: 'usage', usage: { promptTokens: 200, outputTokens: 50 } };
             return;
           }
-          yield { kind: 'text', chunk: 'Rules deployed. Read/write is gated on request.auth.' };
-          yield {
-            kind: 'turn_complete',
-            usage: { promptTokens: 250, completionTokens: 12 },
-            details: { requestedModel: 'fixture-1' },
-          };
+          yield { kind: 'text', text: 'Rules deployed. Read/write is gated on request.auth.' };
+          yield { kind: 'usage', usage: { promptTokens: 250, outputTokens: 12 } };
           return;
         }
         // echo — scan backward for the latest user message.
@@ -54,12 +46,11 @@ export function scriptedLlm(scenario: ScenarioId, marker = ''): LlmClient {
         }
         const text = `[echo] ${userMsg?.text ?? '(no input)'}`;
         for (const word of text.split(' ')) {
-          yield { kind: 'text', chunk: word + ' ' };
+          yield { kind: 'text', text: word + ' ' };
         }
         yield {
-          kind: 'turn_complete',
-          usage: { promptTokens: 12, completionTokens: text.split(' ').length },
-          details: { requestedModel: 'fixture-1' },
+          kind: 'usage',
+          usage: { promptTokens: 12, outputTokens: text.split(' ').length },
         };
       })();
     },

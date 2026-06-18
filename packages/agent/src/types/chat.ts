@@ -61,14 +61,3 @@ export interface TurnDetails {
   /** Free-form provider routing info (OpenRouter "provider" field, etc.). */
   routing?: Record<string, unknown>;
 }
-
-/** A normalized message shape providers consume — drops React-specific fields like `streaming`. */
-export interface NormalizedMessage {
-  role: ChatRole;
-  text: string;
-  toolCalls?: { callId: string; name: string; args: unknown; signature?: string }[];
-  /** For `role: 'tool'` only — the result of a previous tool call. */
-  callId?: string;
-  name?: string;
-  resultJson?: string;
-}

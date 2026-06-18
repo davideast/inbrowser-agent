@@ -1,12 +1,12 @@
 /**
- * OpenRouter `LlmClient` for the CLI's `agent run`.
+ * OpenRouter `ModelClient` for the CLI's `agent run`.
  *
  * Distinct from the playground's `openrouterProvider` in
  * `examples/admin-compat-browser/src/openrouter.ts` (which is browser-
  * specific — reads keys from localStorage, surfaces BYOK forms, etc.).
  * This module is CLI-native: it takes its config explicitly at
  * construction time (no env-var sniffing here — the caller decides
- * how to source the key) and implements the narrow `LlmClient`
+ * how to source the key) and implements the shared `ModelClient`
  * contract that `@inbrowser/agent`' strategy + session expect.
  *
  * Streams via OpenAI-compatible SSE. Function-calling supported via
@@ -18,8 +18,13 @@
  * pricing table for OpenRouter-served models.
  */
 
-import type { NormalizedMessage, TurnDetails } from '../../types/chat.js';
-import type { ChatEvent, ChatRequest, LlmClient, RawUsage } from '../../types/llm.js';
+import type {
+  ModelClient,
+  ModelEvent,
+  ModelMessage,
+  ModelRequest,
+  ModelUsage,
+} from '../../types/llm.js';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -35,7 +40,7 @@ export interface OpenRouterConfig {
   title?: string;
 }
 
-export function openRouterClient(config: OpenRouterConfig): LlmClient {
+export function openRouterClient(config: OpenRouterConfig): ModelClient {
   const endpoint = config.baseUrl ?? ENDPOINT;
   const effort = config.reasoningEffort ?? 'off';
 
@@ -43,16 +48,18 @@ export function openRouterClient(config: OpenRouterConfig): LlmClient {
     id: `openrouter:${config.model}`,
     supportsTools: true,
 
-    async *chat(req: ChatRequest, signal: AbortSignal): AsyncIterable<ChatEvent> {
+    async *chat(req: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent> {
       const messages = toOaiMessages(req.messages);
+      // `ToolSpec` is already the nested OAI shape OpenRouter wants;
+      // forward it as-is.
       const tools =
         req.toolUseEnabled && req.tools.length > 0
           ? req.tools.map((t) => ({
               type: 'function' as const,
               function: {
-                name: t.name,
-                description: t.description,
-                parameters: t.parameters,
+                name: t.function.name,
+                description: t.function.description,
+                parameters: t.function.parameters,
               },
             }))
           : undefined;
@@ -99,10 +106,12 @@ export function openRouterClient(config: OpenRouterConfig): LlmClient {
         return;
       }
 
-      // Accumulators for the streaming turn.
-      const details: TurnDetails = { requestedModel: config.model };
+      // Accumulators for the streaming turn. Provider provenance
+      // (servedModel/fingerprint/routing) is no longer carried on the
+      // contract stream — the session synthesizes `{ requestedModel }`
+      // from the client id — so we no longer accumulate it here.
       const toolBuf = new Map<number, { id: string; name: string; argsBuf: string }>();
-      let usage: RawUsage | undefined;
+      let usage: ModelUsage | undefined;
       let aborted = false;
 
       try {
@@ -113,24 +122,11 @@ export function openRouterClient(config: OpenRouterConfig): LlmClient {
           }
           const c = chunk as OaiChunk;
 
-          // Provenance — last-write-wins. The fields the agent's
-          // TurnDetails actually carries are `servedModel`,
-          // `fingerprint`, and free-form `routing`; OpenRouter's
-          // response id goes into routing alongside any other
-          // provider-specific signals.
-          if (c.model && !details.servedModel) details.servedModel = c.model;
-          if (c.system_fingerprint && !details.fingerprint) {
-            details.fingerprint = c.system_fingerprint;
-          }
-          if (c.id) {
-            details.routing = { ...(details.routing ?? {}), responseId: c.id };
-          }
-
           const choice = c.choices?.[0];
           if (choice) {
             const delta = choice.delta ?? {};
             if (typeof delta.content === 'string' && delta.content.length > 0) {
-              yield { kind: 'text', chunk: delta.content };
+              yield { kind: 'text', text: delta.content };
             }
             // Reasoning: flat string OR structured array. Both → thinking events.
             // Reasoning surface — providers send ONE of three shapes per
@@ -144,7 +140,7 @@ export function openRouterClient(config: OpenRouterConfig): LlmClient {
               delta.reasoning_content,
               delta.reasoning_details,
             );
-            if (thinkingChunk) yield { kind: 'thinking', chunk: thinkingChunk };
+            if (thinkingChunk) yield { kind: 'thinking', text: thinkingChunk };
             // Tool calls — accumulated per index, emitted at finish.
             if (Array.isArray(delta.tool_calls)) {
               for (const tc of delta.tool_calls) {
@@ -160,7 +156,7 @@ export function openRouterClient(config: OpenRouterConfig): LlmClient {
           if (c.usage) {
             usage = {
               promptTokens: c.usage.prompt_tokens ?? 0,
-              completionTokens: c.usage.completion_tokens ?? 0,
+              outputTokens: c.usage.completion_tokens ?? 0,
               ...(c.usage.prompt_tokens_details?.cached_tokens !== undefined
                 ? { cachedTokens: c.usage.prompt_tokens_details.cached_tokens }
                 : {}),
@@ -203,11 +199,9 @@ export function openRouterClient(config: OpenRouterConfig): LlmClient {
         return;
       }
 
-      yield {
-        kind: 'turn_complete',
-        usage: usage ?? { promptTokens: 0, completionTokens: 0 },
-        details,
-      };
+      // Final accounting arrives as a `usage` event just before the
+      // iterable returns; the return itself signals turn completion.
+      yield { kind: 'usage', usage: usage ?? { promptTokens: 0, outputTokens: 0 } };
     },
   };
 }
@@ -241,21 +235,21 @@ function pickReasoning(
   return null;
 }
 
-function toOaiMessages(messages: NormalizedMessage[]): OaiMessage[] {
+function toOaiMessages(messages: ModelMessage[]): OaiMessage[] {
   const out: OaiMessage[] = [];
   for (const m of messages) {
     if (m.role === 'tool') {
       out.push({
         role: 'tool',
         content: m.resultJson ?? '',
-        tool_call_id: m.callId ?? '',
+        tool_call_id: m.toolCallId ?? '',
       });
       continue;
     }
-    const msg: OaiMessage = { role: m.role, content: m.text };
+    const msg: OaiMessage = { role: m.role, content: m.text ?? '' };
     if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
       msg.tool_calls = m.toolCalls.map((tc) => ({
-        id: tc.callId,
+        id: tc.id,
         type: 'function' as const,
         function: { name: tc.name, arguments: JSON.stringify(tc.args ?? {}) },
       }));

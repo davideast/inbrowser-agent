@@ -23,7 +23,7 @@
  * time from tool-dispatch time.
  */
 
-import type { NormalizedMessage } from './chat.js';
+import type { ModelMessage } from './llm.js';
 
 /**
  * Wire-level snapshot of a single LLM request as it leaves the
@@ -41,7 +41,7 @@ export interface LlmRequestTrace {
   /** 0-indexed ReAct iteration within this turn. */
   iteration: number;
   /** Wall-clock ms captured immediately before the strategy hands
-   *  the request to `LlmClient.chat()`. Pair with
+   *  the request to `ModelClient.chat()`. Pair with
    *  `LlmResponseTrace.ts` (response completed) and
    *  `TurnDispatchCompleteTrace.ts` (tool dispatch completed) to
    *  derive the language-model vs tool-dispatch wall-clock split for
@@ -54,7 +54,7 @@ export interface LlmRequestTrace {
    *  the synthesized leading system message, the prior history, the
    *  current user prompt, and any assistant+tool entries the ReAct
    *  loop appended this turn. */
-  messages: NormalizedMessage[];
+  messages: ModelMessage[];
   /** Tool declarations as filtered + shaped by the strategy. The
    *  `parameters` value is captured opaquely — providers normalize
    *  it (Gemini sanitizes; OpenRouter is permissive), so the trace
@@ -68,10 +68,11 @@ export interface LlmRequestTrace {
 }
 
 /**
- * Tool-decl row as the agent loop produced it pre-provider. Mirrors
- * the `toolDecls` shape strategy.ts builds when constructing the
- * `ChatRequest`. Not coupled to the in-process `ToolHandler` type —
- * the trace is a wire snapshot, not a live handle.
+ * Tool-decl row as the agent loop produced it pre-provider. The
+ * agent loop builds nested `ToolSpec`s for the `ModelRequest`; this
+ * flat view is the canonical pre-provider snapshot the trace exposes.
+ * Not coupled to the in-process `ToolHandler` type — the trace is a
+ * wire snapshot, not a live handle.
  */
 export interface ToolDeclarationView {
   name: string;
@@ -90,8 +91,9 @@ export interface LlmResponseTrace {
   /** Same id as the matching `LlmRequestTrace.requestId`. */
   requestId: string;
   /** Wall-clock ms captured immediately after the `chat()` iterator
-   *  has yielded its terminal event for this iteration (typically
-   *  `turn_complete`, or `error` on a streaming failure). Not
+   *  has drained for this iteration (the `usage` event arrives just
+   *  before the iterable returns, or `error` on a streaming failure).
+   *  Not
    *  emitted on mid-stream error — callers should treat a missing
    *  `llm_response` as "language-model time unknown for this
    *  iteration." */

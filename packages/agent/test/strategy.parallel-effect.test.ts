@@ -14,10 +14,10 @@
 
 import { describe, expect, test } from 'bun:test';
 import {
-  type ChatEvent,
   EMPTY_RUNTIME,
   EMPTY_WORKSPACE,
-  type LlmClient,
+  type ModelClient,
+  type ModelEvent,
   type StrategyEvent,
   type ToolContext,
   type ToolHandler,
@@ -28,12 +28,12 @@ import {
 
 const DELAY_MS = 50;
 
-function fakeLlm(scripts: ChatEvent[][]): LlmClient {
+function fakeLlm(scripts: ModelEvent[][]): ModelClient {
   let turn = 0;
   return {
     id: 'fake',
     supportsTools: true,
-    chat(): AsyncIterable<ChatEvent> {
+    chat(): AsyncIterable<ModelEvent> {
       const events = scripts[turn] ?? [];
       turn += 1;
       return (async function* () {
@@ -88,24 +88,16 @@ async function collect(events: AsyncIterable<StrategyEvent>): Promise<StrategyEv
   return out;
 }
 
-function buildScript(): ChatEvent[][] {
+function buildScript(): ModelEvent[][] {
   return [
     [
       { kind: 'tool_call', id: 'c1', name: 'readA', args: {} },
       { kind: 'tool_call', id: 'c2', name: 'readB', args: {} },
-      {
-        kind: 'turn_complete',
-        usage: { promptTokens: 1, completionTokens: 1 },
-        details: { requestedModel: 'fake' },
-      },
+      { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
     ],
     [
-      { kind: 'text', chunk: 'done' },
-      {
-        kind: 'turn_complete',
-        usage: { promptTokens: 1, completionTokens: 1 },
-        details: { requestedModel: 'fake' },
-      },
+      { kind: 'text', text: 'done' },
+      { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
     ],
   ];
 }

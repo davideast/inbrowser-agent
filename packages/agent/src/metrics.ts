@@ -58,7 +58,7 @@ export function computeTurnMetrics(input: RecordTurnInput): TurnMetrics {
   if (typeof rawUsage.costUsd === 'number') {
     return {
       tokensIn: rawUsage.promptTokens,
-      tokensOut: rawUsage.completionTokens,
+      tokensOut: rawUsage.outputTokens,
       tokensCached,
       tokensReasoning,
       costUsd: rawUsage.costUsd,
@@ -71,7 +71,7 @@ export function computeTurnMetrics(input: RecordTurnInput): TurnMetrics {
   if (!row) {
     return {
       tokensIn: rawUsage.promptTokens,
-      tokensOut: rawUsage.completionTokens,
+      tokensOut: rawUsage.outputTokens,
       tokensCached,
       tokensReasoning,
       costUsd: 0,
@@ -86,10 +86,10 @@ export function computeTurnMetrics(input: RecordTurnInput): TurnMetrics {
   const costUsd =
     (billedInput * row.input) / 1_000_000 +
     (tokensCached * row.cacheRead) / 1_000_000 +
-    (rawUsage.completionTokens * row.output) / 1_000_000;
+    (rawUsage.outputTokens * row.output) / 1_000_000;
   return {
     tokensIn: rawUsage.promptTokens,
-    tokensOut: rawUsage.completionTokens,
+    tokensOut: rawUsage.outputTokens,
     tokensCached,
     tokensReasoning,
     costUsd,

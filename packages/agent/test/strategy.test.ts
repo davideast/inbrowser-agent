@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  type ChatEvent,
   type ChatMessage,
-  type ChatRequest,
   EMPTY_RUNTIME,
   EMPTY_WORKSPACE,
-  type LlmClient,
+  type ModelClient,
+  type ModelEvent,
+  type ModelRequest,
   type StrategyEvent,
   type ToolContext,
   type ToolHandler,
@@ -14,12 +14,12 @@ import {
   createToolRegistry,
 } from '../src/index.js';
 
-function fakeLlm(scripts: ChatEvent[][]): LlmClient {
+function fakeLlm(scripts: ModelEvent[][]): ModelClient {
   let turn = 0;
   return {
     id: 'fake',
     supportsTools: true,
-    chat(): AsyncIterable<ChatEvent> {
+    chat(): AsyncIterable<ModelEvent> {
       const events = scripts[turn] ?? [];
       turn += 1;
       return (async function* () {
@@ -66,12 +66,8 @@ describe('createReactLoopStrategy', () => {
     const strategy = createReactLoopStrategy();
     const llm = fakeLlm([
       [
-        { kind: 'text', chunk: 'hello' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 10, completionTokens: 1 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'text', text: 'hello' },
+        { kind: 'usage', usage: { promptTokens: 10, outputTokens: 1 } },
       ],
     ]);
     const events = await collect(
@@ -106,19 +102,15 @@ describe('createReactLoopStrategy', () => {
       { id: 'u-prev', role: 'user', text: 'earlier question', timestamp: 1 },
       { id: 'a-prev', role: 'assistant', text: 'earlier answer', timestamp: 2 },
     ];
-    const requests: ChatRequest[] = [];
-    const spyLlm: LlmClient = {
+    const requests: ModelRequest[] = [];
+    const spyLlm: ModelClient = {
       id: 'spy',
       supportsTools: true,
-      chat(req): AsyncIterable<ChatEvent> {
+      chat(req): AsyncIterable<ModelEvent> {
         requests.push(req);
         return (async function* () {
-          yield { kind: 'text', chunk: 'ok' } as ChatEvent;
-          yield {
-            kind: 'turn_complete',
-            usage: { promptTokens: 1, completionTokens: 1 },
-            details: { requestedModel: 'spy' },
-          } as ChatEvent;
+          yield { kind: 'text', text: 'ok' } as ModelEvent;
+          yield { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } } as ModelEvent;
         })();
       },
     };
@@ -163,19 +155,11 @@ describe('createReactLoopStrategy', () => {
     const llm = fakeLlm([
       [
         { kind: 'tool_call', id: 'c1', name: 'echo', args: { msg: 'hi from tool' } },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 5, completionTokens: 5 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'usage', usage: { promptTokens: 5, outputTokens: 5 } },
       ],
       [
-        { kind: 'text', chunk: 'Tool said: hi from tool' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 15, completionTokens: 4 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'text', text: 'Tool said: hi from tool' },
+        { kind: 'usage', usage: { promptTokens: 15, outputTokens: 4 } },
       ],
     ]);
 
@@ -262,19 +246,11 @@ describe('createReactLoopStrategy', () => {
         { kind: 'tool_call', id: 'c1', name: 'readA', args: {} },
         { kind: 'tool_call', id: 'c2', name: 'mutateB', args: {} },
         { kind: 'tool_call', id: 'c3', name: 'readC', args: {} },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
       [
-        { kind: 'text', chunk: 'done' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'text', text: 'done' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
     ]);
 
@@ -337,19 +313,11 @@ describe('createReactLoopStrategy', () => {
       [
         { kind: 'tool_call', id: 'c1', name: 'rA', args: {} },
         { kind: 'tool_call', id: 'c2', name: 'rB', args: {} },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
       [
-        { kind: 'text', chunk: 'done' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'text', text: 'done' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
     ]);
 
@@ -419,19 +387,11 @@ describe('createReactLoopStrategy', () => {
         { kind: 'tool_call', id: 'i2', name: 'w1', args: {} },
         { kind: 'tool_call', id: 'i3', name: 'r2', args: {} },
         { kind: 'tool_call', id: 'i4', name: 'w2', args: {} },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
       [
-        { kind: 'text', chunk: 'done' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'text', text: 'done' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
     ]);
 
@@ -498,19 +458,11 @@ describe('createReactLoopStrategy', () => {
       [
         { kind: 'tool_call', id: 'c1', name: 'm1', args: {} },
         { kind: 'tool_call', id: 'c2', name: 'm2', args: {} },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
       [
-        { kind: 'text', chunk: 'done' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'text', text: 'done' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
     ]);
 
@@ -567,11 +519,7 @@ describe('createReactLoopStrategy', () => {
       [
         { kind: 'tool_call', id: 'c1', name: 'r', args: {} },
         { kind: 'tool_call', id: 'c2', name: 'm', args: {} },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake' },
-        },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
     ]);
 
@@ -605,17 +553,13 @@ describe('createReactLoopStrategy', () => {
 
   test('caps runaway loops via maxTurns', async () => {
     // Every turn returns a tool call → the loop ping-pongs.
-    const looperLlm: LlmClient = {
+    const looperLlm: ModelClient = {
       id: 'fake',
       supportsTools: true,
-      chat(): AsyncIterable<ChatEvent> {
+      chat(): AsyncIterable<ModelEvent> {
         return (async function* () {
           yield { kind: 'tool_call', id: 'c', name: 'echo', args: {} };
-          yield {
-            kind: 'turn_complete',
-            usage: { promptTokens: 1, completionTokens: 1 },
-            details: { requestedModel: 'fake' },
-          };
+          yield { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } };
         })();
       },
     };

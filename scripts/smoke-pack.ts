@@ -98,8 +98,6 @@ const SPECS: PackSpec[] = [
       'package/dist/contract.js',
       'package/dist/contract.d.ts',
       'package/dist/presets.js',
-      'package/dist/adapters/relay.js',
-      'package/dist/adapters/agent.js',
       'package/dist/worker.js',
       'package/dist/think.js',
       'package/dist/parse-tool-calls.js',

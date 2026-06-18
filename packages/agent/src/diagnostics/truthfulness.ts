@@ -17,7 +17,7 @@
  * harness will surface later via golden tasks.
  */
 
-import type { NormalizedMessage } from '../types/chat.js';
+import type { ModelMessage } from '../types/llm.js';
 import type { LlmRequestTrace, LlmResponseTrace, TraceEvent } from '../types/trace.js';
 
 export type TruthfulnessFlagCategory = 'firestore-path' | 'quoted-identifier';
@@ -165,8 +165,8 @@ function pairEvents(events: readonly TraceEvent[]): AnalysisPair[] {
 }
 
 function trailingAssistantText(
-  prev: readonly NormalizedMessage[],
-  next: readonly NormalizedMessage[],
+  prev: readonly ModelMessage[],
+  next: readonly ModelMessage[],
 ): string | undefined {
   for (let i = prev.length; i < next.length; i++) {
     const m = next[i];

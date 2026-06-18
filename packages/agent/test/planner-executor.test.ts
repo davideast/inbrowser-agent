@@ -22,11 +22,11 @@
 
 import { describe, expect, test } from 'bun:test';
 import {
-  type ChatEvent,
-  type ChatRequest,
   EMPTY_RUNTIME,
   EMPTY_WORKSPACE,
-  type LlmClient,
+  type ModelClient,
+  type ModelEvent,
+  type ModelRequest,
   type SkillCatalog,
   type StrategyEvent,
   type ToolContext,
@@ -43,22 +43,18 @@ import {
  * exhausted, the LLM emits a single text + turn_complete with empty
  * text (defensive — prevents tests hanging).
  */
-function fakeLlm(scripts: ChatEvent[][]): LlmClient & { calls: ChatRequest[] } {
-  const calls: ChatRequest[] = [];
+function fakeLlm(scripts: ModelEvent[][]): ModelClient & { calls: ModelRequest[] } {
+  const calls: ModelRequest[] = [];
   let i = 0;
-  const llm: LlmClient & { calls: ChatRequest[] } = {
+  const llm: ModelClient & { calls: ModelRequest[] } = {
     id: 'fake-planner-executor-llm',
     supportsTools: true,
     calls,
-    chat(req: ChatRequest): AsyncIterable<ChatEvent> {
+    chat(req: ModelRequest): AsyncIterable<ModelEvent> {
       calls.push(req);
       const events = scripts[i] ?? [
-        { kind: 'text', chunk: '' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake-planner-executor-llm' },
-        },
+        { kind: 'text', text: '' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ];
       i += 1;
       return (async function* () {
@@ -128,12 +124,8 @@ describe('createPlannerExecutorStrategy — no-match path', () => {
     // full output.
     const llm = fakeLlm([
       [
-        { kind: 'text', chunk: 'plain react fallback' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake-planner-executor-llm' },
-        },
+        { kind: 'text', text: 'plain react fallback' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
     ]);
     const strategy = createPlannerExecutorStrategy({ catalog: TEST_CATALOG });
@@ -199,12 +191,8 @@ describe('createPlannerExecutorStrategy — happy path', () => {
     // so the inner ReAct loop terminates after one chat() call.
     const llm = fakeLlm([
       [
-        { kind: 'text', chunk: 'step output' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake-planner-executor-llm' },
-        },
+        { kind: 'text', text: 'step output' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
     ]);
     const strategy = createPlannerExecutorStrategy({ catalog: TEST_CATALOG });
@@ -257,28 +245,16 @@ describe('createPlannerExecutorStrategy — happy path', () => {
     // terminates after one iteration per step.
     const llm = fakeLlm([
       [
-        { kind: 'text', chunk: 'alpha out' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake-planner-executor-llm' },
-        },
+        { kind: 'text', text: 'alpha out' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
       [
-        { kind: 'text', chunk: 'beta out' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake-planner-executor-llm' },
-        },
+        { kind: 'text', text: 'beta out' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
       [
-        { kind: 'text', chunk: 'gamma out' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake-planner-executor-llm' },
-        },
+        { kind: 'text', text: 'gamma out' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
     ]);
     const strategy = createPlannerExecutorStrategy({ catalog: TEST_CATALOG });
@@ -346,28 +322,16 @@ describe('createPlannerExecutorStrategy — happy path', () => {
     // prompt — and nothing else from prior steps' tool dispatch.
     const llm = fakeLlm([
       [
-        { kind: 'text', chunk: 'alpha output' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake-planner-executor-llm' },
-        },
+        { kind: 'text', text: 'alpha output' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
       [
-        { kind: 'text', chunk: 'beta output' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake-planner-executor-llm' },
-        },
+        { kind: 'text', text: 'beta output' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
       [
-        { kind: 'text', chunk: 'gamma output' },
-        {
-          kind: 'turn_complete',
-          usage: { promptTokens: 1, completionTokens: 1 },
-          details: { requestedModel: 'fake-planner-executor-llm' },
-        },
+        { kind: 'text', text: 'gamma output' },
+        { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
       ],
     ]);
 

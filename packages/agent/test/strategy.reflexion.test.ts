@@ -18,19 +18,19 @@
  *      event sequence is byte-for-byte identical to the legacy
  *      single-turn path.
  *
- * All tests use a stub `LlmClient` that yields a hand-crafted script of
- * `ChatEvent`s per `chat()` call. Stub records every `ChatRequest`
+ * All tests use a stub `ModelClient` that yields a hand-crafted script of
+ * `ModelEvent`s per `chat()` call. Stub records every `ModelRequest`
  * received so tests can prove the critique call did or did not happen
  * and inspect the messages it saw.
  */
 
 import { describe, expect, test } from 'bun:test';
 import {
-  type ChatEvent,
-  type ChatRequest,
   EMPTY_RUNTIME,
   EMPTY_WORKSPACE,
-  type LlmClient,
+  type ModelClient,
+  type ModelEvent,
+  type ModelRequest,
   type StrategyEvent,
   type ToolContext,
   createDispatch,
@@ -39,17 +39,17 @@ import {
 } from '../src/index.js';
 
 interface ScriptedLlm {
-  client: LlmClient;
-  requests: ChatRequest[];
+  client: ModelClient;
+  requests: ModelRequest[];
 }
 
-function scriptedLlm(scripts: ChatEvent[][]): ScriptedLlm {
-  const requests: ChatRequest[] = [];
+function scriptedLlm(scripts: ModelEvent[][]): ScriptedLlm {
+  const requests: ModelRequest[] = [];
   let turn = 0;
-  const client: LlmClient = {
+  const client: ModelClient = {
     id: 'fake',
     supportsTools: true,
-    chat(req: ChatRequest): AsyncIterable<ChatEvent> {
+    chat(req: ModelRequest): AsyncIterable<ModelEvent> {
       requests.push(req);
       const events = scripts[turn] ?? [];
       turn += 1;
@@ -75,11 +75,10 @@ async function collect(events: AsyncIterable<StrategyEvent>): Promise<StrategyEv
   return out;
 }
 
-function turnComplete(usage = 1): ChatEvent {
+function usageEvent(usage = 1): ModelEvent {
   return {
-    kind: 'turn_complete',
-    usage: { promptTokens: usage, completionTokens: usage },
-    details: { requestedModel: 'fake' },
+    kind: 'usage',
+    usage: { promptTokens: usage, outputTokens: usage },
   };
 }
 
@@ -87,9 +86,9 @@ describe('createReactLoopStrategy (reflexion)', () => {
   test('critique returns ok → strategy returns final answer, retry not invoked', async () => {
     const { client, requests } = scriptedLlm([
       // turn 0: final-answer turn (no tool calls)
-      [{ kind: 'text', chunk: 'The answer is 42.' }, turnComplete()],
+      [{ kind: 'text', text: 'The answer is 42.' }, usageEvent()],
       // critique call: verdict ok
-      [{ kind: 'text', chunk: '{"ok": true}' }, turnComplete()],
+      [{ kind: 'text', text: '{"ok": true}' }, usageEvent()],
     ]);
 
     const events = await collect(
@@ -132,19 +131,19 @@ describe('createReactLoopStrategy (reflexion)', () => {
   test('critique flags problems with retry budget → feedback injected, retry succeeds', async () => {
     const { client, requests } = scriptedLlm([
       // turn 0: WRONG final-answer turn
-      [{ kind: 'text', chunk: 'The answer is 41.' }, turnComplete()],
+      [{ kind: 'text', text: 'The answer is 41.' }, usageEvent()],
       // critique #1: not ok, feedback present
       [
         {
           kind: 'text',
-          chunk: '{"ok": false, "feedback": "Off-by-one — re-check the prior tool result."}',
+          text: '{"ok": false, "feedback": "Off-by-one — re-check the prior tool result."}',
         },
-        turnComplete(),
+        usageEvent(),
       ],
       // turn 1: RIGHT final-answer turn (after feedback injection)
-      [{ kind: 'text', chunk: 'Sorry, the answer is 42.' }, turnComplete()],
+      [{ kind: 'text', text: 'Sorry, the answer is 42.' }, usageEvent()],
       // critique #2: ok
-      [{ kind: 'text', chunk: '{"ok": true}' }, turnComplete()],
+      [{ kind: 'text', text: '{"ok": true}' }, usageEvent()],
     ]);
 
     const events = await collect(
@@ -190,13 +189,13 @@ describe('createReactLoopStrategy (reflexion)', () => {
   test('critique flags problems with retry budget exhausted → returns last answer as-is', async () => {
     const { client, requests } = scriptedLlm([
       // turn 0
-      [{ kind: 'text', chunk: 'still wrong' }, turnComplete()],
+      [{ kind: 'text', text: 'still wrong' }, usageEvent()],
       // critique #1: not ok → retry
-      [{ kind: 'text', chunk: '{"ok": false, "feedback": "try again"}' }, turnComplete()],
+      [{ kind: 'text', text: '{"ok": false, "feedback": "try again"}' }, usageEvent()],
       // turn 1 (the retry)
-      [{ kind: 'text', chunk: 'still wrong again' }, turnComplete()],
+      [{ kind: 'text', text: 'still wrong again' }, usageEvent()],
       // critique #2: not ok, no budget left → exhausted
-      [{ kind: 'text', chunk: '{"ok": false, "feedback": "still wrong"}' }, turnComplete()],
+      [{ kind: 'text', text: '{"ok": false, "feedback": "still wrong"}' }, usageEvent()],
     ]);
 
     const events = await collect(
@@ -234,9 +233,9 @@ describe('createReactLoopStrategy (reflexion)', () => {
 
   test('malformed critique JSON → treated as ok (fail-open)', async () => {
     const { client, requests } = scriptedLlm([
-      [{ kind: 'text', chunk: 'answer' }, turnComplete()],
+      [{ kind: 'text', text: 'answer' }, usageEvent()],
       // critique returns prose with no parseable JSON
-      [{ kind: 'text', chunk: 'Looks fine to me, no JSON here.' }, turnComplete()],
+      [{ kind: 'text', text: 'Looks fine to me, no JSON here.' }, usageEvent()],
     ]);
 
     const events = await collect(
@@ -268,16 +267,16 @@ describe('createReactLoopStrategy (reflexion)', () => {
     // Two sub-cases as a single test to keep the file size tight.
     // Sub-case 1: fenced JSON object parses to ok:false → retry path.
     const { client: c1, requests: r1 } = scriptedLlm([
-      [{ kind: 'text', chunk: 'first' }, turnComplete()],
+      [{ kind: 'text', text: 'first' }, usageEvent()],
       [
         {
           kind: 'text',
-          chunk: '```json\n{"ok": false, "feedback": "fenced bad"}\n```',
+          text: '```json\n{"ok": false, "feedback": "fenced bad"}\n```',
         },
-        turnComplete(),
+        usageEvent(),
       ],
-      [{ kind: 'text', chunk: 'second' }, turnComplete()],
-      [{ kind: 'text', chunk: '{"ok": true}' }, turnComplete()],
+      [{ kind: 'text', text: 'second' }, usageEvent()],
+      [{ kind: 'text', text: '{"ok": true}' }, usageEvent()],
     ]);
     const fencedEvents = await collect(
       createReactLoopStrategy({ reflexion: { enabled: true, maxRetries: 1 } }).run(
@@ -303,8 +302,8 @@ describe('createReactLoopStrategy (reflexion)', () => {
 
     // Sub-case 2: JSON with non-boolean `ok` field falls open.
     const { client: c2, requests: r2 } = scriptedLlm([
-      [{ kind: 'text', chunk: 'first' }, turnComplete()],
-      [{ kind: 'text', chunk: '{"ok": "yes please"}' }, turnComplete()],
+      [{ kind: 'text', text: 'first' }, usageEvent()],
+      [{ kind: 'text', text: '{"ok": "yes please"}' }, usageEvent()],
     ]);
     const events2 = await collect(
       createReactLoopStrategy({ reflexion: { enabled: true } }).run(
@@ -333,13 +332,10 @@ describe('createReactLoopStrategy (reflexion)', () => {
     // Same script with and without reflexion absent — and with
     // reflexion `{ enabled: false }`. Both runs must produce IDENTICAL
     // event streams and exactly ONE chat() call.
-    const buildScript = (): ChatEvent[][] => [
-      [{ kind: 'text', chunk: 'plain answer' }, turnComplete()],
+    const buildScript = (): ModelEvent[][] => [
+      [{ kind: 'text', text: 'plain answer' }, usageEvent()],
       // would-be critique never invoked
-      [
-        { kind: 'text', chunk: '{"ok": false, "feedback": "should not be reached"}' },
-        turnComplete(),
-      ],
+      [{ kind: 'text', text: '{"ok": false, "feedback": "should not be reached"}' }, usageEvent()],
     ];
 
     async function runOnce(

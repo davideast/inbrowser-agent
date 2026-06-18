@@ -1,7 +1,7 @@
 /**
  * `runFixture` + `runFixtures` — the eval harness's session driver.
  *
- * Given a `TaskFixture`, an `LlmClient`, and a tool surface, the
+ * Given a `TaskFixture`, a `ModelClient`, and a tool surface, the
  * runner:
  *
  *   1. Builds the seeded `Workspace` from `EMPTY_WORKSPACE +
@@ -35,7 +35,7 @@
 import { createMetricsCollector } from '../metrics.js';
 import { createAgentSession } from '../session.js';
 import { createReactLoopStrategy } from '../strategy.js';
-import type { LlmClient } from '../types/llm.js';
+import type { ModelClient } from '../types/llm.js';
 import type { RuntimeState } from '../types/runtime.js';
 import { EMPTY_RUNTIME } from '../types/runtime.js';
 import type { SessionEvent } from '../types/session.js';
@@ -55,7 +55,7 @@ export interface RunFixtureInput {
   fixture: TaskFixture;
   /** The chat client the strategy will drive. Tests pass a canned
    *  stub; production code wires the real provider adapter. */
-  llm: LlmClient;
+  llm: ModelClient;
   /** Tool dispatcher the session uses to execute tool calls. Tests
    *  can pass `createDispatch(createToolRegistry())` for the no-tool
    *  path. */
@@ -260,7 +260,7 @@ export interface RunFixturesOptions {
  * dependencies.
  */
 export interface RunFixturesDeps {
-  llm: LlmClient;
+  llm: ModelClient;
   tools: ToolDispatch;
   toolList: ToolHandler[];
   /** Optional strategy factory — called once per trial so each trial

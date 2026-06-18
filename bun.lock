@@ -58,6 +58,7 @@
         "agent": "./bin/agent.ts",
       },
       "dependencies": {
+        "@inbrowser/model": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.0.0",
         "@opentui/core": "^0.1.0",
         "@opentui/react": "^0.1.0",
@@ -74,20 +75,12 @@
       "version": "0.2.0",
       "devDependencies": {
         "@huggingface/transformers": "^4.2.0",
-        "@inbrowser/agent": "workspace:*",
-        "@inbrowser/relay": "workspace:*",
         "@types/bun": "latest",
         "typescript": "^5.7.0",
       },
       "peerDependencies": {
         "@huggingface/transformers": "^3.0.0 || ^4.0.0",
-        "@inbrowser/agent": "workspace:*",
-        "@inbrowser/relay": "workspace:*",
       },
-      "optionalPeers": [
-        "@inbrowser/agent",
-        "@inbrowser/relay",
-      ],
     },
     "packages/relay": {
       "name": "@inbrowser/relay",

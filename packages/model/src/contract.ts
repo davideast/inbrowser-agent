@@ -64,9 +64,14 @@ export interface ModelUsage {
 }
 
 /**
- * One streamed item from a model call. The turn ends when the async iterable
- * returns; a `usage` event carries the final accounting just before that (there
- * is no separate terminal event).
+ * One streamed item from a model call.
+ *
+ * The turn ends when the async iterable returns. On a normal end a `usage` event
+ * MUST be emitted before the return (it carries the final accounting); there is
+ * no separate terminal event. The exception is `error`, which is itself terminal:
+ * after an `error` event the iterable returns with no `usage` event. Consumers
+ * can therefore rely on exactly one of {a `usage` event, an `error` event} per
+ * turn.
  */
 export type ModelEvent =
   | { kind: 'text'; text: string }

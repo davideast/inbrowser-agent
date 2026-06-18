@@ -8,7 +8,7 @@
  */
 
 import type { ChatMessage, TurnDetails } from './chat.js';
-import type { LlmClient, RawUsage } from './llm.js';
+import type { ModelClient, ModelUsage } from './llm.js';
 import type { RuntimeState } from './runtime.js';
 import type { ToolContext, ToolDispatch, ToolHandler, ToolResult } from './tools.js';
 import type { Tracer } from './trace.js';
@@ -37,7 +37,7 @@ export interface StrategyRunInput {
   history: ChatMessage[];
   workspace: Workspace;
   runtime: RuntimeState;
-  llm: LlmClient;
+  llm: ModelClient;
   tools: ToolDispatch;
   /** Already filtered by the active capabilities. */
   toolList: ToolHandler[];
@@ -60,7 +60,7 @@ export type StrategyEvent =
   | { kind: 'thinking'; chunk: string }
   | { kind: 'tool_call'; id: string; name: string; args: unknown; signature?: string }
   | { kind: 'tool_result'; id: string; result: ToolResult }
-  | { kind: 'turn_complete'; usage: RawUsage; details: TurnDetails }
+  | { kind: 'turn_complete'; usage: ModelUsage; details: TurnDetails }
   | { kind: 'error'; message: string }
   /** Custom milestone — name + arbitrary payload, surfaced as
    *  `SessionEvent.kind === 'strategy_event'` to the host. */
@@ -86,7 +86,7 @@ export type StrategyEvent =
  * `ok` field) is treated as `{ ok: true }`: fail-open, never block on a
  * critique the strategy could not parse.
  *
- * The critique runs through the same `LlmClient` as the main loop; the
+ * The critique runs through the same `ModelClient` as the main loop; the
  * trace emits an additional `llm_request` for the critique call with a
  * `requestId` suffixed `#critique`, so trace consumers can distinguish
  * critique requests from main-loop requests. The strategy emits a

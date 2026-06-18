@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
   type CallbackProvider,
-  type ChatEvent,
-  type ChatRequest,
+  type ModelEvent,
+  type ModelRequest,
   callbackProviderAsLlmClient,
 } from '../src/index.js';
 
@@ -33,8 +33,8 @@ function fakeProvider(opts: {
   };
 }
 
-async function collect(events: AsyncIterable<ChatEvent>): Promise<ChatEvent[]> {
-  const out: ChatEvent[] = [];
+async function collect(events: AsyncIterable<ModelEvent>): Promise<ModelEvent[]> {
+  const out: ModelEvent[] = [];
   for await (const ev of events) out.push(ev);
   return out;
 }
@@ -46,7 +46,7 @@ describe('callbackProviderAsLlmClient', () => {
     expect(client.supportsTools).toBe(true);
   });
 
-  test('streams text chunks as `text` events then a `turn_complete`', async () => {
+  test('streams text chunks as `text` events then a `usage` event before returning', async () => {
     const client = callbackProviderAsLlmClient(
       fakeProvider({
         streamText: ['hello ', 'world'],
@@ -54,7 +54,7 @@ describe('callbackProviderAsLlmClient', () => {
       }),
       'fake',
     );
-    const req: ChatRequest = {
+    const req: ModelRequest = {
       messages: [{ role: 'user', text: 'hi' }],
       tools: [],
       toolUseEnabled: true,
@@ -62,11 +62,13 @@ describe('callbackProviderAsLlmClient', () => {
     const events = await collect(client.chat(req, new AbortController().signal));
     const texts = events.filter((e) => e.kind === 'text');
     expect(texts).toHaveLength(2);
+    // The turn ends when the iterable returns; final accounting is the
+    // last event, a `usage` event (there is no separate terminal event).
     const last = events[events.length - 1]!;
-    expect(last.kind).toBe('turn_complete');
-    if (last.kind !== 'turn_complete') throw new Error('unreachable');
+    expect(last.kind).toBe('usage');
+    if (last.kind !== 'usage') throw new Error('unreachable');
     expect(last.usage.promptTokens).toBe(10);
-    expect(last.usage.completionTokens).toBe(2);
+    expect(last.usage.outputTokens).toBe(2);
   });
 
   test('relays tool calls as `tool_call` events', async () => {
