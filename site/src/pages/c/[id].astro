@@ -1,0 +1,12 @@
+---
+// A conversation: /c/<id>. Sessions live in the browser (localStorage), so the
+// server just renders the chat shell; ChatApp reads the id from the path and
+// selects that session. On-demand rendered (any id), via the Node adapter.
+export const prerender = false;
+
+import { ChatApp } from '../../components/chat/ChatApp';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+<BaseLayout title="inbrowser — chat">
+  <ChatApp client:load />
+</BaseLayout>
