@@ -19,6 +19,7 @@ export type Category =
   | 'how-to'
   | 'design'
   | 'reference'
+  | 'explanation'
   | 'agent-context'
   | 'skill';
 
@@ -54,6 +55,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   'how-to': 'How-To',
   design: 'Design',
   reference: 'Reference',
+  explanation: 'Explanation',
   'agent-context': 'Agent Context',
   skill: 'Skill',
 };
@@ -241,6 +243,116 @@ export const NODES: DocNode[] = [
     sourcePath: 'packages/model/README.md',
     summary:
       'On-device LLM engine (POC stub) exposing a narrow Engine surface over @huggingface/transformers + ONNX, with relay + agent adapters. The engine wiring is not yet implemented.',
+  },
+  {
+    id: 'model/tutorials/run-a-model-in-the-browser',
+    package: 'model',
+    category: 'tutorial',
+    title: 'Tutorial: Run A Model In The Browser',
+    route: '/model/tutorials/run-a-model-in-the-browser',
+    sourcePath: 'packages/model/docs/tutorials/01-run-a-model-in-the-browser.md',
+    summary:
+      'Load a small language model into a browser tab and stream its reply token by token, with no server, API key, or cloud inference.',
+  },
+  {
+    id: 'model/tutorials/run-the-model-in-a-worker',
+    package: 'model',
+    category: 'tutorial',
+    title: 'Tutorial: Run The Model In A Worker',
+    route: '/model/tutorials/run-the-model-in-a-worker',
+    sourcePath: 'packages/model/docs/tutorials/02-run-the-model-in-a-worker.md',
+    summary:
+      'Move the same engine into a Web Worker so the model loads and decodes off the main thread and the page stays responsive.',
+  },
+  {
+    id: 'model/how-to/choose-a-preset',
+    package: 'model',
+    category: 'how-to',
+    title: 'How To Choose A Preset',
+    route: '/model/how-to/choose-a-preset',
+    sourcePath: 'packages/model/docs/how-to/choose-a-preset.md',
+    summary:
+      'Pick the bundled ModelPreset whose declared capabilities and download cost match what your app needs, or define your own.',
+  },
+  {
+    id: 'model/how-to/use-a-local-model-in-relay',
+    package: 'model',
+    category: 'how-to',
+    title: 'How To Use A Local Model In Relay',
+    route: '/model/how-to/use-a-local-model-in-relay',
+    sourcePath: 'packages/model/docs/how-to/use-a-local-model-in-relay.md',
+    summary:
+      'Serve an on-device engine through @inbrowser/relay so its durable storage, SSE wire format, and reconnection treat a local model like a cloud provider.',
+  },
+  {
+    id: 'model/how-to/use-a-local-model-in-the-agent',
+    package: 'model',
+    category: 'how-to',
+    title: 'How To Use A Local Model In The Agent',
+    route: '/model/how-to/use-a-local-model-in-the-agent',
+    sourcePath: 'packages/model/docs/how-to/use-a-local-model-in-the-agent.md',
+    summary:
+      'Drive an on-device engine from an @inbrowser/agent session so the agent runtime treats a local model identically to a cloud provider.',
+  },
+  {
+    id: 'model/how-to/handle-thinking-and-tool-calls',
+    package: 'model',
+    category: 'how-to',
+    title: 'How To Handle Thinking And Tool Calls',
+    route: '/model/how-to/handle-thinking-and-tool-calls',
+    sourcePath: 'packages/model/docs/how-to/handle-thinking-and-tool-calls.md',
+    summary:
+      "Separate a model's reasoning trace and tool-call envelopes out of the raw token stream so you can route them to different surfaces.",
+  },
+  {
+    id: 'model/reference/engine',
+    package: 'model',
+    category: 'reference',
+    title: 'Engine Reference',
+    route: '/model/reference/engine',
+    sourcePath: 'packages/model/docs/reference/engine.md',
+    summary:
+      'The root @inbrowser/model export: the engine factory, the Engine surface, the event vocabulary, and the stream transformers.',
+  },
+  {
+    id: 'model/reference/presets',
+    package: 'model',
+    category: 'reference',
+    title: 'Presets Reference',
+    route: '/model/reference/presets',
+    sourcePath: 'packages/model/docs/reference/presets.md',
+    summary:
+      'The @inbrowser/model/presets export: the six bundled ModelPreset values and the static types they carry.',
+  },
+  {
+    id: 'model/reference/adapters-and-worker',
+    package: 'model',
+    category: 'reference',
+    title: 'Adapters and Worker Reference',
+    route: '/model/reference/adapters-and-worker',
+    sourcePath: 'packages/model/docs/reference/adapters-and-worker.md',
+    summary:
+      'The three subpath exports that bridge an Engine to the rest of the stack: @inbrowser/model/relay, @inbrowser/model/agent, and @inbrowser/model/worker.',
+  },
+  {
+    id: 'model/explanation/design',
+    package: 'model',
+    category: 'explanation',
+    title: 'Why The Engine Is Shaped This Way',
+    route: '/model/explanation/design',
+    sourcePath: 'packages/model/docs/explanation/design.md',
+    summary:
+      'The load-bearing decisions behind the small Engine surface and the trade-offs each one accepts.',
+  },
+  {
+    id: 'model/explanation/on-device-inference',
+    package: 'model',
+    category: 'explanation',
+    title: 'On-Device Inference',
+    route: '/model/explanation/on-device-inference',
+    sourcePath: 'packages/model/docs/explanation/on-device-inference.md',
+    summary:
+      'The stack that makes running an LLM in a browser tab possible, the constraints it imposes, and why you would choose it over the cloud.',
   },
   {
     id: 'model/agent-context',

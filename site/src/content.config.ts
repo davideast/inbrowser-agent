@@ -19,7 +19,7 @@ const docs = defineCollection({
       'AGENTS.md',
       'packages/*/README.md',
       'packages/*/AGENTS.md',
-      'packages/*/docs/*.md',
+      'packages/*/docs/**/*.md',
       'packages/*/skills/*.md',
     ],
     generateId: ({ entry }) => entry.replace(/\.md$/, ''),
