@@ -18,6 +18,7 @@ export type Category =
   | 'tutorial'
   | 'how-to'
   | 'design'
+  | 'explanation'
   | 'reference'
   | 'agent-context'
   | 'skill';
@@ -53,6 +54,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   tutorial: 'Tutorial',
   'how-to': 'How-To',
   design: 'Design',
+  explanation: 'Explanation',
   reference: 'Reference',
   'agent-context': 'Agent Context',
   skill: 'Skill',
@@ -213,7 +215,7 @@ export const NODES: DocNode[] = [
   {
     id: 'resumable/how-it-works',
     package: 'resumable',
-    category: 'design',
+    category: 'explanation',
     title: 'How Resumable Jobs Work',
     route: '/resumable/how-it-works',
     sourcePath: 'packages/resumable/docs/how-it-works.md',
