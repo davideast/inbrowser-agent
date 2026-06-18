@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
-import { type TurnMessage, runDocsAgent } from '../../agent/docs-agent';
-import { MAX_QUERY_LEN, streamAgent, tooBusy } from '../../lib/agent-endpoint';
+import type { TurnMessage } from '../../agent/docs-agent';
+import { docsTooBusy, startDocsJob } from '../../agent/docs-jobs';
+import { MAX_QUERY_LEN } from '../../lib/agent-endpoint';
 
 // On-demand (server) route — multi-turn chat path.
 export const prerender = false;
@@ -44,7 +45,12 @@ export const POST: APIRoute = async ({ request }) => {
   if (latest.text.length > MAX_QUERY_LEN) {
     return new Response(`message too long (max ${MAX_QUERY_LEN} chars)`, { status: 413 });
   }
-  if (tooBusy()) return new Response('busy — too many concurrent requests', { status: 429 });
+  if (docsTooBusy()) return new Response('busy — too many concurrent requests', { status: 429 });
 
-  return streamAgent(request, (signal) => runDocsAgent(messages, signal), 'api/chat');
+  // Start a resumable job and hand the client its id; it streams (and reconnects)
+  // via GET /api/chat/<jobId>?from=<offset>.
+  const jobId = await startDocsJob(messages);
+  return new Response(JSON.stringify({ jobId }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
 };
