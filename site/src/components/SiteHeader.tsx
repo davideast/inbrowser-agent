@@ -2,6 +2,8 @@ interface SiteHeaderProps {
   /** Toggle the sessions drawer. */
   onMenu: () => void;
   menuOpen: boolean;
+  /** Return to the home (empty) state, the landing. */
+  onHome: () => void;
 }
 
 const GITHUB_URL = 'https://github.com/davideast/inbrowser-agent';
@@ -11,7 +13,7 @@ const GITHUB_URL = 'https://github.com/davideast/inbrowser-agent';
  * sessions toggle, the wordmark, and site nav. It stays put as the empty state
  * collapses into the conversation, so orientation never disappears.
  */
-export function SiteHeader({ onMenu, menuOpen }: SiteHeaderProps) {
+export function SiteHeader({ onMenu, menuOpen, onHome }: SiteHeaderProps) {
   return (
     <header className="h-12 shrink-0 border-b border-border flex items-center justify-between px-4 md:px-6">
       <div className="flex items-center gap-3">
@@ -25,7 +27,14 @@ export function SiteHeader({ onMenu, menuOpen }: SiteHeaderProps) {
         >
           ☰
         </button>
-        <a href="/" className="text-[13px] text-primary">
+        <a
+          href="/"
+          onClick={(e) => {
+            e.preventDefault();
+            onHome();
+          }}
+          className="text-[13px] text-primary"
+        >
           inbrowser
         </a>
       </div>
