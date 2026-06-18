@@ -347,7 +347,7 @@ export const NODES: DocNode[] = [
   {
     id: 'resumable/how-it-works',
     package: 'resumable',
-    category: 'design',
+    category: 'explanation',
     title: 'How Resumable Jobs Work',
     route: '/resumable/how-it-works',
     sourcePath: 'packages/resumable/docs/how-it-works.md',
