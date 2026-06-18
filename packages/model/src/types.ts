@@ -14,6 +14,8 @@
  * are deliberately absent here.
  */
 
+import type { ToolSpec } from './contract.js';
+
 /**
  * HF Hub repo id + optional revision. Pin a revision for
  * reproducibility — `main` drifts.
@@ -180,19 +182,9 @@ export interface GenerateOpts {
   enableThinking?: boolean;
 }
 
-/**
- * Tool declaration shape. Matches the OAI function-calling format
- * that most modern chat templates (Qwen 2/3, DeepSeek R1, Llama 3.2+,
- * Mistral v0.3+) accept directly.
- */
-export interface ToolSpec {
-  type: 'function';
-  function: {
-    name: string;
-    description: string;
-    parameters: unknown;
-  };
-}
+// `ToolSpec` now lives in ./contract.ts (the shared model-call contract);
+// re-exported here so existing `./types.js` consumers keep resolving it.
+export type { ToolSpec };
 
 /**
  * Engine's narrow event vocabulary. Adapters translate to the wider
