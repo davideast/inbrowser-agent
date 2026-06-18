@@ -115,6 +115,18 @@ yield {
 If parsing fails, prefer yielding a structured fallback such as
 `{ _raw: args }` instead of throwing away the call.
 
+**Two merge styles, depending on the wire format.** The snippet above
+*concatenates* — it fits providers (OpenAI, Anthropic) that stream `args`
+as JSON-string fragments. Gemini is different: its
+`streamGenerateContent` re-sends the whole, growing `content.parts[]`
+every chunk, so each chunk carries the **complete `args` object** (not a
+fragment). There you *replace* with the latest non-empty snapshot and
+correlate calls by their ordinal position rather than concatenating —
+concatenating Gemini's whole objects would corrupt them. See
+`providers/gemini.ts` for that variant. Match the merge to the wire: a
+provider that sends whole objects needs replace; one that sends fragments
+needs concatenate.
+
 ## Register The Provider
 
 ```ts
