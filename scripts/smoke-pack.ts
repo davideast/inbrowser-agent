@@ -44,7 +44,13 @@ const SPECS: PackSpec[] = [
   {
     name: '@inbrowser/resumable',
     dir: 'packages/resumable',
-    expectFiles: ['package/dist/index.js', 'package/dist/index.d.ts', 'package/README.md'],
+    expectFiles: [
+      'package/dist/index.js',
+      'package/dist/index.d.ts',
+      'package/README.md',
+      'package/dist/http.js',
+      'package/dist/client.js',
+    ],
     forbidFiles: [/^package\/src\//, /^package\/test\//, /tsconfig\.json$/],
   },
   {
@@ -173,6 +179,17 @@ const store = createMemoryJobStore();
 assert.equal(typeof store.create, 'function');
 assert.equal(typeof store.append, 'function');
 console.log('  ✓ resumable: createMemoryJobStore wired');
+
+// === @inbrowser/resumable/http + /client (generic streaming transport) ===
+import { sseFromJob } from '@inbrowser/resumable/http';
+import {
+  createResumableClient as createResumableJobClient,
+  installBrowserLifecycle as installResumableLifecycle,
+} from '@inbrowser/resumable/client';
+assert.equal(typeof sseFromJob, 'function', 'resumable/http: sseFromJob');
+assert.equal(typeof createResumableJobClient, 'function', 'resumable/client: createResumableClient');
+assert.equal(typeof installResumableLifecycle, 'function', 'resumable/client: installBrowserLifecycle');
+console.log('  ✓ resumable/http + /client: transport subpaths resolve');
 
 // === @inbrowser/relay ===
 import {
