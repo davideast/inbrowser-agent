@@ -18,6 +18,7 @@ export type Category =
   | 'tutorial'
   | 'how-to'
   | 'design'
+  | 'explanation'
   | 'reference'
   | 'explanation'
   | 'agent-context'
@@ -54,6 +55,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   tutorial: 'Tutorial',
   'how-to': 'How-To',
   design: 'Design',
+  explanation: 'Explanation',
   reference: 'Reference',
   explanation: 'Explanation',
   'agent-context': 'Agent Context',
@@ -281,9 +283,19 @@ export const NODES: DocNode[] = [
       'Implement the InferenceProvider contract: parse SSE upstreams, emit tool calls, and register the provider.',
   },
   {
+    id: 'relay/use-a-subscription-provider',
+    package: 'relay',
+    category: 'how-to',
+    title: 'How To Use A Subscription Claude Provider',
+    route: '/relay/use-a-subscription-provider',
+    sourcePath: 'packages/relay/docs/how-to-use-a-subscription-provider.md',
+    summary:
+      'Reach Claude through a subscription with no API key, using the claude-code (Agent SDK) or claude-cli (claude -p) providers.',
+  },
+  {
     id: 'relay/how-it-works',
     package: 'relay',
-    category: 'design',
+    category: 'explanation',
     title: 'How The Relay Works',
     route: '/relay/how-it-works',
     sourcePath: 'packages/relay/docs/how-it-works.md',

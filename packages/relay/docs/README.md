@@ -14,6 +14,9 @@ mixing a lesson, a task guide, reference facts, and design discussion together.
   framework adapters, and the reconnecting client.
 - [How to write a provider](how-to-write-a-provider.md) covers adding another
   upstream LLM through the `InferenceProvider` contract.
+- [How to use a subscription Claude provider](how-to-use-a-subscription-provider.md)
+  covers the `claude-code` and `claude-cli` providers, which reach Claude through
+  a subscription with no API key.
 
 ## Look Up Facts
 
