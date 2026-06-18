@@ -1,7 +1,7 @@
 {
   "name": "@inbrowser/model",
   "version": "0.2.0",
-  "description": "On-device LLM engine. Wraps @huggingface/transformers + ONNX Runtime Web behind a narrow Engine surface. Presets ship Gemma 4 (E2B/E4B) configurations. Adapters in subpaths satisfy @inbrowser/relay's InferenceProvider and @inbrowser/agent's LlmClient so a local model is a drop-in replacement for a cloud provider. Worker subpath hosts the engine in a Worker with an identical interface on the main thread.",
+  "description": "The model-access layer for the inbrowser stack: the shared ModelClient contract, the cloud provider factories (Gemini, OpenRouter, Anthropic, Ollama, Claude-CLI, Claude-Code) in ./providers/*, a withRetry decorator, and the on-device LLM engine (wraps @huggingface/transformers + ONNX Runtime Web behind a narrow Engine surface; Gemma 4 E2B/E4B presets; Worker subpath). One import for a model — cloud or local — that @inbrowser/relay (transport) and @inbrowser/agent (runtime) both consume.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,6 +21,34 @@
     "./worker": {
       "types": "./dist/worker.d.ts",
       "import": "./dist/worker.js"
+    },
+    "./with-retry": {
+      "types": "./dist/with-retry.d.ts",
+      "import": "./dist/with-retry.js"
+    },
+    "./providers/gemini": {
+      "types": "./dist/providers/gemini.d.ts",
+      "import": "./dist/providers/gemini.js"
+    },
+    "./providers/openrouter": {
+      "types": "./dist/providers/openrouter.d.ts",
+      "import": "./dist/providers/openrouter.js"
+    },
+    "./providers/anthropic": {
+      "types": "./dist/providers/anthropic.d.ts",
+      "import": "./dist/providers/anthropic.js"
+    },
+    "./providers/ollama": {
+      "types": "./dist/providers/ollama.d.ts",
+      "import": "./dist/providers/ollama.js"
+    },
+    "./providers/claude-cli": {
+      "types": "./dist/providers/claude-cli.d.ts",
+      "import": "./dist/providers/claude-cli.js"
+    },
+    "./providers/claude-code": {
+      "types": "./dist/providers/claude-code.d.ts",
+      "import": "./dist/providers/claude-code.js"
     }
   },
   "files": ["dist", "README.md", "AGENTS.md"],
@@ -30,14 +58,19 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.0",
     "@huggingface/transformers": "^3.0.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
+    "@anthropic-ai/claude-agent-sdk": {
+      "optional": true
+    },
     "@huggingface/transformers": {
       "optional": false
     }
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.0",
     "@huggingface/transformers": "^4.2.0",
     "@types/bun": "latest",
     "typescript": "^5.7.0"

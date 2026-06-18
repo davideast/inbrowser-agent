@@ -1,4 +1,4 @@
-import type { InferenceProvider, ModelEvent, NormalizedRequest } from '../types.js';
+import type { ModelClient, ModelEvent, ModelRequest } from '../contract.js';
 import { renderPrompt } from './claude-cli.js';
 
 /**
@@ -7,10 +7,10 @@ import { renderPrompt } from './claude-cli.js';
  * authenticated against the user's Claude Code login (subscription)
  * rather than an API key.
  *
- * Why this exists, distinct from `anthropicProvider` and
+ * Why this exists, distinct from `anthropicModelClient` and
  * `claude-cli`:
  *
- *   - `anthropicProvider` is the BYOK `/v1/messages` path — per-token
+ *   - `anthropicModelClient` is the BYOK `/v1/messages` path — per-token
  *     billing against an API key.
  *   - `claude-cli` shells out to the `claude` CLI subprocess.
  *   - this provider talks to the same Agent SDK programmatically and
@@ -53,17 +53,17 @@ import { renderPrompt } from './claude-cli.js';
  * → `~/.claude/.credentials.json` (the Claude Code login). This
  * provider removes `ANTHROPIC_API_KEY` from the subprocess env so the
  * subscription path always wins. To pin a specific OAuth token (CI,
- * multi-tenant), pass `oauthToken` to `createClaudeCodeProvider` —
+ * multi-tenant), pass `oauthToken` to `claudeCodeModelClient` —
  * it is forwarded to the SDK via `CLAUDE_CODE_OAUTH_TOKEN`. Otherwise
  * the host's logged-in subscription is used.
  *
- * `NormalizedRequest.apiKey` is **ignored** by this provider.
+ * `config.apiKey` is **ignored** by this provider.
  *
  * ## Tools, temperature, knobs
  *
  *   - Caller-defined tools (`req.tools`) have no parallel in this
  *     bare-model setup. Passing any yields a typed `error` event
- *     rather than silently dropping them.
+ *     rather than silently dropping them. (`supportsTools` is `false`.)
  *   - `temperature` / `topP` / `topK` are not exposed by the SDK in
  *     the bare-model configuration and are ignored.
  *   - `reasoningEffort` maps to the SDK's `effort` option: `low` /
@@ -141,7 +141,13 @@ type SdkQuery = (params: {
   options?: SdkOptions;
 }) => AsyncIterable<SdkMessage>;
 
-export interface ClaudeCodeOptions {
+/**
+ * Construction config for the claude-code provider: the relay-facing
+ * `{ apiKey?; model }` (apiKey ignored) plus the SDK-specific options.
+ */
+export interface ClaudeCodeConfig {
+  apiKey?: string;
+  model: string;
   /**
    * Explicit OAuth token to use instead of the host's ambient
    * `~/.claude/.credentials.json`. Forwarded to the SDK via
@@ -165,176 +171,180 @@ export interface ClaudeCodeOptions {
 }
 
 /**
- * Build a Claude Code SDK provider. `createClaudeCodeProvider()`
- * with no options uses the host's ambient subscription credentials:
+ * Build a Claude Code SDK `ModelClient`. `claudeCodeModelClient({ model })`
+ * with no other options uses the host's ambient subscription credentials:
  *
  * ```ts
  * const relay = createRelay({
  *   store,
- *   providers: { 'claude-code': createClaudeCodeProvider() },
+ *   providers: { 'claude-code': (c) => claudeCodeModelClient(c) },
  * });
  * // client request: { provider: 'claude-code', model: 'claude-opus-4-8',
  * //                   messages, tools: [], apiKey: '' }
  * ```
+ *
+ * Construction values (model, SDK options) come in the config; per-call
+ * values (messages, reasoning) come in the `ModelRequest`.
  */
-export function createClaudeCodeProvider(options: ClaudeCodeOptions = {}): InferenceProvider {
+export function claudeCodeModelClient(config: ClaudeCodeConfig): ModelClient {
   const loadSdk =
-    options.loadSdk ??
+    config.loadSdk ??
     (async (): Promise<{ query: SdkQuery }> => {
       const mod = (await import('@anthropic-ai/claude-agent-sdk')) as { query: SdkQuery };
       return { query: mod.query };
     });
 
-  return async function* claudeCode(req: NormalizedRequest): AsyncIterable<ModelEvent> {
-    if (req.signal?.aborted) return;
+  return {
+    id: `claude-code:${config.model}`,
+    supportsTools: false,
+    async *chat(req: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent> {
+      if (signal?.aborted) return;
 
-    if (req.tools.length > 0) {
-      yield {
-        kind: 'error',
-        message:
-          'claude-code provider does not support caller-defined tools — the bare-model SDK configuration has no tool-registration surface. Send `tools: []` (or use an API provider for tool calling).',
+      if (req.tools.length > 0) {
+        yield {
+          kind: 'error',
+          message:
+            'claude-code provider does not support caller-defined tools — the bare-model SDK configuration has no tool-registration surface. Send `tools: []` (or use an API provider for tool calling).',
+        };
+        return;
+      }
+
+      const { system, prompt } = renderPrompt(req.messages);
+      if (!prompt) {
+        yield { kind: 'error', message: 'claude-code provider: no user message to send.' };
+        return;
+      }
+
+      let sdk: { query: SdkQuery };
+      try {
+        sdk = await loadSdk();
+      } catch (e) {
+        yield {
+          kind: 'error',
+          message: `claude-code: failed to load @anthropic-ai/claude-agent-sdk (install it as a peer dep): ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        };
+        return;
+      }
+
+      // Compose the subprocess env. The SDK's auth precedence is
+      // ANTHROPIC_API_KEY → CLAUDE_CODE_OAUTH_TOKEN → ~/.claude/.credentials.json.
+      // We strip ANTHROPIC_API_KEY so subscription always wins; we
+      // optionally inject CLAUDE_CODE_OAUTH_TOKEN for explicit-token
+      // hosts.
+      const env: Record<string, string | undefined> = { ...process.env };
+      delete env.ANTHROPIC_API_KEY;
+      if (config.oauthToken) env.CLAUDE_CODE_OAUTH_TOKEN = config.oauthToken;
+      if (config.env) Object.assign(env, config.env);
+      // Belt-and-suspenders: if the caller's config.env tried to set
+      // ANTHROPIC_API_KEY back, strip it again.
+      delete env.ANTHROPIC_API_KEY;
+
+      const abortController = new AbortController();
+      const onAbort = () => abortController.abort();
+      signal?.addEventListener('abort', onAbort, { once: true });
+
+      const effort = toEffort(req.reasoningEffort);
+      const sdkOptions: SdkOptions = {
+        ...(config.model ? { model: config.model } : {}),
+        systemPrompt: system,
+        tools: [],
+        settingSources: [],
+        mcpServers: {},
+        strictMcpConfig: true,
+        permissionMode: 'bypassPermissions',
+        includePartialMessages: true,
+        ...(effort ? { effort } : {}),
+        abortController,
+        env,
       };
-      return;
-    }
 
-    const { system, prompt } = renderPrompt(req.messages);
-    if (!prompt) {
-      yield { kind: 'error', message: 'claude-code provider: no user message to send.' };
-      return;
-    }
+      let promptTokens = 0;
+      let outputTokens = 0;
+      let cachedTokens: number | undefined;
+      let sawText = false;
+      let sawResult = false;
+      let fallbackText = '';
 
-    let sdk: { query: SdkQuery };
-    try {
-      sdk = await loadSdk();
-    } catch (e) {
-      yield {
-        kind: 'error',
-        message: `claude-code: failed to load @anthropic-ai/claude-agent-sdk (install it as a peer dep): ${
-          e instanceof Error ? e.message : String(e)
-        }`,
-      };
-      return;
-    }
+      try {
+        for await (const msg of sdk.query({ prompt, options: sdkOptions })) {
+          if (signal?.aborted) return;
 
-    // Compose the subprocess env. The SDK's auth precedence is
-    // ANTHROPIC_API_KEY → CLAUDE_CODE_OAUTH_TOKEN → ~/.claude/.credentials.json.
-    // We strip ANTHROPIC_API_KEY so subscription always wins; we
-    // optionally inject CLAUDE_CODE_OAUTH_TOKEN for explicit-token
-    // hosts.
-    const env: Record<string, string | undefined> = { ...process.env };
-    delete env.ANTHROPIC_API_KEY;
-    if (options.oauthToken) env.CLAUDE_CODE_OAUTH_TOKEN = options.oauthToken;
-    if (options.env) Object.assign(env, options.env);
-    // Belt-and-suspenders: if the caller's options.env tried to set
-    // ANTHROPIC_API_KEY back, strip it again.
-    delete env.ANTHROPIC_API_KEY;
-
-    const abortController = new AbortController();
-    const onAbort = () => abortController.abort();
-    req.signal?.addEventListener('abort', onAbort, { once: true });
-
-    const effort = toEffort(req.reasoningEffort);
-    const sdkOptions: SdkOptions = {
-      ...(req.model ? { model: req.model } : {}),
-      systemPrompt: system,
-      tools: [],
-      settingSources: [],
-      mcpServers: {},
-      strictMcpConfig: true,
-      permissionMode: 'bypassPermissions',
-      includePartialMessages: true,
-      ...(effort ? { effort } : {}),
-      abortController,
-      env,
-    };
-
-    let promptTokens = 0;
-    let outputTokens = 0;
-    let cachedTokens: number | undefined;
-    let sawText = false;
-    let sawResult = false;
-    let fallbackText = '';
-
-    try {
-      for await (const msg of sdk.query({ prompt, options: sdkOptions })) {
-        if (req.signal?.aborted) return;
-
-        if (msg.type === 'stream_event' && msg.event?.type === 'content_block_delta') {
-          const delta = msg.event.delta;
-          if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
-            sawText = true;
-            yield { kind: 'text', text: delta.text };
-          } else if (delta?.type === 'thinking_delta' && typeof delta.thinking === 'string') {
-            yield { kind: 'thinking', text: delta.thinking };
-          }
-          continue;
-        }
-
-        // Buffer the assistant message's full text in case partial
-        // streaming wasn't honored — we fall back to it on terminal
-        // result if no text deltas streamed.
-        if (msg.type === 'assistant' && msg.message?.content) {
-          for (const block of msg.message.content) {
-            if (block.type === 'text' && typeof block.text === 'string') {
-              fallbackText += block.text;
+          if (msg.type === 'stream_event' && msg.event?.type === 'content_block_delta') {
+            const delta = msg.event.delta;
+            if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
+              sawText = true;
+              yield { kind: 'text', text: delta.text };
+            } else if (delta?.type === 'thinking_delta' && typeof delta.thinking === 'string') {
+              yield { kind: 'thinking', text: delta.thinking };
             }
+            continue;
           }
-          continue;
-        }
 
-        if (msg.type === 'result') {
-          sawResult = true;
-          if (msg.is_error || (msg.subtype && msg.subtype !== 'success')) {
+          // Buffer the assistant message's full text in case partial
+          // streaming wasn't honored — we fall back to it on terminal
+          // result if no text deltas streamed.
+          if (msg.type === 'assistant' && msg.message?.content) {
+            for (const block of msg.message.content) {
+              if (block.type === 'text' && typeof block.text === 'string') {
+                fallbackText += block.text;
+              }
+            }
+            continue;
+          }
+
+          if (msg.type === 'result') {
+            sawResult = true;
+            if (msg.is_error || (msg.subtype && msg.subtype !== 'success')) {
+              yield {
+                kind: 'error',
+                message: `claude-code SDK reported ${msg.subtype ?? 'error'}: ${
+                  typeof msg.result === 'string' && msg.result
+                    ? msg.result.slice(0, 400)
+                    : '(no detail)'
+                }`,
+              };
+              return;
+            }
+            // Defensive fallback: terminal result text when no deltas
+            // streamed (some SDK paths skip partial events).
+            if (!sawText) {
+              const text = typeof msg.result === 'string' && msg.result ? msg.result : fallbackText;
+              if (text) yield { kind: 'text', text };
+            }
+            promptTokens = msg.usage?.input_tokens ?? promptTokens;
+            outputTokens = msg.usage?.output_tokens ?? outputTokens;
+            if (typeof msg.usage?.cache_read_input_tokens === 'number') {
+              cachedTokens = msg.usage.cache_read_input_tokens;
+            }
             yield {
-              kind: 'error',
-              message: `claude-code SDK reported ${msg.subtype ?? 'error'}: ${
-                typeof msg.result === 'string' && msg.result
-                  ? msg.result.slice(0, 400)
-                  : '(no detail)'
-              }`,
+              kind: 'usage',
+              usage: {
+                promptTokens,
+                outputTokens,
+                ...(typeof cachedTokens === 'number' ? { cachedTokens } : {}),
+                // costUsd intentionally omitted — subscription is N/A.
+              },
             };
             return;
           }
-          // Defensive fallback: terminal result text when no deltas
-          // streamed (some SDK paths skip partial events).
-          if (!sawText) {
-            const text = typeof msg.result === 'string' && msg.result ? msg.result : fallbackText;
-            if (text) yield { kind: 'text', text };
-          }
-          promptTokens = msg.usage?.input_tokens ?? promptTokens;
-          outputTokens = msg.usage?.output_tokens ?? outputTokens;
-          if (typeof msg.usage?.cache_read_input_tokens === 'number') {
-            cachedTokens = msg.usage.cache_read_input_tokens;
-          }
-          yield {
-            kind: 'usage',
-            usage: {
-              promptTokens,
-              outputTokens,
-              ...(typeof cachedTokens === 'number' ? { cachedTokens } : {}),
-              // costUsd intentionally omitted — subscription is N/A.
-            },
-          };
-          return;
+          // system / compact_boundary / rate_limit_event / unknown — skip.
         }
-        // system / compact_boundary / rate_limit_event / unknown — skip.
+      } catch (e) {
+        if (signal?.aborted) return;
+        yield { kind: 'error', message: e instanceof Error ? e.message : String(e) };
+        return;
+      } finally {
+        signal?.removeEventListener('abort', onAbort);
       }
-    } catch (e) {
-      if (req.signal?.aborted) return;
-      yield { kind: 'error', message: e instanceof Error ? e.message : String(e) };
-      return;
-    } finally {
-      req.signal?.removeEventListener('abort', onAbort);
-    }
 
-    if (!sawResult) {
-      yield {
-        kind: 'error',
-        message: 'claude-code SDK stream ended without a result message.',
-      };
-    }
+      if (!sawResult) {
+        yield {
+          kind: 'error',
+          message: 'claude-code SDK stream ended without a result message.',
+        };
+      }
+    },
   };
 }
-
-/** Ready-made instance with subscription-only defaults. */
-export const claudeCodeProvider: InferenceProvider = createClaudeCodeProvider();

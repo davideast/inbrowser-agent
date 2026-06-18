@@ -1,5 +1,6 @@
+import type { ModelClient, ModelEvent, ModelRequest, ToolSpec } from '../contract.js';
 import { readSseDataLines } from '../sse.js';
-import type { InferenceProvider, ModelEvent, NormalizedRequest } from '../types.js';
+import type { CloudProviderConfig } from './types.js';
 /**
  * Gemini provider — raw fetch against the Generative Language REST
  * API, parsing SSE directly. The `@google/genai` SDK is intentionally
@@ -16,9 +17,11 @@ import type { InferenceProvider, ModelEvent, NormalizedRequest } from '../types.
  * re-sends the growing `content.parts[]` list every chunk, so emitting
  * a `tool_call` per chunk would duplicate every call.
  */
-import type { ToolSpec } from '../types.js';
 
 const ENDPOINT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+/** Per-request settings the provider reads off the `ModelRequest`. */
+export interface GeminiConfig extends CloudProviderConfig {}
 
 interface GeminiContent {
   role: 'user' | 'model';
@@ -40,7 +43,7 @@ interface GeminiBody {
   generationConfig?: Record<string, unknown>;
 }
 
-function toGeminiBody(req: NormalizedRequest): GeminiBody {
+function toGeminiBody(config: CloudProviderConfig, req: ModelRequest): GeminiBody {
   const contents: GeminiContent[] = [];
   let systemText = '';
 
@@ -116,7 +119,11 @@ function toGeminiBody(req: NormalizedRequest): GeminiBody {
     // 400, not silently.
     maxOutputTokens: 65536,
   };
-  if (typeof req.temperature === 'number') gen.temperature = req.temperature;
+  // Per-request temperature wins; otherwise fall back to the
+  // construction-time default (the docs agent pins 0.2; the relay sets
+  // neither, preserving "send only what the client did").
+  const temperature = req.temperature ?? config.temperature;
+  if (typeof temperature === 'number') gen.temperature = temperature;
   if (typeof req.topP === 'number') gen.topP = req.topP;
   if (typeof req.topK === 'number') gen.topK = req.topK;
   body.generationConfig = gen;
@@ -157,19 +164,21 @@ interface PendingGeminiCall {
 /**
  * Build the upstream Gemini Request — URL + headers + body — without
  * executing it. The returned Request carries no AbortSignal; the
- * caller adds one at fetch time.
+ * caller adds one at fetch time. Construction values (apiKey, model)
+ * come from the provider config; per-call values (messages, tools,
+ * sampling) from the `ModelRequest`.
  */
-export function buildGeminiRequest(req: NormalizedRequest): Request {
-  const url = `${ENDPOINT_BASE}/${encodeURIComponent(req.model)}:streamGenerateContent?alt=sse`;
+export function buildGeminiRequest(config: CloudProviderConfig, req: ModelRequest): Request {
+  const url = `${ENDPOINT_BASE}/${encodeURIComponent(config.model)}:streamGenerateContent?alt=sse`;
   return new Request(url, {
     method: 'POST',
     headers: {
       // Relay guarantees a resolved key before the provider runs
       // (BYOK 400s if missing; server-managed injects).
-      'x-goog-api-key': req.apiKey ?? '',
+      'x-goog-api-key': config.apiKey ?? '',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(toGeminiBody(req)),
+    body: JSON.stringify(toGeminiBody(config, req)),
   });
 }
 
@@ -200,7 +209,7 @@ function describeError(e: unknown): string {
 /**
  * Parse an already-fetched Gemini SSE response into `ModelEvent`s.
  * `signal` is optional — the relay passes the consumer's signal in,
- * the page-direct caller passes `req.signal`.
+ * the page-direct caller passes its own.
  *
  * Function calls are accumulated across chunks (Gemini re-sends the
  * growing parts list) and flushed as one `tool_call` per logical call
@@ -400,43 +409,58 @@ function isRetryableError(message: string): boolean {
   return RETRYABLE_ERROR_MARKERS.some((m) => message.includes(m));
 }
 
-export const geminiProvider: InferenceProvider = async function* (req) {
-  for (let attempt = 1; attempt <= MAX_GEMINI_ATTEMPTS; attempt++) {
-    if (req.signal?.aborted) return;
-    const request = buildGeminiRequest(req);
+/**
+ * Build a Gemini `ModelClient`. Construction values (apiKey, model)
+ * come in the config; per-call values (messages, tools, sampling) come
+ * in the `ModelRequest`.
+ */
+export function geminiModelClient(config: GeminiConfig): ModelClient {
+  return {
+    id: `gemini:${config.model}`,
+    supportsTools: true,
+    async *chat(req: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent> {
+      for (let attempt = 1; attempt <= MAX_GEMINI_ATTEMPTS; attempt++) {
+        if (signal?.aborted) return;
+        const request = buildGeminiRequest(config, req);
 
-    let response: Response;
-    try {
-      response = await fetch(request, req.signal ? { signal: req.signal } : {});
-    } catch (e) {
-      if (req.signal?.aborted) return;
-      yield { kind: 'error', message: describeError(e) };
-      return;
-    }
+        let response: Response;
+        try {
+          response = await fetch(request, signal ? { signal } : {});
+        } catch (e) {
+          if (signal?.aborted) return;
+          yield { kind: 'error', message: describeError(e) };
+          return;
+        }
 
-    let retry = false;
-    for await (const evt of geminiEventsFromResponse(response, req.signal)) {
-      // Swallow retryable errors so the next attempt can recover.
-      // The non-retryable kinds (SAFETY, RECITATION, MAX_TOKENS,
-      // network/parse failures) fall straight through and surface.
-      // Final attempt always yields whatever it produces.
-      if (evt.kind === 'error' && isRetryableError(evt.message) && attempt < MAX_GEMINI_ATTEMPTS) {
-        retry = true;
-        break;
+        let retry = false;
+        for await (const evt of geminiEventsFromResponse(response, signal)) {
+          // Swallow retryable errors so the next attempt can recover.
+          // The non-retryable kinds (SAFETY, RECITATION, MAX_TOKENS,
+          // network/parse failures) fall straight through and surface.
+          // Final attempt always yields whatever it produces.
+          if (
+            evt.kind === 'error' &&
+            isRetryableError(evt.message) &&
+            attempt < MAX_GEMINI_ATTEMPTS
+          ) {
+            retry = true;
+            break;
+          }
+          yield evt;
+        }
+
+        if (!retry) return;
+        try {
+          await response.body?.cancel();
+        } catch {
+          /* already released — fine */
+        }
+        if (signal?.aborted) return;
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
       }
-      yield evt;
-    }
-
-    if (!retry) return;
-    try {
-      await response.body?.cancel();
-    } catch {
-      /* already released — fine */
-    }
-    if (req.signal?.aborted) return;
-    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
-  }
-};
+    },
+  };
+}
 
 /**
  * Strip JSON-Schema keywords Gemini's `function_declarations[].parameters`
@@ -459,7 +483,7 @@ export const geminiProvider: InferenceProvider = async function* (req) {
  */
 const STRIP_KEYS = new Set(['additionalProperties', '$schema', '$ref', '$defs', 'definitions']);
 
-function sanitizeGeminiSchema(node: unknown): unknown {
+export function sanitizeGeminiSchema(node: unknown): unknown {
   if (Array.isArray(node)) {
     return node.map(sanitizeGeminiSchema);
   }

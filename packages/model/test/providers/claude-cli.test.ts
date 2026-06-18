@@ -5,28 +5,47 @@ import { describe, expect, it } from 'bun:test';
  * stand-in, replaying `fixtures/claude-cli-stream-json.ndjson` — a
  * verbatim capture of one real `claude -p --output-format stream-json
  * --include-partial-messages` run (Claude Code v2.1.172).
+ *
+ * The provider is a FACTORY: construction settings (model / apiKey /
+ * CLI options) go in the config; per-call settings (messages / tools /
+ * reasoningEffort) ride the `ModelRequest`, and the signal is the
+ * second `.chat()` arg.
  */
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createClaudeCliProvider, renderPrompt } from '../src/providers/claude-cli';
-import type { ModelEvent, NormalizedRequest } from '../src/types';
+import type { ModelEvent, ModelRequest } from '../../src/contract';
+import {
+  type ClaudeCliConfig,
+  claudeCliModelClient,
+  renderPrompt,
+} from '../../src/providers/claude-cli';
 
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures');
 const FAKE_CLAUDE = join(FIXTURES, 'fake-claude.sh');
 const REAL_CAPTURE = join(FIXTURES, 'claude-cli-stream-json.ndjson');
 
-function makeReq(over: Partial<NormalizedRequest> = {}): NormalizedRequest {
+const DEFAULT_MODEL = 'claude-opus-4-8';
+
+function makeReq(over: Partial<ModelRequest> = {}): ModelRequest {
   return {
-    provider: 'claude-cli',
-    model: 'claude-opus-4-8',
     messages: [{ role: 'user', text: 'say hi' }],
     tools: [],
     toolUseEnabled: false,
-    apiKey: '',
     ...over,
   };
+}
+
+/** Build the client + drive `.chat()` in one call. `model`/`apiKey` and
+ *  the CLI options come from the config; the request + signal are
+ *  passed to `.chat()`. */
+function run(
+  config: Partial<ClaudeCliConfig>,
+  req: ModelRequest = makeReq(),
+  signal: AbortSignal = new AbortController().signal,
+): AsyncIterable<ModelEvent> {
+  return claudeCliModelClient({ model: DEFAULT_MODEL, apiKey: '', ...config }).chat(req, signal);
 }
 
 async function collect(events: AsyncIterable<ModelEvent>): Promise<ModelEvent[]> {
@@ -41,11 +60,9 @@ function scratchDir(): string {
 
 describe('claude-cli provider', () => {
   it('streams text + thinking and ends with usage (real captured output)', async () => {
-    const provider = createClaudeCliProvider({
-      claudePath: FAKE_CLAUDE,
-      env: { FAKE_OUTPUT_FILE: REAL_CAPTURE },
-    });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(
+      run({ claudePath: FAKE_CLAUDE, env: { FAKE_OUTPUT_FILE: REAL_CAPTURE } }),
+    );
 
     const text = events.filter((e) => e.kind === 'text');
     expect(text.map((e) => e.text).join('')).toBe('Hi! 👋 How can I help you today?');
@@ -71,16 +88,16 @@ describe('claude-cli provider', () => {
     const dir = scratchDir();
     const argsFile = join(dir, 'args');
     const stdinFile = join(dir, 'stdin');
-    const provider = createClaudeCliProvider({
-      claudePath: FAKE_CLAUDE,
-      env: {
-        FAKE_OUTPUT_FILE: REAL_CAPTURE,
-        FAKE_ARGS_FILE: argsFile,
-        FAKE_STDIN_FILE: stdinFile,
-      },
-    });
     await collect(
-      provider(
+      run(
+        {
+          claudePath: FAKE_CLAUDE,
+          env: {
+            FAKE_OUTPUT_FILE: REAL_CAPTURE,
+            FAKE_ARGS_FILE: argsFile,
+            FAKE_STDIN_FILE: stdinFile,
+          },
+        },
         makeReq({
           messages: [
             { role: 'system', text: 'Be terse.' },
@@ -114,14 +131,16 @@ describe('claude-cli provider', () => {
     writeFileSync(join(dir, 'claude'), readFileSync(FAKE_CLAUDE));
     Bun.spawnSync(['chmod', '+x', join(dir, 'claude')]);
     const argsFile = join(dir, 'args');
-    const provider = createClaudeCliProvider({
-      env: {
-        PATH: `${dir}:${process.env.PATH ?? ''}`,
-        FAKE_OUTPUT_FILE: REAL_CAPTURE,
-        FAKE_ARGS_FILE: argsFile,
-      },
-    });
-    const events = await collect(provider(makeReq({ model: '' })));
+    const events = await collect(
+      run({
+        model: '',
+        env: {
+          PATH: `${dir}:${process.env.PATH ?? ''}`,
+          FAKE_OUTPUT_FILE: REAL_CAPTURE,
+          FAKE_ARGS_FILE: argsFile,
+        },
+      }),
+    );
     expect(events.some((e) => e.kind === 'usage')).toBe(true);
     expect(readFileSync(argsFile, 'utf8').split('\n')).not.toContain('--model');
   });
@@ -129,12 +148,12 @@ describe('claude-cli provider', () => {
   it('flattens multi-turn histories into a transcript prompt', async () => {
     const dir = scratchDir();
     const stdinFile = join(dir, 'stdin');
-    const provider = createClaudeCliProvider({
-      claudePath: FAKE_CLAUDE,
-      env: { FAKE_OUTPUT_FILE: REAL_CAPTURE, FAKE_STDIN_FILE: stdinFile },
-    });
     await collect(
-      provider(
+      run(
+        {
+          claudePath: FAKE_CLAUDE,
+          env: { FAKE_OUTPUT_FILE: REAL_CAPTURE, FAKE_STDIN_FILE: stdinFile },
+        },
         makeReq({
           messages: [
             { role: 'user', text: 'first' },
@@ -152,19 +171,19 @@ describe('claude-cli provider', () => {
   });
 
   it('yields a clear error when the CLI is missing (ENOENT)', async () => {
-    const provider = createClaudeCliProvider({ claudePath: '/nonexistent/claude-cli-bin' });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(run({ claudePath: '/nonexistent/claude-cli-bin' }));
     expect(events).toHaveLength(1);
     expect(events[0]?.kind).toBe('error');
     expect((events[0] as { message: string }).message).toContain('claude CLI not found');
   });
 
   it('yields error with stderr on non-zero exit', async () => {
-    const provider = createClaudeCliProvider({
-      claudePath: FAKE_CLAUDE,
-      env: { FAKE_EXIT_CODE: '2', FAKE_STDERR: 'Invalid API key' },
-    });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(
+      run({
+        claudePath: FAKE_CLAUDE,
+        env: { FAKE_EXIT_CODE: '2', FAKE_STDERR: 'Invalid API key' },
+      }),
+    );
     expect(events).toHaveLength(1);
     expect(events[0]?.kind).toBe('error');
     const msg = (events[0] as { message: string }).message;
@@ -184,11 +203,7 @@ describe('claude-cli provider', () => {
         '{"type":"result","subtype":"success","is_error":false,"result":"ok","usage":{"input_tokens":3,"output_tokens":1},"total_cost_usd":0.0001}',
       ].join('\n'),
     );
-    const provider = createClaudeCliProvider({
-      claudePath: FAKE_CLAUDE,
-      env: { FAKE_OUTPUT_FILE: out },
-    });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(run({ claudePath: FAKE_CLAUDE, env: { FAKE_OUTPUT_FILE: out } }));
     expect(events).toEqual([
       { kind: 'text', text: 'ok' },
       { kind: 'usage', usage: { promptTokens: 3, outputTokens: 1, costUsd: 0.0001 } },
@@ -199,11 +214,7 @@ describe('claude-cli provider', () => {
     const dir = scratchDir();
     const out = join(dir, 'out.ndjson');
     writeFileSync(out, '{"type":"system","subtype":"init"}\n');
-    const provider = createClaudeCliProvider({
-      claudePath: FAKE_CLAUDE,
-      env: { FAKE_OUTPUT_FILE: out },
-    });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(run({ claudePath: FAKE_CLAUDE, env: { FAKE_OUTPUT_FILE: out } }));
     expect(events).toHaveLength(1);
     expect(events[0]?.kind).toBe('error');
     expect((events[0] as { message: string }).message).toContain('without emitting a result');
@@ -216,11 +227,7 @@ describe('claude-cli provider', () => {
       out,
       '{"type":"result","subtype":"error_during_execution","is_error":true,"result":"something broke"}\n',
     );
-    const provider = createClaudeCliProvider({
-      claudePath: FAKE_CLAUDE,
-      env: { FAKE_OUTPUT_FILE: out },
-    });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(run({ claudePath: FAKE_CLAUDE, env: { FAKE_OUTPUT_FILE: out } }));
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       kind: 'error',
@@ -229,13 +236,10 @@ describe('claude-cli provider', () => {
   });
 
   it('kills the child and yields error on timeout', async () => {
-    const provider = createClaudeCliProvider({
-      claudePath: FAKE_CLAUDE,
-      timeoutMs: 150,
-      env: { FAKE_SLEEP_SECS: '10' },
-    });
     const started = Date.now();
-    const events = await collect(provider(makeReq()));
+    const events = await collect(
+      run({ claudePath: FAKE_CLAUDE, timeoutMs: 150, env: { FAKE_SLEEP_SECS: '10' } }),
+    );
     expect(Date.now() - started).toBeLessThan(5_000);
     expect(events).toHaveLength(1);
     expect(events[0]?.kind).toBe('error');
@@ -243,9 +247,9 @@ describe('claude-cli provider', () => {
   });
 
   it('rejects caller-defined tools instead of silently dropping them', async () => {
-    const provider = createClaudeCliProvider({ claudePath: FAKE_CLAUDE });
     const events = await collect(
-      provider(
+      run(
+        { claudePath: FAKE_CLAUDE },
         makeReq({
           tools: [
             {
@@ -264,9 +268,16 @@ describe('claude-cli provider', () => {
   it('returns silently when the signal is already aborted', async () => {
     const ctrl = new AbortController();
     ctrl.abort();
-    const provider = createClaudeCliProvider({ claudePath: FAKE_CLAUDE });
-    const events = await collect(provider(makeReq({ signal: ctrl.signal })));
+    const events = await collect(run({ claudePath: FAKE_CLAUDE }, makeReq(), ctrl.signal));
     expect(events).toEqual([]);
+  });
+});
+
+describe('claudeCliModelClient surface', () => {
+  it('exposes a stable id and does not advertise tool support', () => {
+    const client = claudeCliModelClient({ model: DEFAULT_MODEL, apiKey: '' });
+    expect(client.id).toBe('claude-cli:claude-opus-4-8');
+    expect(client.supportsTools).toBe(false);
   });
 });
 

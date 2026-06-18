@@ -8,9 +8,12 @@
  *   // src/server/relay.ts
  *   import { createRelay } from '@inbrowser/relay';
  *   import { createAstroRoutes } from '@inbrowser/relay/adapters/astro';
- *   import { geminiProvider } from '@inbrowser/relay/providers/gemini';
+ *   import { geminiModelClient } from '@inbrowser/model/providers/gemini';
  *
- *   const relay = createRelay({ store, providers: { gemini: geminiProvider } });
+ *   const relay = createRelay({
+ *     store,
+ *     providers: { gemini: (c) => geminiModelClient(c) },
+ *   });
  *   export const { start, stream } = createAstroRoutes(relay);
  *
  *   // src/pages/api/inference/job.ts

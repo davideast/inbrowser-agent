@@ -20,10 +20,9 @@ import {
   createReactLoopStrategy,
 } from '@inbrowser/agent';
 import type { ChatMessage, ModelClient } from '@inbrowser/agent';
-import { geminiProvider, ollamaProvider } from '@inbrowser/relay';
+import { geminiModelClient, ollamaModelClient, withRetry } from '@inbrowser/model';
 import type { DocsAgentEvent, TurnMessage, VisitedCard } from '../lib/agent-types';
 import { getNode, searchDocs } from '../lib/graph';
-import { relayModelClient } from '../lib/relay-client';
 import { createGraphToolRegistry } from './graph-tools';
 
 export type { DocsAgentEvent, TurnMessage, VisitedCard } from '../lib/agent-types';
@@ -44,22 +43,15 @@ const MODEL =
 const isOllama = PROVIDER === 'ollama';
 
 function buildLlm() {
-  if (isOllama) {
-    return relayModelClient({
-      provider: ollamaProvider,
-      providerName: 'ollama',
-      model: MODEL,
-      apiKey: OLLAMA_BASE_URL,
-      temperature: 0.2,
-    });
-  }
-  return relayModelClient({
-    provider: geminiProvider,
-    providerName: 'gemini',
-    model: MODEL,
-    apiKey: GEMINI_API_KEY,
-    temperature: 0.2,
-  });
+  // Construct the cloud provider's ModelClient directly (the relay bridge
+  // is gone). `temperature: 0.2` is the construction-time default the
+  // provider applies when a request omits one — preserving the docs
+  // agent's prior sampling. `withRetry` carries over the bridge's
+  // transient-error retry (retries only while nothing has streamed).
+  const client = isOllama
+    ? ollamaModelClient({ model: MODEL, baseUrl: OLLAMA_BASE_URL, temperature: 0.2 })
+    : geminiModelClient({ apiKey: GEMINI_API_KEY, model: MODEL, temperature: 0.2 });
+  return withRetry(client);
 }
 
 // `/no_think` is a qwen3 directive; only prepend it for Ollama.

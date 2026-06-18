@@ -33,7 +33,7 @@
       "dependencies": {
         "@google/genai": "^2.0.0",
         "@hono/node-server": "^1.19.6",
-        "@inbrowser/relay": "workspace:*",
+        "@inbrowser/model": "workspace:*",
         "@inbrowser/resumable": "workspace:*",
         "hono": "^4.10.7",
         "react": "^18.3.1",
@@ -74,13 +74,18 @@
       "name": "@inbrowser/model",
       "version": "0.2.0",
       "devDependencies": {
+        "@anthropic-ai/claude-agent-sdk": "^0.3.0",
         "@huggingface/transformers": "^4.2.0",
         "@types/bun": "latest",
         "typescript": "^5.7.0",
       },
       "peerDependencies": {
+        "@anthropic-ai/claude-agent-sdk": "^0.3.0",
         "@huggingface/transformers": "^3.0.0 || ^4.0.0",
       },
+      "optionalPeers": [
+        "@anthropic-ai/claude-agent-sdk",
+      ],
     },
     "packages/relay": {
       "name": "@inbrowser/relay",
@@ -90,18 +95,15 @@
         "@inbrowser/resumable": "workspace:*",
       },
       "devDependencies": {
-        "@anthropic-ai/claude-agent-sdk": "^0.3.0",
         "@types/bun": "latest",
         "@types/express": "^5.0.0",
         "typescript": "^5.7.0",
       },
       "peerDependencies": {
-        "@anthropic-ai/claude-agent-sdk": "^0.3.0",
         "astro": "^5.0.0",
         "express": "^4.0.0 || ^5.0.0",
       },
       "optionalPeers": [
-        "@anthropic-ai/claude-agent-sdk",
         "astro",
         "express",
       ],
@@ -122,7 +124,7 @@
         "@astrojs/node": "^9.0.0",
         "@astrojs/react": "^4.4.2",
         "@inbrowser/agent": "workspace:*",
-        "@inbrowser/relay": "workspace:*",
+        "@inbrowser/model": "workspace:*",
         "@inbrowser/resumable": "workspace:*",
         "@tailwindcss/vite": "^4.1.18",
         "@types/react": "^19.2.14",

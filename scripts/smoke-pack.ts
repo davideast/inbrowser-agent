@@ -60,20 +60,21 @@ const SPECS: PackSpec[] = [
       'package/dist/index.js',
       'package/dist/relay.js',
       'package/dist/sse.js',
-      'package/dist/providers/gemini.js',
-      'package/dist/providers/openrouter.js',
-      'package/dist/providers/anthropic.js',
-      // ollama landed in the 0.2.0 cycle; was missing from this list
-      // until pre-publish review caught it. Keep it pinned so future
-      // tarball-shape regressions are visible.
-      'package/dist/providers/ollama.js',
+      // Providers moved to @inbrowser/model (stage 4) — relay no longer
+      // ships them; the `forbidFiles` rule below pins that.
       'package/dist/adapters/astro.js',
       'package/dist/adapters/express.js',
       'package/dist/client/index.js',
       'package/dist/client/browser.js',
       'package/README.md',
     ],
-    forbidFiles: [/^package\/src\//, /^package\/test\//, /tsconfig\.json$/],
+    // ...plus no relay-side providers/ dir (clean break, stage 4).
+    forbidFiles: [
+      /^package\/src\//,
+      /^package\/test\//,
+      /tsconfig\.json$/,
+      /^package\/dist\/providers\//,
+    ],
   },
   {
     name: '@inbrowser/agent',
@@ -101,6 +102,15 @@ const SPECS: PackSpec[] = [
       'package/dist/worker.js',
       'package/dist/think.js',
       'package/dist/parse-tool-calls.js',
+      // The cloud provider factories + the retry decorator now live here
+      // (stage 4).
+      'package/dist/with-retry.js',
+      'package/dist/providers/gemini.js',
+      'package/dist/providers/openrouter.js',
+      'package/dist/providers/anthropic.js',
+      'package/dist/providers/ollama.js',
+      'package/dist/providers/claude-cli.js',
+      'package/dist/providers/claude-code.js',
       'package/README.md',
       'package/AGENTS.md',
     ],
@@ -192,12 +202,10 @@ assert.equal(typeof installResumableLifecycle, 'function', 'resumable/client: in
 console.log('  ✓ resumable/http + /client: transport subpaths resolve');
 
 // === @inbrowser/relay ===
+// Providers moved to @inbrowser/model (stage 4) — relay no longer exports
+// them; it exposes the transport + client + SSE utilities.
 import {
   createRelay,
-  geminiProvider,
-  openrouterProvider,
-  anthropicProvider,
-  ollamaProvider,
   createResumableClient,
   installBrowserLifecycle,
   encodeSseEvent,
@@ -205,15 +213,7 @@ import {
   SSE_DONE_LINE,
 } from '@inbrowser/relay';
 assert.equal(typeof createRelay, 'function');
-for (const [name, fn] of [
-  ['geminiProvider', geminiProvider],
-  ['openrouterProvider', openrouterProvider],
-  ['anthropicProvider', anthropicProvider],
-  ['ollamaProvider', ollamaProvider],
-]) {
-  assert.equal(typeof fn, 'function', \`relay root: \${name} should be exported\`);
-}
-console.log('  ✓ relay: createRelay + all four providers exported');
+console.log('  ✓ relay: createRelay exported (providers moved to @inbrowser/model)');
 
 // Lifted-from-subpath exports also reachable from root
 assert.equal(typeof createResumableClient, 'function');
@@ -222,12 +222,6 @@ assert.equal(typeof encodeSseEvent, 'function');
 assert.equal(typeof readSseDataLines, 'function');
 assert.equal(typeof SSE_DONE_LINE, 'string');
 console.log('  ✓ relay: client + SSE utilities lifted to root');
-
-// === @inbrowser/relay/providers/ollama (subpath also resolves) ===
-import { ollamaProvider as ollamaViaSubpath } from '@inbrowser/relay/providers/ollama';
-assert.equal(typeof ollamaViaSubpath, 'function');
-assert.equal(ollamaViaSubpath, ollamaProvider, 'subpath and root export same function');
-console.log('  ✓ relay/providers/ollama: subpath resolves to same export');
 
 // === @inbrowser/relay/client + sse subpaths also resolve to same fns ===
 import { createResumableClient as resumableViaSubpath } from '@inbrowser/relay/client';
@@ -294,6 +288,36 @@ import * as modelWorker from '@inbrowser/model/worker';
 assert.equal(typeof modelWorker.hostEngineInWorker, 'function');
 assert.equal(typeof modelWorker.connectWorkerEngine, 'function');
 console.log('  ✓ model/worker: host/connect helpers exported');
+
+// === @inbrowser/model cloud provider factories + withRetry (stage 4) ===
+import {
+  geminiModelClient,
+  ollamaModelClient,
+  anthropicModelClient,
+  claudeCliModelClient,
+  withRetry,
+} from '@inbrowser/model';
+for (const [name, fn] of [
+  ['geminiModelClient', geminiModelClient],
+  ['ollamaModelClient', ollamaModelClient],
+  ['anthropicModelClient', anthropicModelClient],
+  ['claudeCliModelClient', claudeCliModelClient],
+  ['withRetry', withRetry],
+]) {
+  assert.equal(typeof fn, 'function', \`model root: \${name} should be a function\`);
+}
+// Constructing a factory yields a ModelClient (id + supportsTools + chat).
+const geminiClient = geminiModelClient({ apiKey: 'sk-test', model: 'gemini-3-flash-preview' });
+assert.equal(geminiClient.id, 'gemini:gemini-3-flash-preview');
+assert.equal(typeof geminiClient.chat, 'function');
+console.log('  ✓ model: cloud provider factories + withRetry exported from root');
+
+// Per-provider subpaths also resolve to the same factory.
+import { geminiModelClient as geminiViaSubpath } from '@inbrowser/model/providers/gemini';
+assert.equal(geminiViaSubpath, geminiModelClient, 'provider subpath is the same factory');
+import { withRetry as withRetryViaSubpath } from '@inbrowser/model/with-retry';
+assert.equal(withRetryViaSubpath, withRetry, 'with-retry subpath is the same fn');
+console.log('  ✓ model/providers/gemini + model/with-retry: subpaths resolve to same exports');
 
 // The shared model-call contract is a type-only subpath: verify it resolves
 // (no runtime members to assert — importing it must pull no transformers).

@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { type NormalizedRequest, geminiProvider } from '@inbrowser/relay';
+import { type ModelRequest, geminiModelClient } from '@inbrowser/model';
 import { YoutubeTranscript } from 'youtube-transcript';
 import type { TranscriptSegmentView } from '../shared/types';
 import type { AudioStore } from './audio-store';
@@ -33,10 +33,8 @@ export function createGeminiBriefcastServices(
     },
 
     async *streamWriteup(input) {
-      const req: NormalizedRequest = {
-        provider: 'gemini',
-        model: opts.textModel,
-        apiKey: opts.apiKey,
+      const client = geminiModelClient({ apiKey: opts.apiKey, model: opts.textModel });
+      const req: ModelRequest = {
         messages: [
           {
             role: 'user',
@@ -47,7 +45,7 @@ export function createGeminiBriefcastServices(
         toolUseEnabled: false,
       };
 
-      for await (const event of geminiProvider(req)) {
+      for await (const event of client.chat(req, new AbortController().signal)) {
         if (event.kind === 'text') yield event.text;
         if (event.kind === 'error') throw new Error(event.message);
       }

@@ -1,28 +1,42 @@
 /**
- * Smoke tests — wire createRelay to a memory store + a fake provider,
- * exercise handleStart + handleStream end-to-end as Web `Request` →
- * `Response`. The full conformance tests for the underlying store +
- * engine live in @inbrowser/resumable; these tests assert the relay-level
- * behaviors (provider routing, SSE shape, terminal-marker handling,
- * reconnect-with-from).
+ * Smoke tests — wire createRelay to a memory store + a fake provider
+ * FACTORY, exercise handleStart + handleStream end-to-end as Web
+ * `Request` → `Response`. The full conformance tests for the underlying
+ * store + engine live in @inbrowser/resumable; these tests assert the
+ * relay-level behaviors (provider routing, per-request ModelClient
+ * construction, SSE shape, terminal-marker handling, reconnect-with-from).
+ *
+ * Providers are now `ModelClientFactory`s from @inbrowser/model: the relay
+ * constructs a `ModelClient` per request from `{ apiKey, model }`, so the
+ * fakes here are factories that close over what they were handed.
  */
 import { describe, expect, it } from 'bun:test';
+import type { ModelClientFactory } from '@inbrowser/model';
 import { createMemoryJobStore } from '@inbrowser/resumable/memory';
 import { createRelay } from '../src/relay';
-import type { InferenceProvider, ModelEvent, NormalizedRequest } from '../src/types';
+import type { ModelEvent, NormalizedRequest } from '../src/types';
 
-const fakeProvider: InferenceProvider = async function* (req) {
-  yield { kind: 'text', text: `hello from ${req.provider}/${req.model}` };
-  yield { kind: 'text', text: ' (more text)' };
-  yield {
-    kind: 'usage',
-    usage: { promptTokens: 10, outputTokens: 5 },
-  };
-};
+/** A factory whose client echoes the model id it was constructed with. */
+const fakeProvider: ModelClientFactory = ({ model }) => ({
+  id: `fake:${model}`,
+  supportsTools: true,
+  async *chat() {
+    yield { kind: 'text', text: `hello from fake/${model}` };
+    yield { kind: 'text', text: ' (more text)' };
+    yield {
+      kind: 'usage',
+      usage: { promptTokens: 10, outputTokens: 5 },
+    };
+  },
+});
 
-const failingProvider: InferenceProvider = async function* () {
-  yield { kind: 'error', message: 'simulated upstream failure' };
-};
+const failingProvider: ModelClientFactory = () => ({
+  id: 'fail:x',
+  supportsTools: true,
+  async *chat() {
+    yield { kind: 'error', message: 'simulated upstream failure' };
+  },
+});
 
 async function readSseEvents(res: Response): Promise<{ events: unknown[]; sawDone: boolean }> {
   const events: unknown[] = [];
@@ -195,21 +209,61 @@ describe('createRelay', () => {
 
     await relay.stop();
   });
+
+  it('threads per-request messages/tools/sampling into the ModelClient', async () => {
+    const store = createMemoryJobStore<ModelEvent>();
+    let seen: { messages: unknown; tools: unknown; temperature?: number } | undefined;
+    const inspectingProvider: ModelClientFactory = ({ model }) => ({
+      id: `inspect:${model}`,
+      supportsTools: true,
+      async *chat(req) {
+        seen = { messages: req.messages, tools: req.tools, temperature: req.temperature };
+        yield { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } };
+      },
+    });
+    const relay = createRelay({ store, providers: { fake: inspectingProvider } });
+
+    const { jobId } = (await (
+      await relay.handleStart(
+        makeStartRequest({
+          messages: [{ role: 'user', text: 'hi' }],
+          temperature: 0.7,
+        }),
+      )
+    ).json()) as { jobId: string };
+    await readSseEvents(
+      await relay.handleStream(new Request(`http://localhost/api/inference/job/${jobId}/stream`), {
+        jobId,
+      }),
+    );
+
+    expect(seen?.messages).toEqual([{ role: 'user', text: 'hi' }]);
+    expect(seen?.tools).toEqual([]);
+    expect(seen?.temperature).toBe(0.7);
+
+    await relay.stop();
+  });
 });
 
 describe('createRelay — server-managed API keys', () => {
-  /** Provider that records the `apiKey` it was handed, so a test can
-   *  assert what the relay resolved before invoking it. */
-  function capturingProvider(): { provider: InferenceProvider; seenApiKey(): string | undefined } {
+  /** Factory whose client records the `apiKey` the relay handed the
+   *  factory, so a test can assert what the relay resolved. */
+  function capturingProvider(): { provider: ModelClientFactory; seenApiKey(): string | undefined } {
     let seen: string | undefined;
-    const provider: InferenceProvider = async function* (req) {
-      seen = req.apiKey;
-      yield { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } };
+    const provider: ModelClientFactory = ({ apiKey, model }) => {
+      seen = apiKey;
+      return {
+        id: `cap:${model}`,
+        supportsTools: true,
+        async *chat() {
+          yield { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } };
+        },
+      };
     };
     return { provider, seenApiKey: () => seen };
   }
 
-  /** Start + drain so the provider's generator actually runs. */
+  /** Start + drain so the provider's client actually runs. */
   async function startAndDrain(relay: ReturnType<typeof createRelay>, req: Request): Promise<void> {
     const res = await relay.handleStart(req);
     const { jobId } = (await res.json()) as { jobId: string };

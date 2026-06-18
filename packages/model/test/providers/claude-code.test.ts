@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'bun:test';
 /**
  * claude-code provider tests. The SDK is never actually loaded —
- * every test passes a fake `query` via `ClaudeCodeOptions.loadSdk`.
+ * every test passes a fake `query` via `ClaudeCodeConfig.loadSdk`.
  * The fixture stream shapes match the real
  * `@anthropic-ai/claude-agent-sdk` SDKMessage union (v0.3.x).
+ *
+ * The provider is a FACTORY: construction settings (model / loadSdk /
+ * oauthToken / env) go in the config; per-call settings (messages /
+ * tools / reasoningEffort) ride the `ModelRequest`, and the signal is
+ * the second `.chat()` arg.
  */
-import { createClaudeCodeProvider } from '../src/providers/claude-code';
-import type { ModelEvent, NormalizedRequest } from '../src/types';
+import type { ModelEvent, ModelRequest } from '../../src/contract';
+import { type ClaudeCodeConfig, claudeCodeModelClient } from '../../src/providers/claude-code';
 
 interface FakeMessage {
   type: string;
@@ -18,16 +23,24 @@ interface FakeMessage {
   is_error?: boolean;
 }
 
-function makeReq(over: Partial<NormalizedRequest> = {}): NormalizedRequest {
+const DEFAULT_MODEL = 'claude-opus-4-8';
+
+function makeReq(over: Partial<ModelRequest> = {}): ModelRequest {
   return {
-    provider: 'claude-code',
-    model: 'claude-opus-4-8',
     messages: [{ role: 'user', text: 'say hi' }],
     tools: [],
     toolUseEnabled: false,
-    apiKey: '',
     ...over,
   };
+}
+
+/** Build the client + drive `.chat()` in one call. */
+function run(
+  config: Partial<ClaudeCodeConfig> & Pick<ClaudeCodeConfig, 'loadSdk'>,
+  req: ModelRequest = makeReq(),
+  signal: AbortSignal = new AbortController().signal,
+): AsyncIterable<ModelEvent> {
+  return claudeCodeModelClient({ model: DEFAULT_MODEL, apiKey: '', ...config }).chat(req, signal);
 }
 
 async function collect(events: AsyncIterable<ModelEvent>): Promise<ModelEvent[]> {
@@ -86,8 +99,7 @@ describe('claude-code provider', () => {
         usage: { input_tokens: 12, output_tokens: 7, cache_read_input_tokens: 0 },
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(run({ loadSdk }));
 
     const text = events.filter((e) => e.kind === 'text');
     expect(text.map((e) => e.text).join('')).toBe('Hi! How can I help?');
@@ -128,8 +140,7 @@ describe('claude-code provider', () => {
         usage: { input_tokens: 5, output_tokens: 1 },
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(run({ loadSdk }));
     const thinking = events.filter((e) => e.kind === 'thinking');
     expect(thinking).toHaveLength(1);
     expect((thinking[0] as { text: string }).text).toBe('considering...');
@@ -146,9 +157,9 @@ describe('claude-code provider', () => {
         usage: { input_tokens: 1, output_tokens: 1 },
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk });
     await collect(
-      provider(
+      run(
+        { loadSdk },
         makeReq({
           messages: [
             { role: 'system', text: 'Be terse.' },
@@ -184,14 +195,13 @@ describe('claude-code provider', () => {
         usage: { input_tokens: 1, output_tokens: 1 },
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk, oauthToken: 'sk-oauth-test' });
-    await collect(provider(makeReq()));
+    await collect(run({ loadSdk, oauthToken: 'sk-oauth-test' }));
     const env = (calls[0]?.options as { env: Record<string, string | undefined> }).env;
     expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe('sk-oauth-test');
     expect(env.ANTHROPIC_API_KEY).toBeUndefined();
   });
 
-  it('strips ANTHROPIC_API_KEY even when caller tries to set it via options.env', async () => {
+  it('strips ANTHROPIC_API_KEY even when caller tries to set it via config.env', async () => {
     const { calls, loadSdk } = fakeSdk([
       {
         type: 'result',
@@ -201,11 +211,7 @@ describe('claude-code provider', () => {
         usage: { input_tokens: 1, output_tokens: 1 },
       },
     ]);
-    const provider = createClaudeCodeProvider({
-      loadSdk,
-      env: { ANTHROPIC_API_KEY: 'sneaky', SOME_OTHER: 'allowed' },
-    });
-    await collect(provider(makeReq()));
+    await collect(run({ loadSdk, env: { ANTHROPIC_API_KEY: 'sneaky', SOME_OTHER: 'allowed' } }));
     const env = (calls[0]?.options as { env: Record<string, string | undefined> }).env;
     expect(env.ANTHROPIC_API_KEY).toBeUndefined();
     expect(env.SOME_OTHER).toBe('allowed');
@@ -221,8 +227,7 @@ describe('claude-code provider', () => {
         usage: { input_tokens: 1, output_tokens: 1 },
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk });
-    await collect(provider(makeReq({ reasoningEffort: 'high' })));
+    await collect(run({ loadSdk }, makeReq({ reasoningEffort: 'high' })));
     expect((calls[0]?.options as { effort: string }).effort).toBe('high');
   });
 
@@ -236,8 +241,7 @@ describe('claude-code provider', () => {
         usage: { input_tokens: 1, output_tokens: 1 },
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk });
-    await collect(provider(makeReq({ reasoningEffort: 'off' })));
+    await collect(run({ loadSdk }, makeReq({ reasoningEffort: 'off' })));
     expect('effort' in (calls[0]?.options as object)).toBe(false);
   });
 
@@ -251,12 +255,11 @@ describe('claude-code provider', () => {
         usage: { input_tokens: 1, output_tokens: 1 },
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk });
-    await collect(provider(makeReq()));
+    await collect(run({ loadSdk }));
     expect('effort' in (calls[0]?.options as object)).toBe(false);
   });
 
-  it('omits model option when req.model is empty', async () => {
+  it('omits model option when config.model is empty', async () => {
     const { calls, loadSdk } = fakeSdk([
       {
         type: 'result',
@@ -266,16 +269,15 @@ describe('claude-code provider', () => {
         usage: { input_tokens: 1, output_tokens: 1 },
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk });
-    await collect(provider(makeReq({ model: '' })));
+    await collect(run({ loadSdk, model: '' }));
     expect('model' in (calls[0]?.options as object)).toBe(false);
   });
 
   it('rejects caller-defined tools instead of silently dropping them', async () => {
     const { loadSdk } = fakeSdk([]);
-    const provider = createClaudeCodeProvider({ loadSdk });
     const events = await collect(
-      provider(
+      run(
+        { loadSdk },
         makeReq({
           tools: [
             {
@@ -295,8 +297,7 @@ describe('claude-code provider', () => {
     const ctrl = new AbortController();
     ctrl.abort();
     const { loadSdk } = fakeSdk([]);
-    const provider = createClaudeCodeProvider({ loadSdk });
-    const events = await collect(provider(makeReq({ signal: ctrl.signal })));
+    const events = await collect(run({ loadSdk }, makeReq(), ctrl.signal));
     expect(events).toEqual([]);
   });
 
@@ -321,8 +322,7 @@ describe('claude-code provider', () => {
         usage: { input_tokens: 1, output_tokens: 2 },
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk });
-    const iter = provider(makeReq({ signal: ctrl.signal }))[Symbol.asyncIterator]();
+    const iter = run({ loadSdk }, makeReq(), ctrl.signal)[Symbol.asyncIterator]();
     const first = await iter.next();
     expect(first.value).toEqual({ kind: 'text', text: 'first' });
     ctrl.abort();
@@ -342,8 +342,7 @@ describe('claude-code provider', () => {
         result: 'rate limit hit',
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(run({ loadSdk }));
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       kind: 'error',
@@ -359,8 +358,7 @@ describe('claude-code provider', () => {
         event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'partial' } },
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(run({ loadSdk }));
     const last = events[events.length - 1];
     expect(last?.kind).toBe('error');
     expect((last as { message: string }).message).toContain('without a result');
@@ -382,20 +380,20 @@ describe('claude-code provider', () => {
         usage: { input_tokens: 4, output_tokens: 2 },
       },
     ]);
-    const provider = createClaudeCodeProvider({ loadSdk });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(run({ loadSdk }));
     const text = events.filter((e) => e.kind === 'text');
     expect(text).toHaveLength(1);
     expect((text[0] as { text: string }).text).toBe('whole reply');
   });
 
   it('surfaces SDK load failure as an error event', async () => {
-    const provider = createClaudeCodeProvider({
-      loadSdk: async () => {
-        throw new Error('Cannot find module @anthropic-ai/claude-agent-sdk');
-      },
-    });
-    const events = await collect(provider(makeReq()));
+    const events = await collect(
+      run({
+        loadSdk: async () => {
+          throw new Error('Cannot find module @anthropic-ai/claude-agent-sdk');
+        },
+      }),
+    );
     expect(events).toHaveLength(1);
     expect(events[0]?.kind).toBe('error');
     expect((events[0] as { message: string }).message).toContain(
@@ -404,19 +402,28 @@ describe('claude-code provider', () => {
   });
 
   it('surfaces thrown SDK errors as error events', async () => {
-    const provider = createClaudeCodeProvider({
-      loadSdk: async () => ({
-        query: (() => {
-          return (async function* () {
-            yield { type: 'system', subtype: 'init' };
-            throw new Error('upstream 529 overloaded');
-          })();
-        }) as never,
+    const events = await collect(
+      run({
+        loadSdk: async () => ({
+          query: (() => {
+            return (async function* () {
+              yield { type: 'system', subtype: 'init' };
+              throw new Error('upstream 529 overloaded');
+            })();
+          }) as never,
+        }),
       }),
-    });
-    const events = await collect(provider(makeReq()));
+    );
     const errs = events.filter((e) => e.kind === 'error');
     expect(errs).toHaveLength(1);
     expect((errs[0] as { message: string }).message).toContain('upstream 529 overloaded');
+  });
+});
+
+describe('claudeCodeModelClient surface', () => {
+  it('exposes a stable id and does not advertise tool support', () => {
+    const client = claudeCodeModelClient({ model: DEFAULT_MODEL, apiKey: '' });
+    expect(client.id).toBe('claude-code:claude-opus-4-8');
+    expect(client.supportsTools).toBe(false);
   });
 });
