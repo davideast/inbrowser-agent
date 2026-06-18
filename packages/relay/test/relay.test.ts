@@ -9,15 +9,14 @@
 import { describe, expect, it } from 'bun:test';
 import { createMemoryJobStore } from '@inbrowser/resumable/memory';
 import { createRelay } from '../src/relay';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../src/types';
+import type { InferenceProvider, ModelEvent, NormalizedRequest } from '../src/types';
 
 const fakeProvider: InferenceProvider = async function* (req) {
-  yield { kind: 'text', chunk: `hello from ${req.provider}/${req.model}` };
-  yield { kind: 'text', chunk: ' (more text)' };
+  yield { kind: 'text', text: `hello from ${req.provider}/${req.model}` };
+  yield { kind: 'text', text: ' (more text)' };
   yield {
     kind: 'usage',
-    promptTokens: 10,
-    outputTokens: 5,
+    usage: { promptTokens: 10, outputTokens: 5 },
   };
 };
 
@@ -50,6 +49,7 @@ function makeStartRequest(body: Partial<NormalizedRequest>): Request {
       model: 'm',
       messages: [],
       tools: [],
+      toolUseEnabled: false,
       apiKey: 'sk-test',
       ...body,
     }),
@@ -58,7 +58,7 @@ function makeStartRequest(body: Partial<NormalizedRequest>): Request {
 
 describe('createRelay', () => {
   it('starts a job + streams events + emits [DONE] on terminal', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const relay = createRelay({ store, providers: { fake: fakeProvider } });
 
     const startRes = await relay.handleStart(makeStartRequest({}));
@@ -76,13 +76,13 @@ describe('createRelay', () => {
     const { events, sawDone } = await readSseEvents(streamRes);
     expect(sawDone).toBe(true);
     expect(events.length).toBe(3);
-    expect(events[0]).toEqual({ kind: 'text', chunk: 'hello from fake/m' });
+    expect(events[0]).toEqual({ kind: 'text', text: 'hello from fake/m' });
 
     await relay.stop();
   });
 
   it('rejects an unknown provider with 400', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const relay = createRelay({ store, providers: { fake: fakeProvider } });
 
     const res = await relay.handleStart(makeStartRequest({ provider: 'nope' }));
@@ -94,7 +94,7 @@ describe('createRelay', () => {
   });
 
   it('requires provider and apiKey', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const relay = createRelay({ store, providers: { fake: fakeProvider } });
 
     const res = await relay.handleStart(
@@ -110,7 +110,7 @@ describe('createRelay', () => {
   });
 
   it('streams resume from `from` offset', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const relay = createRelay({ store, providers: { fake: fakeProvider } });
 
     const { jobId } = (await (await relay.handleStart(makeStartRequest({}))).json()) as {
@@ -138,7 +138,7 @@ describe('createRelay', () => {
   });
 
   it('returns 404 for an unknown job', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const relay = createRelay({ store, providers: { fake: fakeProvider } });
 
     const res = await relay.handleStream(
@@ -151,7 +151,7 @@ describe('createRelay', () => {
   });
 
   it('propagates a provider error as a kind:error event followed by [DONE]', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const relay = createRelay({ store, providers: { fail: failingProvider } });
 
     const { jobId } = (await (
@@ -175,7 +175,7 @@ describe('createRelay', () => {
   });
 
   it('stores provider/model in the job data', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const relay = createRelay({ store, providers: { fake: fakeProvider } });
 
     const { jobId } = (await (
@@ -204,7 +204,7 @@ describe('createRelay — server-managed API keys', () => {
     let seen: string | undefined;
     const provider: InferenceProvider = async function* (req) {
       seen = req.apiKey;
-      yield { kind: 'usage', promptTokens: 1, outputTokens: 1 };
+      yield { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } };
     };
     return { provider, seenApiKey: () => seen };
   }
@@ -221,7 +221,7 @@ describe('createRelay — server-managed API keys', () => {
   }
 
   it('injects a static server-managed key and the client omits apiKey', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const { provider, seenApiKey } = capturingProvider();
     const relay = createRelay({
       store,
@@ -236,7 +236,7 @@ describe('createRelay — server-managed API keys', () => {
   });
 
   it('resolves a key from an async function that reads the raw Request', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const { provider, seenApiKey } = capturingProvider();
     let sawReq: NormalizedRequest | undefined;
     const relay = createRelay({
@@ -274,7 +274,7 @@ describe('createRelay — server-managed API keys', () => {
   });
 
   it('rejects a client-supplied key for a server-managed provider with 400', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const { provider } = capturingProvider();
     const relay = createRelay({
       store,
@@ -293,7 +293,7 @@ describe('createRelay — server-managed API keys', () => {
   });
 
   it('keeps BYOK semantics for providers not in apiKeys (missing key still 400s)', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const { provider } = capturingProvider();
     const relay = createRelay({
       store,
@@ -311,7 +311,7 @@ describe('createRelay — server-managed API keys', () => {
   });
 
   it('returns 500 and creates no job when the resolver throws', async () => {
-    const store = createMemoryJobStore<InferenceEvent>();
+    const store = createMemoryJobStore<ModelEvent>();
     const { provider } = capturingProvider();
     const relay = createRelay({
       store,

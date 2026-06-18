@@ -1,5 +1,5 @@
 import { readSseDataLines } from '../sse.js';
-import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../types.js';
+import type { InferenceProvider, NormalizedRequest } from '../types.js';
 /**
  * Ollama provider — talks to a locally-running Ollama server's
  * OAI-compatible endpoint (`${baseUrl}/v1/chat/completions`). Default
@@ -24,7 +24,7 @@ import type { InferenceEvent, InferenceProvider, NormalizedRequest } from '../ty
  * playground origin (typically `*` for local development). The
  * playground surfaces this warning inline in its BYOK form.
  */
-import type { ChatMessage, ToolDecl } from '../types.js';
+import type { ModelMessage, ToolSpec } from '../types.js';
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 
@@ -52,7 +52,7 @@ interface OaiMessage {
   name?: string;
 }
 
-function toOaiMessages(messages: ChatMessage[]): OaiMessage[] {
+function toOaiMessages(messages: ModelMessage[]): OaiMessage[] {
   const out: OaiMessage[] = [];
   for (const m of messages) {
     if (m.role === 'system' || m.role === 'user') {
@@ -63,7 +63,7 @@ function toOaiMessages(messages: ChatMessage[]): OaiMessage[] {
       const msg: OaiMessage = { role: 'assistant', content: m.text ?? '' };
       if (m.toolCalls && m.toolCalls.length > 0) {
         msg.tool_calls = m.toolCalls.map((c) => ({
-          id: c.callId,
+          id: c.id,
           type: 'function',
           function: {
             name: c.name,
@@ -78,7 +78,7 @@ function toOaiMessages(messages: ChatMessage[]): OaiMessage[] {
     if (m.role === 'tool') {
       out.push({
         role: 'tool',
-        tool_call_id: m.callId ?? '',
+        tool_call_id: m.toolCallId ?? '',
         name: m.name ?? '',
         content: m.resultJson ?? '',
       });
@@ -87,13 +87,13 @@ function toOaiMessages(messages: ChatMessage[]): OaiMessage[] {
   return out;
 }
 
-function toOaiTools(tools: ToolDecl[]): unknown[] {
+export function toOaiTools(tools: ToolSpec[]): unknown[] {
   return tools.map((t) => ({
     type: 'function',
     function: {
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters,
+      name: t.function.name,
+      description: t.function.description,
+      parameters: t.function.parameters,
     },
   }));
 }
@@ -176,7 +176,7 @@ export const ollamaProvider: InferenceProvider = async function* (req: Normalize
       };
       const delta = e.choices?.[0]?.delta;
       if (delta?.content) {
-        yield { kind: 'text', chunk: delta.content };
+        yield { kind: 'text', text: delta.content };
       }
       if (delta?.tool_calls) {
         for (const d of delta.tool_calls) {
@@ -213,7 +213,7 @@ export const ollamaProvider: InferenceProvider = async function* (req: Normalize
     }
     yield {
       kind: 'tool_call',
-      callId: p.id || `oll_${Math.random().toString(36).slice(2, 10)}`,
+      id: p.id || `oll_${Math.random().toString(36).slice(2, 10)}`,
       name: p.name,
       args: parsedArgs,
     };
@@ -222,7 +222,9 @@ export const ollamaProvider: InferenceProvider = async function* (req: Normalize
 
   yield {
     kind: 'usage',
-    promptTokens,
-    outputTokens: completionTokens,
+    usage: {
+      promptTokens,
+      outputTokens: completionTokens,
+    },
   };
 };

@@ -3,7 +3,7 @@
  * relay's `/inference/job` + `/inference/job/:id/stream` endpoints.
  *
  * A thin wrapper over the generic transport in `@inbrowser/resumable/client`,
- * typed to `InferenceEvent`: transport errors (start failed, job 404, gave up
+ * typed to `ModelEvent`: transport errors (start failed, job 404, gave up
  * reconnecting) surface as `{ kind: 'error' }` events on the stream, and the
  * `relay ` label reproduces the relay's error-message wording.
  */
@@ -11,7 +11,7 @@ import {
   type ClientMessage,
   createResumableClient as createGenericClient,
 } from '@inbrowser/resumable/client';
-import type { InferenceEvent, NormalizedRequest } from '../types.js';
+import type { ModelEvent, NormalizedRequest } from '../types.js';
 
 export interface ResumableClientOpts {
   /** URL the client POSTs to start a new job. */
@@ -44,11 +44,11 @@ export interface ResumableClient {
    * Start an inference job and yield every event until terminal. Survives
    * connection drops by reconnecting with `from=received`.
    */
-  stream(req: NormalizedRequest): AsyncIterable<InferenceEvent>;
+  stream(req: NormalizedRequest): AsyncIterable<ModelEvent>;
 }
 
 export function createResumableClient(opts: ResumableClientOpts): ResumableClient {
-  const client = createGenericClient<InferenceEvent>({
+  const client = createGenericClient<ModelEvent>({
     startUrl: opts.startUrl,
     streamUrl: opts.streamUrl,
     label: 'relay ',
@@ -60,10 +60,10 @@ export function createResumableClient(opts: ResumableClientOpts): ResumableClien
     fetchImpl: opts.fetchImpl,
   });
   return {
-    async *stream(req: NormalizedRequest): AsyncIterable<InferenceEvent> {
+    async *stream(req: NormalizedRequest): AsyncIterable<ModelEvent> {
       const { signal, ...rest } = req;
       for await (const msg of client.stream(rest, signal) as AsyncIterable<
-        ClientMessage<InferenceEvent>
+        ClientMessage<ModelEvent>
       >) {
         yield msg.type === 'event' ? msg.event : { kind: 'error', message: msg.message };
       }

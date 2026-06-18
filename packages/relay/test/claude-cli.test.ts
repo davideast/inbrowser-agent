@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClaudeCliProvider, renderPrompt } from '../src/providers/claude-cli';
-import type { InferenceEvent, NormalizedRequest } from '../src/types';
+import type { ModelEvent, NormalizedRequest } from '../src/types';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const FAKE_CLAUDE = join(FIXTURES, 'fake-claude.sh');
@@ -23,13 +23,14 @@ function makeReq(over: Partial<NormalizedRequest> = {}): NormalizedRequest {
     model: 'claude-opus-4-8',
     messages: [{ role: 'user', text: 'say hi' }],
     tools: [],
+    toolUseEnabled: false,
     apiKey: '',
     ...over,
   };
 }
 
-async function collect(events: AsyncIterable<InferenceEvent>): Promise<InferenceEvent[]> {
-  const out: InferenceEvent[] = [];
+async function collect(events: AsyncIterable<ModelEvent>): Promise<ModelEvent[]> {
+  const out: ModelEvent[] = [];
   for await (const e of events) out.push(e);
   return out;
 }
@@ -47,19 +48,21 @@ describe('claude-cli provider', () => {
     const events = await collect(provider(makeReq()));
 
     const text = events.filter((e) => e.kind === 'text');
-    expect(text.map((e) => e.chunk).join('')).toBe('Hi! 👋 How can I help you today?');
+    expect(text.map((e) => e.text).join('')).toBe('Hi! 👋 How can I help you today?');
 
     const thinking = events.filter((e) => e.kind === 'thinking');
     expect(thinking.length).toBeGreaterThan(0);
-    expect(thinking[0]?.chunk).toContain('The user is asking me to say');
+    expect(thinking[0]?.text).toContain('The user is asking me to say');
 
     const last = events[events.length - 1];
     expect(last).toEqual({
       kind: 'usage',
-      promptTokens: 157,
-      outputTokens: 78,
-      cachedTokens: 0,
-      costUsd: 0.000547,
+      usage: {
+        promptTokens: 157,
+        outputTokens: 78,
+        cachedTokens: 0,
+        costUsd: 0.000547,
+      },
     });
     expect(events.some((e) => e.kind === 'error')).toBe(false);
   });
@@ -187,8 +190,8 @@ describe('claude-cli provider', () => {
     });
     const events = await collect(provider(makeReq()));
     expect(events).toEqual([
-      { kind: 'text', chunk: 'ok' },
-      { kind: 'usage', promptTokens: 3, outputTokens: 1, costUsd: 0.0001 },
+      { kind: 'text', text: 'ok' },
+      { kind: 'usage', usage: { promptTokens: 3, outputTokens: 1, costUsd: 0.0001 } },
     ]);
   });
 
@@ -243,7 +246,14 @@ describe('claude-cli provider', () => {
     const provider = createClaudeCliProvider({ claudePath: FAKE_CLAUDE });
     const events = await collect(
       provider(
-        makeReq({ tools: [{ name: 'get_weather', description: 'weather', parameters: {} }] }),
+        makeReq({
+          tools: [
+            {
+              type: 'function',
+              function: { name: 'get_weather', description: 'weather', parameters: {} },
+            },
+          ],
+        }),
       ),
     );
     expect(events).toHaveLength(1);
@@ -277,9 +287,9 @@ describe('renderPrompt', () => {
       { role: 'user', text: 'q' },
       {
         role: 'assistant',
-        toolCalls: [{ callId: '1', name: 'lookup', args: { id: 7 } }],
+        toolCalls: [{ id: '1', name: 'lookup', args: { id: 7 } }],
       },
-      { role: 'tool', callId: '1', name: 'lookup', resultJson: '{"v":42}' },
+      { role: 'tool', toolCallId: '1', name: 'lookup', resultJson: '{"v":42}' },
       { role: 'user', text: 'and now?' },
     ]);
     expect(system).toBe('a\n\nb');

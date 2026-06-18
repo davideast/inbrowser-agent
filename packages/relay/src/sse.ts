@@ -5,7 +5,7 @@
  * other LLM SSE APIs).
  *
  * Wire format on the relay → client channel:
- *   data: <JSON InferenceEvent>\n\n
+ *   data: <JSON ModelEvent>\n\n
  * A final `data: [DONE]\n\n` line marks end-of-stream when the job
  * reached a terminal status. A connection that closes WITHOUT `[DONE]`
  * means the tail dropped — the client should reconnect from the last

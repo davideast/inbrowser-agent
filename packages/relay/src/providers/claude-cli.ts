@@ -1,10 +1,10 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import type { ChatMessage, InferenceEvent, InferenceProvider } from '../types.js';
+import type { InferenceProvider, ModelEvent, ModelMessage } from '../types.js';
 
 /**
  * Claude Code CLI provider — spawns `claude -p` (print mode) as a
- * subprocess and adapts its `stream-json` output to `InferenceEvent`s.
+ * subprocess and adapts its `stream-json` output to `ModelEvent`s.
  *
  * Why: model access through a Claude subscription (the CLI's own
  * login) instead of API-key metering. The relay caller sends messages
@@ -114,7 +114,7 @@ function toEffortFlag(effort: string | undefined): string | undefined {
  * transcript with an explicit "reply with the next assistant message"
  * framing — `claude -p` takes one prompt, not a message array.
  */
-export function renderPrompt(messages: ChatMessage[]): {
+export function renderPrompt(messages: ModelMessage[]): {
   system: string;
   prompt: string;
 } {
@@ -189,7 +189,7 @@ export function createClaudeCliProvider(options: ClaudeCliOptions = {}): Inferen
   const tools = options.tools ?? [];
   const extraArgs = options.extraArgs ?? [];
 
-  return async function* claudeCli(req): AsyncIterable<InferenceEvent> {
+  return async function* claudeCli(req): AsyncIterable<ModelEvent> {
     if (req.signal?.aborted) return;
 
     if (req.tools.length > 0) {
@@ -315,9 +315,9 @@ export function createClaudeCliProvider(options: ClaudeCliOptions = {}): Inferen
           const delta = msg.event.delta;
           if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
             sawText = true;
-            yield { kind: 'text', chunk: delta.text };
+            yield { kind: 'text', text: delta.text };
           } else if (delta?.type === 'thinking_delta' && typeof delta.thinking === 'string') {
-            yield { kind: 'thinking', chunk: delta.thinking };
+            yield { kind: 'thinking', text: delta.thinking };
           }
           continue;
         }
@@ -338,16 +338,18 @@ export function createClaudeCliProvider(options: ClaudeCliOptions = {}): Inferen
           // Defensive: if no deltas streamed (e.g. partial messages
           // unavailable), fall back to the terminal result text.
           if (!sawText && typeof msg.result === 'string' && msg.result) {
-            yield { kind: 'text', chunk: msg.result };
+            yield { kind: 'text', text: msg.result };
           }
           yield {
             kind: 'usage',
-            promptTokens: msg.usage?.input_tokens ?? 0,
-            outputTokens: msg.usage?.output_tokens ?? 0,
-            ...(typeof msg.usage?.cache_read_input_tokens === 'number'
-              ? { cachedTokens: msg.usage.cache_read_input_tokens }
-              : {}),
-            ...(typeof msg.total_cost_usd === 'number' ? { costUsd: msg.total_cost_usd } : {}),
+            usage: {
+              promptTokens: msg.usage?.input_tokens ?? 0,
+              outputTokens: msg.usage?.output_tokens ?? 0,
+              ...(typeof msg.usage?.cache_read_input_tokens === 'number'
+                ? { cachedTokens: msg.usage.cache_read_input_tokens }
+                : {}),
+              ...(typeof msg.total_cost_usd === 'number' ? { costUsd: msg.total_cost_usd } : {}),
+            },
           };
           return; // result is terminal
         }

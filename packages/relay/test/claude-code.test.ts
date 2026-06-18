@@ -6,7 +6,7 @@ import { describe, expect, it } from 'bun:test';
  * `@anthropic-ai/claude-agent-sdk` SDKMessage union (v0.3.x).
  */
 import { createClaudeCodeProvider } from '../src/providers/claude-code';
-import type { InferenceEvent, NormalizedRequest } from '../src/types';
+import type { ModelEvent, NormalizedRequest } from '../src/types';
 
 interface FakeMessage {
   type: string;
@@ -24,13 +24,14 @@ function makeReq(over: Partial<NormalizedRequest> = {}): NormalizedRequest {
     model: 'claude-opus-4-8',
     messages: [{ role: 'user', text: 'say hi' }],
     tools: [],
+    toolUseEnabled: false,
     apiKey: '',
     ...over,
   };
 }
 
-async function collect(events: AsyncIterable<InferenceEvent>): Promise<InferenceEvent[]> {
-  const out: InferenceEvent[] = [];
+async function collect(events: AsyncIterable<ModelEvent>): Promise<ModelEvent[]> {
+  const out: ModelEvent[] = [];
   for await (const e of events) out.push(e);
   return out;
 }
@@ -89,14 +90,16 @@ describe('claude-code provider', () => {
     const events = await collect(provider(makeReq()));
 
     const text = events.filter((e) => e.kind === 'text');
-    expect(text.map((e) => e.chunk).join('')).toBe('Hi! How can I help?');
+    expect(text.map((e) => e.text).join('')).toBe('Hi! How can I help?');
 
     const last = events[events.length - 1];
     expect(last).toEqual({
       kind: 'usage',
-      promptTokens: 12,
-      outputTokens: 7,
-      cachedTokens: 0,
+      usage: {
+        promptTokens: 12,
+        outputTokens: 7,
+        cachedTokens: 0,
+      },
     });
     expect(events.some((e) => e.kind === 'error')).toBe(false);
   });
@@ -129,7 +132,7 @@ describe('claude-code provider', () => {
     const events = await collect(provider(makeReq()));
     const thinking = events.filter((e) => e.kind === 'thinking');
     expect(thinking).toHaveLength(1);
-    expect((thinking[0] as { chunk: string }).chunk).toBe('considering...');
+    expect((thinking[0] as { text: string }).text).toBe('considering...');
   });
 
   it('passes bare-model SDK options: tools=[], settingSources=[], strictMcpConfig=true, includePartialMessages=true, ANTHROPIC_API_KEY stripped from env', async () => {
@@ -273,7 +276,14 @@ describe('claude-code provider', () => {
     const provider = createClaudeCodeProvider({ loadSdk });
     const events = await collect(
       provider(
-        makeReq({ tools: [{ name: 'get_weather', description: 'weather', parameters: {} }] }),
+        makeReq({
+          tools: [
+            {
+              type: 'function',
+              function: { name: 'get_weather', description: 'weather', parameters: {} },
+            },
+          ],
+        }),
       ),
     );
     expect(events).toHaveLength(1);
@@ -314,7 +324,7 @@ describe('claude-code provider', () => {
     const provider = createClaudeCodeProvider({ loadSdk });
     const iter = provider(makeReq({ signal: ctrl.signal }))[Symbol.asyncIterator]();
     const first = await iter.next();
-    expect(first.value).toEqual({ kind: 'text', chunk: 'first' });
+    expect(first.value).toEqual({ kind: 'text', text: 'first' });
     ctrl.abort();
     const second = await iter.next();
     expect(second.done).toBe(true);
@@ -376,7 +386,7 @@ describe('claude-code provider', () => {
     const events = await collect(provider(makeReq()));
     const text = events.filter((e) => e.kind === 'text');
     expect(text).toHaveLength(1);
-    expect((text[0] as { chunk: string }).chunk).toBe('whole reply');
+    expect((text[0] as { text: string }).text).toBe('whole reply');
   });
 
   it('surfaces SDK load failure as an error event', async () => {
