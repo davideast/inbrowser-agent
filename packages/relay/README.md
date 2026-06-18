@@ -18,7 +18,8 @@ received offset.
 - A provider plug-in contract: `InferenceProvider` is an async iterable of
   `InferenceEvent`s.
 - Built-in providers for Gemini, OpenRouter, Anthropic native Messages,
-  Ollama, and the Claude Code CLI (`claude -p`, subscription auth).
+  Ollama, and two subscription-backed Claude providers (the `claude` CLI in
+  print mode, and the Claude Agent SDK).
 - SSE helpers shared by providers, the relay, and the reconnecting client.
 - Astro and Express adapters.
 - `createResumableClient`, which starts a job, tails the SSE stream, and

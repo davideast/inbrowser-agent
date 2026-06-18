@@ -165,6 +165,13 @@ protocol details only.
 | Gemini | `geminiProvider` from `@inbrowser/relay` | Uses the Generative Language REST streaming endpoint. Includes retry handling for selected transient Gemini failures. |
 | OpenRouter | `openrouterProvider` from `@inbrowser/relay` | Uses OpenRouter chat completions SSE, reasoning deltas, tools, and usage cost when reported. |
 | Anthropic | `anthropicProvider` from `@inbrowser/relay` | Uses Anthropic native Messages streaming. Tool use is intentionally compact. |
+| Ollama | `ollamaProvider` from `@inbrowser/relay` | Talks to a local Ollama server. The request `apiKey` carries the base URL rather than a secret. |
+| Claude (CLI) | `claudeCliProvider`, `createClaudeCliProvider(opts?)` from `@inbrowser/relay` | Subscription auth. Spawns the `claude` binary in print mode (`claude -p`) and reads its streaming-JSON output. Node-only; rejects caller-defined tools. |
+| Claude (Agent SDK) | `claudeCodeProvider`, `createClaudeCodeProvider(opts?)` from `@inbrowser/relay` | Subscription auth. Drives `@anthropic-ai/claude-agent-sdk` (an optional peer dependency) in-process; strips `ANTHROPIC_API_KEY` so the call never falls back to per-token billing. Node-only; rejects caller-defined tools. |
+
+The two Claude providers authorize from a logged-in subscription instead of an
+API key, so a client sends an empty `apiKey`. See [How to use a subscription
+Claude provider](how-to-use-a-subscription-provider.md).
 
 ## SSE Wire Format
 

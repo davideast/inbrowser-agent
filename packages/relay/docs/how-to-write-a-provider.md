@@ -1,7 +1,8 @@
 # How To Write A Provider
 
 Use a custom provider when an upstream LLM API is not covered by the built-in
-Gemini, OpenRouter, or Anthropic providers.
+providers (Gemini, OpenRouter, Anthropic, Ollama, and the two subscription-backed
+Claude providers).
 
 ## Implement `InferenceProvider`
 
