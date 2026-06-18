@@ -16,7 +16,7 @@ import {
   type SweepSchedule,
   createJobEngine,
 } from '@inbrowser/resumable';
-import { SSE_DONE_LINE, SSE_STREAM_OPEN, encodeSseEvent } from './sse.js';
+import { sseFromJob } from '@inbrowser/resumable/http';
 import type { InferenceEvent, InferenceProvider, NormalizedRequest } from './types.js';
 
 /**
@@ -203,73 +203,15 @@ export function createRelay(opts: CreateRelayOpts): Relay {
       buffered: initial.events.length,
     });
 
+    // The SSE encoding + guarded enqueue/close + reconnect contract live in
+    // the generic transport; the relay just wires the subscription + abort.
     const subscribeAbort = new AbortController();
     request.signal?.addEventListener('abort', () => subscribeAbort.abort(), { once: true });
 
-    const encoder = new TextEncoder();
-    const body = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        controller.enqueue(encoder.encode(SSE_STREAM_OPEN));
-        let lastSeq = -1;
-        try {
-          for await (const evt of engine.subscribe(jobId, {
-            from,
-            signal: subscribeAbort.signal,
-          })) {
-            if (evt.kind === 'event') {
-              controller.enqueue(encoder.encode(encodeSseEvent(evt.value)));
-              lastSeq = evt.seq;
-            } else if (evt.kind === 'terminal') {
-              controller.enqueue(encoder.encode(SSE_DONE_LINE));
-              logger.info('stream done', {
-                jobId,
-                delivered: lastSeq + 1,
-                status: evt.status,
-              });
-              controller.close();
-              return;
-            }
-          }
-          // Subscribe ended without a terminal marker — the underlying
-          // store's watch dropped. Close WITHOUT `[DONE]` so the
-          // client reconnects from `lastSeq + 1`.
-          logger.info('stream reopen needed', {
-            jobId,
-            delivered: lastSeq + 1,
-          });
-          controller.close();
-        } catch (e) {
-          if (subscribeAbort.signal.aborted) {
-            try {
-              controller.close();
-            } catch {
-              /* already closed */
-            }
-            return;
-          }
-          logger.error('stream error', {
-            jobId,
-            delivered: lastSeq + 1,
-            error: e instanceof Error ? e.message : String(e),
-          });
-          try {
-            controller.close();
-          } catch {
-            /* already closed */
-          }
-        }
-      },
-      cancel() {
+    return sseFromJob(engine.subscribe(jobId, { from, signal: subscribeAbort.signal }), {
+      onCancel: () => {
         subscribeAbort.abort();
         logger.info('stream cancel', { jobId });
-      },
-    });
-
-    return new Response(body, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        Connection: 'keep-alive',
       },
     });
   }
