@@ -30,7 +30,7 @@ export function SiteHeader({ onMenu, menuOpen }: SiteHeaderProps) {
         </a>
       </div>
       <nav className="flex items-center gap-4 text-[12px] text-secondary">
-        <a href="/overview" className="hover:text-primary transition-colors">
+        <a href="/docs" className="hover:text-primary transition-colors">
           docs
         </a>
         <a

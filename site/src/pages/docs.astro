@@ -1,0 +1,68 @@
+---
+import { BreadcrumbBar } from '../components/BreadcrumbBar';
+import { CATEGORY_LABELS, type Category, nodesByPackage } from '../content/graph';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// The full index, relocated off the home. Organized by package, then by
+// Diataxis category, so it is a real reference index rather than a flat wall.
+const groups = nodesByPackage().filter((g) => g.nodes.length > 0);
+const CATEGORY_ORDER: Category[] = [
+  'overview',
+  'tutorial',
+  'how-to',
+  'reference',
+  'explanation',
+  'design',
+  'agent-context',
+  'skill',
+];
+---
+<BaseLayout title="Docs — inbrowser">
+  <BreadcrumbBar crumbs={[{ label: 'Home', href: '/' }, { label: 'Docs' }]} />
+  <main id="main" class="max-w-[860px] mx-auto px-6 pt-16 pb-24">
+    <div class="mb-5">
+      <span class="text-[11px] font-medium uppercase tracking-widest text-label leading-none">
+        Documentation
+      </span>
+    </div>
+    <h1 class="text-[36px] leading-[1.1] tracking-[-0.02em] font-normal text-primary mb-4">
+      Every page, by package
+    </h1>
+    <p class="text-[14px] leading-[1.75] text-secondary mb-16 max-w-[60ch]">
+      Grouped by package and by what you need: a tutorial to learn, a how-to to
+      get something done, reference for facts, explanation to understand. Or just
+      ask on the <a class="text-primary hover:underline" href="/">home page</a>.
+    </p>
+
+    {
+      groups.map((group) => (
+        <section class="mb-14">
+          <h2 class="text-[15px] text-primary mb-6">{group.label}</h2>
+          {CATEGORY_ORDER.map((cat) => {
+            const nodes = group.nodes.filter((n) => n.category === cat);
+            if (nodes.length === 0) return null;
+            return (
+              <div class="mb-6">
+                <h3 class="text-[11px] font-medium uppercase tracking-widest text-label mb-3">
+                  {CATEGORY_LABELS[cat]}
+                </h3>
+                <ul class="space-y-3">
+                  {nodes.map((node) => (
+                    <li>
+                      <a class="text-primary hover:underline text-[14px]" href={node.route}>
+                        {node.title}
+                      </a>
+                      <p class="text-secondary text-[13px] leading-[1.6] mt-1 max-w-[68ch]">
+                        {node.summary}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </section>
+      ))
+    }
+  </main>
+</BaseLayout>
