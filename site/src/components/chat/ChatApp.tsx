@@ -33,18 +33,22 @@ export function ChatApp() {
   const suggestions = useMemo(() => getSuggestions(store.sessions), [store.sessions]);
 
   const focusComposer = useCallback(() => {
-    requestAnimationFrame(() => composerRef.current?.focus());
+    // preventScroll: focusing the composer must not yank the page. On the
+    // landing the hero should stay in view, not get scrolled past.
+    requestAnimationFrame(() => composerRef.current?.focus({ preventScroll: true }));
   }, []);
 
   // Focus the composer on mount.
   useEffect(() => focusComposer(), [focusComposer]);
 
-  // Pin to bottom while streaming, but only if the user hasn't scrolled up.
+  // Pin to the latest while streaming, but only in a conversation and only if
+  // the user hasn't scrolled up. The empty-state landing must stay at the top
+  // (hero first), never jump to the bottom (the package cards).
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on content growth
   useEffect(() => {
     const el = scrollRef.current;
-    if (el && atBottomRef.current) el.scrollTop = el.scrollHeight;
-  }, [messages, busy]);
+    if (el && atBottomRef.current && hasMessages) el.scrollTop = el.scrollHeight;
+  }, [messages, busy, hasMessages]);
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
