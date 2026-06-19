@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { type ModelSource, SOURCE_META, fetchOaiModels } from '../../lib/model-source';
 import { type OnDevicePreset, PRESET_META, hasWebGPU } from '../../lib/on-device-agent';
-import { connectOpenRouter } from '../../lib/openrouter-oauth';
+import { connectOpenRouter, connectOpenRouterPopup } from '../../lib/openrouter-oauth';
 
 /**
  * On-device load status. The `loading` variant carries the redesigned panel's
@@ -542,12 +542,23 @@ function OpenrouterConfig({
   const modelId = useId();
   const ready = openrouterKey.trim().length > 0;
   const [connecting, setConnecting] = useState(false);
-  // `connectOpenRouter` redirects the page to OpenRouter (PKCE). If it throws
-  // before redirecting (e.g. private mode blocking sessionStorage), re-enable.
-  const onConnect = useCallback(() => {
+  const [popupError, setPopupError] = useState<string | null>(null);
+  // Prefer the popup (no navigation, the chat stays put); fall back to the
+  // full-page redirect if the popup is blocked. On success set the key directly
+  // — the OpenRouter source is already active here, so no source switch needed.
+  const onConnect = useCallback(async () => {
+    setPopupError(null);
     setConnecting(true);
-    connectOpenRouter().catch(() => setConnecting(false));
-  }, []);
+    const result = await connectOpenRouterPopup();
+    if (result.status === 'blocked') {
+      connectOpenRouter().catch(() => setConnecting(false));
+      return;
+    }
+    setConnecting(false);
+    if (result.status === 'ok') onOpenrouterKey(result.key);
+    else if (result.status === 'error') setPopupError(result.message);
+  }, [onOpenrouterKey]);
+  const error = popupError ?? openrouterOAuthError;
   return (
     <div className="mt-2 space-y-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -587,10 +598,10 @@ function OpenrouterConfig({
           {ready ? 'ready' : 'needs key'}
         </span>
       </div>
-      {openrouterOAuthError ? (
+      {error ? (
         <div className="text-primary">
           <span aria-hidden="true">! </span>
-          Sign-in failed: {openrouterOAuthError}. Try Connect again.
+          Sign-in failed: {error}. Try Connect again.
         </div>
       ) : (
         <div className="text-dim-text">
