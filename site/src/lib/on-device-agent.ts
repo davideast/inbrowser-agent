@@ -18,19 +18,26 @@ import {
 } from '@inbrowser/agent';
 import type { Engine, EngineState, LoadProgress } from '@inbrowser/model';
 import { createEngineModelClient } from '@inbrowser/model/engine-client';
-import { qwen2_5_0_5b, smollm2_360m } from '@inbrowser/model/presets';
+import { gemma4_E2B, gemma4_E4B, smollm2_360m } from '@inbrowser/model/presets';
 import { connectWorkerEngine } from '@inbrowser/model/worker';
 import { createGraphToolRegistry } from '../agent/graph-tools';
 import type { VisitedCard } from './agent-types';
 import type { AgentStreamHandlers } from './stream-client';
 
-export type OnDevicePreset = 'smollm2_360m' | 'qwen2_5_0_5b';
+// Qwen2.5-0.5B is excluded: its q4f16 build degenerates badly (even on WebGPU).
+// Gemma 4 E2B/E4B are the engine's strong WebGPU performers (big downloads).
+export type OnDevicePreset = 'smollm2_360m' | 'gemma4_e2b' | 'gemma4_e4b';
 
-const PRESETS = { smollm2_360m, qwen2_5_0_5b } as const;
+const PRESETS = {
+  smollm2_360m,
+  gemma4_e2b: gemma4_E2B,
+  gemma4_e4b: gemma4_E4B,
+} as const;
 
 export const PRESET_META: Record<OnDevicePreset, { label: string; note: string }> = {
   smollm2_360m: { label: 'SmolLM2 360M', note: '~180 MB · WebGPU, or WASM where unavailable' },
-  qwen2_5_0_5b: { label: 'Qwen2.5 0.5B', note: '~350 MB · needs WebGPU' },
+  gemma4_e2b: { label: 'Gemma 4 E2B', note: '~3 GB · needs WebGPU + a strong GPU' },
+  gemma4_e4b: { label: 'Gemma 4 E4B', note: '~6 GB · needs WebGPU + a strong GPU' },
 };
 
 const SYSTEM_PROMPT =
