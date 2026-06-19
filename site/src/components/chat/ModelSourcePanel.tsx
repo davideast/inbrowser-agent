@@ -1,8 +1,10 @@
 /**
  * Unified model-source selector for the docs chat (replaces the old OnDeviceBar).
  * Terminal Modernism: mono, brightness not colour, `▸` liveness, thin borders, no
- * status dots. A compact custom dropdown picks the SOURCE; the active source's
- * config (and, for WebGPU, the redesigned loading panel) renders inline below.
+ * status dots. A compact PILL summarizes the active source + state; clicking it
+ * opens an upward POPOVER holding the source rows, a divider, and the active
+ * source's full config (and, for WebGPU, the redesigned loading panel). The pill
+ * lives just below the composer, so the popover opens upward (`bottom-full`).
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { type ModelSource, SOURCE_META } from '../../lib/model-source';
@@ -72,63 +74,28 @@ interface ModelSourcePanelProps {
   onOllamaBaseUrl(v: string): void;
 }
 
+/**
+ * Compact pill + click-to-open upward popover. The pill (closed) summarizes the
+ * active source + state in one inline control; the popover (open) holds the
+ * source rows, a divider, then the active source's full config — the heavy panel
+ * that used to hang persistently below the old top bar now lives in here.
+ */
 export function ModelSourcePanel(props: ModelSourcePanelProps) {
-  const { source } = props;
+  const {
+    source,
+    onSource,
+    status,
+    geminiKey,
+    geminiModel,
+    webgpuPreset,
+    openrouterModel,
+    openrouterKey,
+    ollamaModel,
+  } = props;
   const webgpuAvailable = hasWebGPU();
   // Recommended source: on-device when the GPU is there, else zero-config cloud.
   const recommended: ModelSource = webgpuAvailable ? 'webgpu' : 'gemini';
 
-  return (
-    <div className="shrink-0 border-b border-border bg-bg">
-      <div className="max-w-[760px] mx-auto px-4 md:px-6 py-2 text-[11px] text-secondary">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="text-dim-text uppercase tracking-widest">model</span>
-          <SourceDropdown
-            source={source}
-            onSource={props.onSource}
-            recommended={recommended}
-            webgpuAvailable={webgpuAvailable}
-            status={props.status}
-            geminiKey={props.geminiKey}
-            geminiModel={props.geminiModel}
-            webgpuPreset={props.webgpuPreset}
-            openrouterModel={props.openrouterModel}
-            openrouterKey={props.openrouterKey}
-            ollamaModel={props.ollamaModel}
-          />
-        </div>
-        <SourceConfig {...props} webgpuAvailable={webgpuAvailable} />
-      </div>
-    </div>
-  );
-}
-
-/** Closed = one line summarizing the active source + state. Open = 4 rows. */
-function SourceDropdown({
-  source,
-  onSource,
-  recommended,
-  webgpuAvailable,
-  status,
-  geminiKey,
-  geminiModel,
-  webgpuPreset,
-  openrouterModel,
-  openrouterKey,
-  ollamaModel,
-}: {
-  source: ModelSource;
-  onSource(s: ModelSource): void;
-  recommended: ModelSource;
-  webgpuAvailable: boolean;
-  status: ModelStatus;
-  geminiKey: string;
-  geminiModel: string;
-  webgpuPreset: OnDevicePreset;
-  openrouterModel: string;
-  openrouterKey: string;
-  ollamaModel: string;
-}) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -157,6 +124,13 @@ function SourceDropdown({
     ],
   );
 
+  // WebGPU loading drives the glyph (◐) + the progress underline + a trailing
+  // ` · {pct}%` on the pill text.
+  const loading = source === 'webgpu' && status.phase === 'loading';
+  const pct = loading ? (status as Extract<ModelStatus, { phase: 'loading' }>).pct : 0;
+  const glyph = summary.live ? '▸' : loading ? '◐' : '▹';
+  const pillText = loading ? `${summary.text} · ${pct}%` : summary.text;
+
   // Close on outside click.
   useEffect(() => {
     if (!open) return;
@@ -181,7 +155,7 @@ function SourceDropdown({
     (s: ModelSource) => {
       if (!canSelect(s)) return;
       onSource(s);
-      setOpen(false);
+      // Keep the popover open so the newly-active source's config is right there.
     },
     [canSelect, onSource],
   );
@@ -214,7 +188,8 @@ function SourceDropdown({
   );
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative inline-block">
+      {/* PILL — fixed width so the loading underline reads as progress. */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -222,61 +197,77 @@ function SourceDropdown({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
-        className="inline-flex items-center gap-2 border border-border hover:border-border-strong bg-surface px-2 py-1 text-[11px] text-primary transition-colors"
+        className="relative inline-flex w-[260px] items-center gap-2 overflow-hidden border border-border hover:border-border-strong bg-surface px-2 py-1 text-[11px] text-primary transition-colors"
       >
         <span aria-hidden="true" className={summary.live ? 'text-primary' : 'text-dim-text'}>
-          ▸
+          {glyph}
         </span>
-        <span>{summary.text}</span>
-        <span aria-hidden="true" className="text-dim-text">
+        <span className="truncate">{pillText}</span>
+        <span aria-hidden="true" className="ml-auto text-dim-text">
           ▾
         </span>
+        {/* Loading progress underline (brightness fill, width = pct). */}
+        {loading ? (
+          <span
+            aria-hidden="true"
+            className="absolute bottom-0 left-0 h-[1.5px] bg-secondary transition-[width] duration-200 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        ) : null}
       </button>
       {open ? (
-        <div
-          id={listId}
-          // biome-ignore lint/a11y/useSemanticElements: a native <select> can't carry the rich rows (kind · requirement · ★ recommended · capability gating) the plan calls for
-          role="listbox"
-          aria-label="Model source"
-          aria-activedescendant={`${listId}-${active}`}
-          tabIndex={-1}
-          className="absolute z-30 mt-1 min-w-[300px] border border-border-strong bg-surface shadow-lg"
-        >
-          {SOURCE_ORDER.map((s, i) => {
-            const meta = SOURCE_META[s];
-            const disabled = !canSelect(s);
-            const isActive = i === active;
-            return (
-              <div
-                key={s}
-                id={`${listId}-${i}`}
-                // biome-ignore lint/a11y/useSemanticElements: custom option row carries badges + dim/gated state a native <option> can't render
-                role="option"
-                tabIndex={disabled ? -1 : 0}
-                aria-selected={s === source}
-                aria-disabled={disabled}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => choose(s)}
-                onKeyDown={onKeyDown}
-                className={`grid grid-cols-[0.9rem_1fr_auto] items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none ${
-                  isActive ? 'bg-bg' : ''
-                } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
-              >
-                <span className="text-primary" aria-hidden="true">
-                  {s === source ? '▸' : ''}
-                </span>
-                <span className={disabled ? 'text-secondary' : 'text-primary'}>{meta.label}</span>
-                <span className="flex items-center justify-end gap-1.5 text-dim-text">
-                  {s === recommended && !disabled ? (
-                    <span title="recommended" aria-label="recommended">
-                      ★
-                    </span>
-                  ) : null}
-                  <span>{disabled ? 'needs WebGPU' : meta.requirement}</span>
-                </span>
-              </div>
-            );
-          })}
+        <div className="absolute bottom-full left-0 z-30 mb-1 min-w-[300px] border border-border-strong bg-surface shadow-lg">
+          {/* 1. Source rows (keyboard nav + click-outside live on the root). */}
+          <div
+            id={listId}
+            // biome-ignore lint/a11y/useSemanticElements: a native <select> can't carry the rich rows (kind · requirement · ★ recommended · capability gating) the plan calls for
+            role="listbox"
+            aria-label="Model source"
+            aria-activedescendant={`${listId}-${active}`}
+            tabIndex={-1}
+          >
+            {SOURCE_ORDER.map((s, i) => {
+              const meta = SOURCE_META[s];
+              const disabled = !canSelect(s);
+              const isActive = i === active;
+              return (
+                <div
+                  key={s}
+                  id={`${listId}-${i}`}
+                  // biome-ignore lint/a11y/useSemanticElements: custom option row carries badges + dim/gated state a native <option> can't render
+                  role="option"
+                  tabIndex={disabled ? -1 : 0}
+                  aria-selected={s === source}
+                  aria-disabled={disabled}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => choose(s)}
+                  onKeyDown={onKeyDown}
+                  className={`grid grid-cols-[0.9rem_1fr_auto] items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none ${
+                    isActive ? 'bg-bg' : ''
+                  } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                >
+                  <span className="text-primary" aria-hidden="true">
+                    {s === source ? '▸' : ''}
+                  </span>
+                  <span className={disabled ? 'text-secondary' : 'text-primary'}>{meta.label}</span>
+                  <span className="flex items-center justify-end gap-1.5 text-dim-text">
+                    {s === recommended && !disabled ? (
+                      <span title="recommended" aria-label="recommended">
+                        ★
+                      </span>
+                    ) : null}
+                    <span>{disabled ? 'needs WebGPU' : meta.requirement}</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {/* 2. Divider. */}
+          <div className="border-t border-border" />
+          {/* 3. The active source's config (the heavy panel, now inside). */}
+          <div className="px-2.5 pb-2.5 text-[11px] text-secondary">
+            <SourceConfig {...props} webgpuAvailable={webgpuAvailable} />
+          </div>
         </div>
       ) : null}
     </div>

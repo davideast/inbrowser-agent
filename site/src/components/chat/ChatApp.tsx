@@ -357,36 +357,48 @@ export function ChatApp() {
     return () => window.removeEventListener('popstate', onPop);
   }, [store, finalize]);
 
+  // The model-source pill is shared by both render branches (conversation +
+  // landing); build it once so neither branch re-declares the ~16 props.
+  const modelPill = (
+    <ModelSourcePanel
+      source={config.source}
+      onSource={setSource}
+      geminiKey={config.geminiKey}
+      onGeminiKey={(v) => setField('geminiKey', v)}
+      geminiModel={config.geminiModel}
+      onGeminiModel={(v) => setField('geminiModel', v)}
+      webgpuPreset={config.webgpuPreset}
+      onWebgpuPreset={(p) => {
+        setField('webgpuPreset', p);
+        // Switching the preset invalidates the loaded engine status.
+        setModelStatus({ phase: 'idle' });
+      }}
+      status={modelStatus}
+      onLoad={loadModel}
+      cachedPresets={cachedPresets as ReadonlySet<typeof config.webgpuPreset>}
+      storagePersisted={storagePersisted}
+      openrouterKey={config.openrouterKey}
+      onOpenrouterKey={(v) => setField('openrouterKey', v)}
+      openrouterModel={config.openrouterModel}
+      onOpenrouterModel={(v) => setField('openrouterModel', v)}
+      ollamaModel={config.ollamaModel}
+      onOllamaModel={(v) => setField('ollamaModel', v)}
+      ollamaBaseUrl={config.ollamaBaseUrl}
+      onOllamaBaseUrl={(v) => setField('ollamaBaseUrl', v)}
+    />
+  );
+
+  // Landing-only discoverability nudge: source-aware so the hint is accurate.
+  const pillHint =
+    config.source === 'webgpu'
+      ? 'runs in your browser'
+      : config.source === 'ollama'
+        ? 'your local server'
+        : 'browser-direct · your key';
+
   return (
     <div className="h-dvh flex flex-col">
       <SiteHeader onMenu={() => setDrawerOpen((o) => !o)} menuOpen={drawerOpen} onHome={goEmpty} />
-
-      <ModelSourcePanel
-        source={config.source}
-        onSource={setSource}
-        geminiKey={config.geminiKey}
-        onGeminiKey={(v) => setField('geminiKey', v)}
-        geminiModel={config.geminiModel}
-        onGeminiModel={(v) => setField('geminiModel', v)}
-        webgpuPreset={config.webgpuPreset}
-        onWebgpuPreset={(p) => {
-          setField('webgpuPreset', p);
-          // Switching the preset invalidates the loaded engine status.
-          setModelStatus({ phase: 'idle' });
-        }}
-        status={modelStatus}
-        onLoad={loadModel}
-        cachedPresets={cachedPresets as ReadonlySet<typeof config.webgpuPreset>}
-        storagePersisted={storagePersisted}
-        openrouterKey={config.openrouterKey}
-        onOpenrouterKey={(v) => setField('openrouterKey', v)}
-        openrouterModel={config.openrouterModel}
-        onOpenrouterModel={(v) => setField('openrouterModel', v)}
-        ollamaModel={config.ollamaModel}
-        onOllamaModel={(v) => setField('ollamaModel', v)}
-        ollamaBaseUrl={config.ollamaBaseUrl}
-        onOllamaBaseUrl={(v) => setField('ollamaBaseUrl', v)}
-      />
 
       {drawerOpen ? (
         <button
@@ -429,6 +441,7 @@ export function ChatApp() {
                 onStop={stop}
                 busy={busy}
               />
+              <div className="mt-2">{modelPill}</div>
             </div>
           </div>
         </>
@@ -456,6 +469,10 @@ export function ChatApp() {
               onStop={stop}
               busy={busy}
             />
+            <div className="mt-3 flex items-center gap-3">
+              {modelPill}
+              <span className="text-[11px] text-dim-text">{pillHint}</span>
+            </div>
             <div className="mt-8 flex flex-wrap gap-2">
               {suggestions.map((ex) => (
                 <button
