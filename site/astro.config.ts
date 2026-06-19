@@ -14,6 +14,10 @@ const routeMap = buildRouteMap();
 
 // https://astro.build/config
 export default defineConfig({
+  // Custom domain (served at the root via GitHub Pages). Drives canonical /
+  // absolute URLs; `base` stays `/`, so no link rewrites are needed.
+  site: 'https://inbrowser.io',
+
   // Fully static: the chat runs entirely in the browser (BYOK / on-device), so
   // there are no server routes and no adapter. Deep-links (/c/<id>) fall back to
   // the static 404 shell, which renders the same ChatApp.
