@@ -39,13 +39,23 @@ export {
   toAnthropicTools,
   type AnthropicConfig,
 } from './providers/anthropic.js';
-// ollama exports its own `toOaiTools`; alias it so the two OAI helpers
-// don't collide at the root surface.
+// The generic OpenAI-compatible factory + its shared tool encoder. Point
+// it at any OAI server (vLLM, LM Studio, LocalAI, …); the named local
+// presets below are thin wrappers over it.
+export {
+  openaiCompatModelClient,
+  toOaiTools,
+  type OpenAiCompatConfig,
+} from './providers/oai-compat.js';
+// ollama re-exports the shared `toOaiTools`; alias the named-client export
+// to keep the historical `toOllamaTools` root name.
 export {
   ollamaModelClient,
   toOaiTools as toOllamaTools,
   type OllamaConfig,
 } from './providers/ollama.js';
+// llama.cpp's llama-server — same OAI core, default :8080, optional Bearer.
+export { llamaServerModelClient, type LlamaServerConfig } from './providers/llama-server.js';
 // claude-cli is Node-only (spawns a subprocess) but SSR-safe to import:
 // nothing runs until the client's `chat` is invoked.
 export {

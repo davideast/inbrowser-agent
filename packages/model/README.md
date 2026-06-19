@@ -11,9 +11,9 @@ Two halves, one package:
 - **The contract + cloud providers.** `@inbrowser/model/contract`
   defines `ModelClient` / `ModelRequest` / `ModelEvent`. The cloud
   providers (`geminiModelClient`, `openrouterModelClient`,
-  `anthropicModelClient`, `ollamaModelClient`, `claudeCliModelClient`,
-  `claudeCodeModelClient`) are factories that each return a
-  `ModelClient`. `withRetry` decorates one.
+  `anthropicModelClient`, `openaiCompatModelClient`, `ollamaModelClient`,
+  `llamaServerModelClient`, `claudeCliModelClient`, `claudeCodeModelClient`)
+  are factories that each return a `ModelClient`. `withRetry` decorates one.
 - **The on-device engine.** `createEngine` loads ONNX models in the
   browser via `@huggingface/transformers` + ONNX Runtime Web (WebGPU /
   WASM) and exposes them behind a narrow `Engine` surface that streams
@@ -56,6 +56,35 @@ The turn ends when the iterable returns; a `usage` event (or a terminal
 `error` event) is the last thing emitted. There is no `turn_complete`
 event.
 
+## A local OpenAI-compatible server
+
+Ollama, llama.cpp's `llama-server`, vLLM, LM Studio, LocalAI, and friends all
+expose the same OpenAI `POST /v1/chat/completions` wire shape. One generic
+factory talks to any of them; two named presets carry the right defaults for
+the common local servers:
+
+```ts
+import {
+  openaiCompatModelClient, // any OAI server — set baseUrl (or endpoint)
+  ollamaModelClient,       // preset: defaults to http://localhost:11434, no auth
+  llamaServerModelClient,  // preset: defaults to http://localhost:8080
+} from '@inbrowser/model';
+
+// Generic: point at any OAI-compatible server. `apiKey` becomes a Bearer token.
+const vllm = openaiCompatModelClient({ baseUrl: 'http://gpu.local:8000', model: 'qwen2.5' });
+
+// llama.cpp llama-server. `--api-key` is optional; pass it as `apiKey`.
+const llama = llamaServerModelClient({ model: 'qwen2.5-coder', apiKey: process.env.LLAMA_KEY });
+```
+
+> **Tool calling on `llama-server` needs `--jinja`.** The server only honors the
+> OpenAI `tools` array when launched with `--jinja` (so it applies a tool-aware
+> chat template); without it, tool calls never stream back. Auth is off unless
+> you start it with `--api-key KEY`.
+
+The presets delegate to `openaiCompatModelClient`; reach for the generic factory
+directly for any server without a named preset.
+
 ## An on-device model via the engine
 
 ```ts
@@ -82,7 +111,8 @@ directly, and the `createEngineModelClient` wrapper is forthcoming.
 | Export | What it gives you |
 |---|---|
 | `@inbrowser/model/contract` | `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` — the shared contract (type-only) |
-| `geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`, `ollamaModelClient`, `claudeCliModelClient`, `claudeCodeModelClient` | Cloud provider factories; each returns a `ModelClient`. Also at `@inbrowser/model/providers/<name>` |
+| `geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`, `openaiCompatModelClient`, `ollamaModelClient`, `llamaServerModelClient`, `claudeCliModelClient`, `claudeCodeModelClient` | Cloud + local provider factories; each returns a `ModelClient`. Also at `@inbrowser/model/providers/<name>` |
+| `OpenAiCompatConfig`, `OllamaConfig`, `LlamaServerConfig` | Config shapes for the OpenAI-compatible factory and its local presets |
 | `withRetry(client, opts?)` | Decorator that retries transient upstream errors while nothing has streamed. Also at `@inbrowser/model/with-retry` |
 | `CloudProviderConfig`, `ModelClientFactory` | Shared provider config + the factory type the relay routes on |
 | `createEngine(preset)` | Runtime `Engine` — owns load state + decode loop, streams `EngineEvent` |
