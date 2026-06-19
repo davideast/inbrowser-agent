@@ -38,9 +38,17 @@
       "types": "./dist/providers/anthropic.d.ts",
       "import": "./dist/providers/anthropic.js"
     },
+    "./providers/oai-compat": {
+      "types": "./dist/providers/oai-compat.d.ts",
+      "import": "./dist/providers/oai-compat.js"
+    },
     "./providers/ollama": {
       "types": "./dist/providers/ollama.d.ts",
       "import": "./dist/providers/ollama.js"
+    },
+    "./providers/llama-server": {
+      "types": "./dist/providers/llama-server.d.ts",
+      "import": "./dist/providers/llama-server.js"
     },
     "./providers/claude-cli": {
       "types": "./dist/providers/claude-cli.d.ts",

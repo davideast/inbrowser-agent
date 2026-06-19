@@ -2,6 +2,8 @@ import { describe, expect, it } from 'bun:test';
 import type { ModelRequest, ToolSpec } from '../../src/contract';
 import { toAnthropicTools } from '../../src/providers/anthropic';
 import { buildGeminiRequest } from '../../src/providers/gemini';
+import { toOaiTools as llamaServerTools } from '../../src/providers/llama-server';
+import { toOaiTools as oaiCompatTools } from '../../src/providers/oai-compat';
 import { toOaiTools as ollamaTools } from '../../src/providers/ollama';
 import { toOaiTools as openrouterTools } from '../../src/providers/openrouter';
 
@@ -48,6 +50,14 @@ describe('provider tool-wire encoding (nested ToolSpec)', () => {
 
   it('ollama: nested OAI tools', () => {
     expect(ollamaTools(TOOLS)).toEqual(OAI_EXPECTED);
+  });
+
+  it('llama-server + oai-compat: share the nested OAI encoder', () => {
+    expect(llamaServerTools(TOOLS)).toEqual(OAI_EXPECTED);
+    expect(oaiCompatTools(TOOLS)).toEqual(OAI_EXPECTED);
+    // All OAI presets re-export the one shared encoder.
+    expect(llamaServerTools).toBe(oaiCompatTools);
+    expect(ollamaTools).toBe(oaiCompatTools);
   });
 
   it('anthropic: name/description/input_schema (undefined when empty)', () => {

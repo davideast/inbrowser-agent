@@ -108,7 +108,9 @@ const SPECS: PackSpec[] = [
       'package/dist/providers/gemini.js',
       'package/dist/providers/openrouter.js',
       'package/dist/providers/anthropic.js',
+      'package/dist/providers/oai-compat.js',
       'package/dist/providers/ollama.js',
+      'package/dist/providers/llama-server.js',
       'package/dist/providers/claude-cli.js',
       'package/dist/providers/claude-code.js',
       'package/README.md',
@@ -293,6 +295,8 @@ console.log('  ✓ model/worker: host/connect helpers exported');
 import {
   geminiModelClient,
   ollamaModelClient,
+  openaiCompatModelClient,
+  llamaServerModelClient,
   anthropicModelClient,
   claudeCliModelClient,
   withRetry,
@@ -300,6 +304,8 @@ import {
 for (const [name, fn] of [
   ['geminiModelClient', geminiModelClient],
   ['ollamaModelClient', ollamaModelClient],
+  ['openaiCompatModelClient', openaiCompatModelClient],
+  ['llamaServerModelClient', llamaServerModelClient],
   ['anthropicModelClient', anthropicModelClient],
   ['claudeCliModelClient', claudeCliModelClient],
   ['withRetry', withRetry],
@@ -310,6 +316,9 @@ for (const [name, fn] of [
 const geminiClient = geminiModelClient({ apiKey: 'sk-test', model: 'gemini-3-flash-preview' });
 assert.equal(geminiClient.id, 'gemini:gemini-3-flash-preview');
 assert.equal(typeof geminiClient.chat, 'function');
+const llamaClient = llamaServerModelClient({ model: 'qwen2.5-coder' });
+assert.equal(llamaClient.id, 'llama:qwen2.5-coder');
+assert.equal(typeof llamaClient.chat, 'function');
 console.log('  ✓ model: cloud provider factories + withRetry exported from root');
 
 // Per-provider subpaths also resolve to the same factory.
