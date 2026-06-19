@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import node from '@astrojs/node';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
@@ -15,9 +14,10 @@ const routeMap = buildRouteMap();
 
 // https://astro.build/config
 export default defineConfig({
-  // Static by default; the /api/ask route opts into on-demand rendering
-  // (export const prerender = false) and runs on the Node adapter.
-  adapter: node({ mode: 'standalone' }),
+  // Fully static: the chat runs entirely in the browser (BYOK / on-device), so
+  // there are no server routes and no adapter. Deep-links (/c/<id>) fall back to
+  // the static 404 shell, which renders the same ChatApp.
+  output: 'static',
   integrations: [react()],
 
   // One chat everywhere: the home is the chat, so /chat redirects to it.
@@ -32,10 +32,10 @@ export default defineConfig({
   },
 
   vite: {
-    // Allow the dev server to be reached through a Cloudflare quick tunnel
-    // (otherwise Vite blocks the unknown *.trycloudflare.com Host header).
+    // Allow the dev server to be reached through a Cloudflare quick tunnel or a
+    // Tailscale serve proxy (otherwise Vite blocks the unknown Host header).
     server: {
-      allowedHosts: ['.trycloudflare.com'],
+      allowedHosts: ['.trycloudflare.com', '.ts.net'],
     },
     // Cast: duplicate vite versions in the dep tree make @tailwindcss/vite's
     // Plugin type mismatch Astro's expected PluginOption. Runtime is fine.

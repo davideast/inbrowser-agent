@@ -1,0 +1,13 @@
+---
+import { ChatApp } from '../components/chat/ChatApp';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// Static SPA fallback. The site is fully static now (no Node adapter), so a
+// deep-link like /c/<id> has no prerendered page. On a static host this 404 is
+// served for those paths and renders the same chat shell as the home — ChatApp
+// reads the session id from `location.pathname` (`/c/<id>`) and restores it, so
+// deep-links keep working without a server route.
+---
+<BaseLayout title="inbrowser — chat">
+  <ChatApp client:load />
+</BaseLayout>

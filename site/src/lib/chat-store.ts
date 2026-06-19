@@ -20,6 +20,10 @@ export interface ChatTurn {
   cards?: VisitedCard[];
   /** The agent's tool-call activity log for this turn (persisted). */
   steps?: AgentStep[];
+  /** What produced this answer, e.g. "cloud · Gemini" or
+   *  "on-device · SmolLM2 360M · webgpu". Stamped on the assistant turn so
+   *  there's never ambiguity about which path ran. */
+  source?: string;
 }
 
 export interface Session {
@@ -97,6 +101,8 @@ export interface ChatStore {
   addAssistantCard(id: string, card: VisitedCard): void;
   /** Append a tool-call step to a session's assistant turn (created lazily). */
   addAssistantStep(id: string, step: AgentStep): void;
+  /** Stamp the assistant turn with what produced it (created lazily). */
+  setAssistantSource(id: string, source: string): void;
 }
 
 export function useChatStore(): ChatStore {
@@ -248,6 +254,13 @@ export function useChatStore(): ChatStore {
     [mutateAssistant],
   );
 
+  const setAssistantSource = useCallback(
+    (id: string, source: string) => {
+      mutateAssistant(id, (t) => ({ ...t, source }));
+    },
+    [mutateAssistant],
+  );
+
   const active = sessions.find((s) => s.id === activeId) ?? null;
 
   return {
@@ -262,5 +275,6 @@ export function useChatStore(): ChatStore {
     appendAssistantText,
     addAssistantCard,
     addAssistantStep,
+    setAssistantSource,
   };
 }

@@ -12,10 +12,14 @@ The model layer. Two halves:
 2. **On-device engine.** Wraps `@huggingface/transformers` behind a
    narrow `Engine` surface (`src/engine.ts`) that streams `EngineEvent`.
 
-The engine is NOT yet a `ModelClient` — the old engine→relay/agent
-adapter subpaths were removed and a `createEngineModelClient` wrapper is
-planned but unbuilt. Drive the engine directly via its `EngineEvent`
-stream for now.
+The engine is also a `ModelClient`, via `createEngineModelClient`
+(`src/engine-client.ts`; exported from the root + the
+`@inbrowser/model/engine-client` subpath). It wraps an `Engine`,
+widening the engine's `EngineEvent` stream to the contract's
+`ModelEvent`. The old engine→relay/agent adapter subpaths were removed;
+this single wrapper replaces them. (The site's in-browser docs-chat
+toggle that drives a local engine through the agent is a separate,
+still-forthcoming piece — the adapter is the building block it needs.)
 
 ## Layering invariants
 
@@ -53,8 +57,8 @@ Use the precise terms — they show up in types, comments, and PRs:
   prompt-engineered polyfill is a strategy and belongs in
   `@inbrowser/agent`.
 - Don't widen `EngineEvent` with cloud-only concepts (cost,
-  thoughtSignature). Translate at the forthcoming
-  `createEngineModelClient` boundary, not in the engine.
+  thoughtSignature). Translate at the `createEngineModelClient`
+  boundary (`src/engine-client.ts`), not in the engine.
 - Don't re-introduce provider exports into `@inbrowser/relay` — the
   providers live here now and the relay consumes them as
   `ModelClientFactory`s.
@@ -66,5 +70,7 @@ Use the precise terms — they show up in types, comments, and PRs:
 
 Contract + cloud providers are the live path: relay and agent both
 consume a `ModelClient` from here. The engine loads and `generate()`
-streams real tokens, but the engine is not yet a `ModelClient` — the
-`createEngineModelClient` wrapper is the next slice.
+streams real tokens, and the engine is now a `ModelClient` via
+`createEngineModelClient` (the engine→ModelClient adapter). The next
+slice is the site wiring that drives a local engine through the agent
+end to end (the in-browser docs-chat toggle).

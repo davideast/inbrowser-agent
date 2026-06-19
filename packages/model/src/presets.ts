@@ -123,6 +123,28 @@ export const qwen2_5_coder_1_5b: ModelPreset = definePreset({
 });
 
 /**
+ * Qwen 2.5 0.5B Instruct. ~0.5 GB on-device download at q4f16 — the
+ * smallest TOOL-NATIVE model in the registry, sized to sit near the WASM
+ * ceiling so it can run on machines without WebGPU. Same `Qwen2ForCausalLM`
+ * code path as the other Qwen 2.5 presets (no engine changes). Unlike
+ * SmolLM2 360M it emits `<tool_call>` envelopes and is a markedly stronger
+ * generator, so it can both drive the tool loop and ground answers from
+ * retrieved context where the 360M model degenerates.
+ */
+export const qwen2_5_0_5b: ModelPreset = definePreset({
+  model: { modelId: 'onnx-community/Qwen2.5-0.5B-Instruct' },
+  dtype: 'q4f16',
+  backend: 'auto',
+  capabilities: {
+    supportsTools: true,
+    supportsVision: false,
+    supportsAudio: false,
+    contextWindow: 32_768,
+    supportsThinking: false,
+  },
+});
+
+/**
  * Qwen 3 1.7B. ~1.36 GB on-device download at q4f16.
  *
  * Current frontier-for-size general model. Supports a "thinking mode"

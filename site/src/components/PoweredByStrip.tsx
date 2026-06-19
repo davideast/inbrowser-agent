@@ -1,31 +1,26 @@
 interface PoweredByStripProps {
   /** The agent is running the lookup loop (a tool/lookup step is active). */
   agentLive: boolean;
-  /** The relay provider is streaming the answer (tokens are arriving). */
-  relayLive: boolean;
-  /** A durable resumable job is in flight (every event is stored + replayable). */
-  resumableLive: boolean;
+  /** The model is generating the answer (token streaming, any source). */
+  modelLive: boolean;
 }
 
 const ITEMS = [
   { key: 'agent', label: 'agent', href: '/agent' },
-  { key: 'relay', label: 'relay', href: '/relay' },
-  { key: 'resumable', label: 'resumable', href: '/resumable' },
+  { key: 'model', label: 'model', href: '/model' },
 ] as const;
 
 /**
- * Honest provenance. Shows the inbrowser packages this chat actually runs on -
- * the agent runs the lookup, the relay streams the answer, and resumable keeps
- * every answer a durable, replayable job - and brightens the ones working right
- * now. Liveness is by brightness, never colour (no status dots). `model` is
- * deliberately absent until the chat genuinely runs on-device (phase 5b);
- * showing it dark would imply a claim we have not earned.
+ * Honest provenance. Shows the inbrowser packages this chat actually runs on —
+ * the agent runs the lookup, the model writes the answer — and brightens the one
+ * working right now. The chat is fully in-browser (BYOK / on-device), so it
+ * genuinely runs on `agent` + `model` only. Liveness is by brightness, never
+ * colour (no status dots).
  */
-export function PoweredByStrip({ agentLive, relayLive, resumableLive }: PoweredByStripProps) {
+export function PoweredByStrip({ agentLive, modelLive }: PoweredByStripProps) {
   const live: Record<string, boolean> = {
     agent: agentLive,
-    relay: relayLive,
-    resumable: resumableLive,
+    model: modelLive,
   };
   return (
     <div className="shrink-0 border-b border-border px-4 md:px-6">

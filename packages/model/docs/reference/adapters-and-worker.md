@@ -7,7 +7,7 @@ thread.
 For the `Engine` surface and the `EngineEvent` vocabulary the worker transports,
 see [./engine.md](./engine.md).
 
-## Bridging the engine to the relay/agent (forthcoming)
+## Bridging the engine to the relay/agent — `createEngineModelClient`
 
 This package owns the one `ModelClient` contract that `@inbrowser/relay` and
 `@inbrowser/agent` consume (see [../README.md](../README.md) and
@@ -15,22 +15,68 @@ This package owns the one `ModelClient` contract that `@inbrowser/relay` and
 implement that contract directly — each `*ModelClient` factory returns a
 `ModelClient`, so they plug into the relay and agent as-is.
 
-The **on-device engine does not yet implement `ModelClient`**. It speaks
-`EngineEvent`, not the contract's `ModelEvent`. The earlier
+The **on-device engine is now a `ModelClient` too**, via
+`createEngineModelClient`. The engine itself still speaks `EngineEvent`; the
+adapter widens that stream to the contract's `ModelEvent`. The earlier
 `@inbrowser/model/relay` and `@inbrowser/model/agent` adapter subpaths
 (`createLocalInferenceProvider` / `createLocalLlmClient`) — and the
 `InferenceProvider` / `LlmClient` contracts they targeted — **have been
-removed**. A single `createEngineModelClient(engine)` wrapper that widens
-`EngineEvent` to `ModelEvent` (mapping `token` → `text`, folding the engine's
-`usage` into a terminal `ModelEvent` `usage`, etc.) is the planned replacement,
-but it is **not built yet**.
+removed**; `createEngineModelClient` is their single replacement against the
+shared `ModelClient` contract.
 
-Until it lands, drive the engine directly via its `EngineEvent` stream
-(`engine.generate(...)`) rather than through the relay/agent. See
-[../how-to/use-a-local-model-in-relay.md](../how-to/use-a-local-model-in-relay.md)
-and
-[../how-to/use-a-local-model-in-the-agent.md](../how-to/use-a-local-model-in-the-agent.md)
-for the current state.
+```ts
+import { createEngineModelClient, createEngine } from '@inbrowser/model';
+// or: import { createEngineModelClient } from '@inbrowser/model/engine-client';
+import { smollm2_360m } from '@inbrowser/model/presets';
+
+const engine = createEngine(smollm2_360m);
+const client = createEngineModelClient(engine); // a ModelClient
+```
+
+```ts
+function createEngineModelClient(engine: Engine, id?: string): ModelClient;
+```
+
+| Param | Type | Description |
+| --- | --- | --- |
+| `engine` | `Engine` | The on-device engine to drive. |
+| `id?` | `string` | Stable id for metrics + provenance. Defaults to `local:${engine.model.modelId}` when the engine exposes a model id, else `'local'`. |
+
+`supportsTools` mirrors `engine.capabilities.supportsTools`. `chat(req, signal)`
+builds `EngineMessage[]` from `req.messages` and calls
+`engine.generate(messages, { tools: req.toolUseEnabled ? req.tools : undefined, temperature, topP, topK, signal })`.
+
+Message flattening: `EngineMessage` is toolless (role `system | user |
+assistant` + `text`). A `role: 'tool'` result is flattened to a `user` line
+(`Tool ${name} result: ${resultJson}`), and an `assistant` turn carrying
+`toolCalls` keeps its text plus a `Tool call: ${name}(${args})` line per call —
+so no grounding information is lost and nothing is passed in a shape the engine
+can't represent. For the retrieval strategy these are just system/user messages
+and pass straight through.
+
+Event mapping (`EngineEvent` → `ModelEvent`):
+
+| `EngineEvent` | `ModelEvent` | Notes |
+| --- | --- | --- |
+| `token` | `{ kind: 'text', text }` | |
+| `thinking` | `{ kind: 'thinking', text }` | |
+| `tool_call` | `{ kind: 'tool_call', id, name, args }` | The engine emits no signature — omitted. |
+| `usage` | `{ kind: 'usage', usage: { promptTokens, outputTokens } }` | `decodeMs` is dropped. |
+| `error` | `{ kind: 'error', message }` | `recoverable` is dropped. |
+
+The engine already emits exactly one terminal `usage` (success) or `error`
+(failure) before its stream returns, so the contract's "exactly one of {usage,
+error} per turn" invariant carries through — the adapter synthesizes nothing.
+
+> The site's on-device docs-chat path (the in-browser toggle that runs the
+> agent against a local engine) is still forthcoming — see
+> [../../../../plans/on-device-inference-5b.md](../../../../plans/on-device-inference-5b.md).
+> `createEngineModelClient` is the building block it depends on; the engine is
+> now a `ModelClient`, but the site wiring is not yet in place. See
+> [../how-to/use-a-local-model-in-relay.md](../how-to/use-a-local-model-in-relay.md)
+> and
+> [../how-to/use-a-local-model-in-the-agent.md](../how-to/use-a-local-model-in-the-agent.md)
+> for the current state.
 
 ## `@inbrowser/model/worker`
 

@@ -1,6 +1,18 @@
+import { createReactLoopStrategy } from '@inbrowser/agent';
+import type { LoadProgress } from '@inbrowser/model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { AgentStreamHandlers } from '../../lib/agent-types';
 import { useChatStore } from '../../lib/chat-store';
-import { streamAgent } from '../../lib/stream-client';
+import { REACT_SYSTEM_PROMPT, runLocalAgent } from '../../lib/local-agent';
+import { buildLocalModelClient, useModelSource } from '../../lib/model-source';
+import {
+  PRESET_META,
+  createOnDeviceModelClient,
+  getCachedPresets,
+  hasWebGPU,
+  loadOnDeviceEngine,
+  requestPersistentStorage,
+} from '../../lib/on-device-agent';
 import { getSuggestions } from '../../lib/suggestions';
 import { PackageCards } from '../PackageCards';
 import { PoweredByStrip } from '../PoweredByStrip';
@@ -8,6 +20,7 @@ import { SiteHeader } from '../SiteHeader';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatThread } from './ChatThread';
 import { Composer } from './Composer';
+import { ModelSourcePanel, type ModelStatus } from './ModelSourcePanel';
 
 /** Centered docs chat: a prompt box to begin, an in-flow composer, and a
  *  toggle-only session drawer. */
@@ -20,6 +33,12 @@ export function ChatApp() {
   const [phase, setPhase] = useState<'agent' | 'relay' | null>(null);
   const [error, setError] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { config, setSource, setField } = useModelSource();
+  const [modelStatus, setModelStatus] = useState<ModelStatus>({ phase: 'idle' });
+  const [cachedPresets, setCachedPresets] = useState<ReadonlySet<string>>(() => new Set());
+  // Whether the browser granted persistent storage (so model weights survive).
+  // null until requested.
+  const [storagePersisted, setStoragePersisted] = useState<boolean | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -40,6 +59,15 @@ export function ChatApp() {
 
   // Focus the composer on mount.
   useEffect(() => focusComposer(), [focusComposer]);
+
+  // Hydrate the `✓ cached` badge from the REAL model cache (Cache API), and
+  // reflect the current persisted-storage state, on mount.
+  useEffect(() => {
+    getCachedPresets().then(setCachedPresets);
+    if (typeof navigator !== 'undefined' && navigator.storage?.persisted) {
+      navigator.storage.persisted().then(setStoragePersisted);
+    }
+  }, []);
 
   // Pin to the latest while streaming, but only in a conversation and only if
   // the user hasn't scrolled up. The empty-state landing must stay at the top
@@ -70,6 +98,100 @@ export function ChatApp() {
     window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
   }, []);
 
+  // Download + compile the chosen on-device preset (in a Web Worker). Progress
+  // is AGGREGATED across files (overall % = Σloaded/Σtotal, no per-file resets,
+  // no filenames) and THROTTLED to ~150 ms so the panel glides instead of
+  // thrashing. The weights are fetched once, then cached for instant reloads.
+  const loadModel = useCallback(async () => {
+    const preset = config.webgpuPreset;
+    const backend = hasWebGPU() ? 'webgpu' : 'wasm';
+    setModelStatus({ phase: 'loading', step: 'download', pct: 0, loadedBytes: 0, totalBytes: 0 });
+    // Ask the browser to keep these weights so they aren't evicted + re-downloaded.
+    requestPersistentStorage().then(setStoragePersisted);
+
+    // Per-file byte tallies; the overall bar reads their sums.
+    const files = new Map<string, { loaded: number; total: number }>();
+    let lastTick = 0;
+    let raf = 0;
+    const flushDownload = () => {
+      raf = 0;
+      let loaded = 0;
+      let total = 0;
+      for (const f of files.values()) {
+        loaded += f.loaded;
+        total += f.total;
+      }
+      const pct = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+      setModelStatus({
+        phase: 'loading',
+        step: 'download',
+        pct,
+        loadedBytes: loaded,
+        totalBytes: total,
+      });
+    };
+
+    try {
+      await loadOnDeviceEngine(preset, {
+        onProgress: (p: LoadProgress) => {
+          if (p.phase === 'fetch') {
+            files.set(p.file, { loaded: p.loadedBytes, total: p.totalBytes });
+            // Coalesce the 100s/sec fetch events behind a ~150 ms gate + rAF.
+            const now = Date.now();
+            if (now - lastTick >= 150 && !raf) {
+              lastTick = now;
+              if (typeof requestAnimationFrame === 'function') {
+                raf = requestAnimationFrame(flushDownload);
+              } else {
+                flushDownload();
+              }
+            }
+          } else if (p.phase === 'init') {
+            if (raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf);
+            raf = 0;
+            setModelStatus({
+              phase: 'loading',
+              step: 'compile',
+              pct: 100,
+              loadedBytes: 0,
+              totalBytes: 0,
+            });
+          } else if (p.phase === 'warmup') {
+            setModelStatus({
+              phase: 'loading',
+              step: 'warmup',
+              pct: 100,
+              loadedBytes: 0,
+              totalBytes: 0,
+            });
+          }
+        },
+      });
+      if (raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf);
+      setModelStatus({ phase: 'ready', backend });
+      // Reflect the now-cached weights from the real cache (not a guessed flag).
+      getCachedPresets().then(setCachedPresets);
+    } catch (e) {
+      if (raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf);
+      setModelStatus({ phase: 'error', msg: e instanceof Error ? e.message : String(e) });
+    }
+  }, [config.webgpuPreset]);
+
+  // Auto re-LOAD from cache on refresh: the in-memory engine is always gone
+  // after a reload, but if the weights are still in the Cache API we load them
+  // back seamlessly (no click, no "download"). We only do this when the model
+  // is the active source, sits at 'idle', and is actually cached — never an
+  // auto-download. `loadModel` moves status off 'idle', so this can't loop.
+  useEffect(() => {
+    if (
+      config.source === 'webgpu' &&
+      modelStatus.phase === 'idle' &&
+      cachedPresets.has(config.webgpuPreset)
+    ) {
+      loadModel();
+    }
+  }, [config.source, config.webgpuPreset, cachedPresets, modelStatus.phase, loadModel]);
+
   const send = useCallback(
     async (explicit?: string) => {
       const text = (explicit ?? input).trim();
@@ -95,28 +217,89 @@ export function ChatApp() {
       const ctrl = new AbortController();
       abortRef.current = ctrl;
 
+      // Per-source pre-send guards.
+      if (config.source === 'gemini' && !config.geminiKey.trim()) {
+        setError('Add your Gemini API key (in the model bar above).');
+        finalize();
+        return;
+      }
+      if (config.source === 'webgpu' && modelStatus.phase !== 'ready') {
+        setError('Load the on-device model first (use the model bar above).');
+        finalize();
+        return;
+      }
+      if (config.source === 'openrouter' && !config.openrouterKey.trim()) {
+        setError('Add your OpenRouter API key in the model bar above.');
+        finalize();
+        return;
+      }
+      if (config.source === 'ollama' && !config.ollamaModel.trim()) {
+        setError('Set an Ollama model name in the model bar above.');
+        finalize();
+        return;
+      }
+
+      // Stamp the answer with what produced it, so it is never ambiguous which
+      // path (source + model + backend) ran for this turn.
+      const backend = modelStatus.phase === 'ready' ? modelStatus.backend : '';
+      const source =
+        config.source === 'gemini'
+          ? 'cloud · Gemini'
+          : config.source === 'webgpu'
+            ? `on-device · ${PRESET_META[config.webgpuPreset].label}${backend ? ` · ${backend}` : ''}`
+            : config.source === 'openrouter'
+              ? `openrouter · ${config.openrouterModel}`
+              : `ollama · ${config.ollamaModel}`;
+      let sourced = false;
+      const stampSource = () => {
+        if (!sourced) {
+          sourced = true;
+          store.setAssistantSource(sid, source);
+        }
+      };
+
+      const handlers: AgentStreamHandlers = {
+        onToken: (t) => {
+          stampSource();
+          setPhase('relay');
+          store.appendAssistantText(sid, t);
+        },
+        onTool: (name, detail) => {
+          stampSource();
+          setPhase('agent');
+          store.addAssistantStep(sid, { name, detail });
+        },
+        onVisited: (card) => store.addAssistantCard(sid, card),
+        onError: (message) => {
+          setError(message);
+          finalize();
+        },
+        onDone: finalize,
+      };
+
       try {
-        await streamAgent(
-          '/api/chat',
-          { messages: convo },
-          {
-            onToken: (t) => {
-              setPhase('relay');
-              store.appendAssistantText(sid, t);
-            },
-            onTool: (name, detail) => {
-              setPhase('agent');
-              store.addAssistantStep(sid, { name, detail });
-            },
-            onVisited: (card) => store.addAssistantCard(sid, card),
-            onError: (message) => {
-              setError(message);
-              finalize();
-            },
-            onDone: finalize,
-          },
-          ctrl.signal,
-        );
+        // Every source now runs the agent loop entirely in the browser against
+        // a `ModelClient`: webgpu = the loaded on-device engine; gemini /
+        // openrouter / ollama = a browser-direct provider (BYOK for the cloud
+        // ones). No server round-trip.
+        const history = convo.slice(0, -1) as { role: 'user' | 'assistant'; text: string }[];
+        const client =
+          config.source === 'webgpu' ? createOnDeviceModelClient() : buildLocalModelClient(config);
+        if (!client) {
+          setError('Load the on-device model first (use the model bar above).');
+          finalize();
+          return;
+        }
+        // Tiny on-device models use single-shot retrieval (the default opts);
+        // capable cloud/local models drive the ReAct multi-tool loop.
+        const opts =
+          config.source === 'webgpu'
+            ? undefined
+            : {
+                strategy: createReactLoopStrategy({ maxTurns: 10 }),
+                systemPrompt: REACT_SYSTEM_PROMPT,
+              };
+        await runLocalAgent(client, text, history, handlers, ctrl.signal, opts);
         finalize();
       } catch (e) {
         if ((e as Error)?.name === 'AbortError') {
@@ -127,7 +310,7 @@ export function ChatApp() {
         finalize();
       }
     },
-    [input, busy, store, finalize, setUrl],
+    [input, busy, store, finalize, setUrl, config, modelStatus],
   );
 
   const stop = useCallback(() => {
@@ -162,7 +345,6 @@ export function ChatApp() {
   }, [store, finalize, focusComposer, setUrl]);
 
   // Sync the active session when the user navigates with Back/Forward.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: store identity is stable enough; re-subscribing per render is harmless
   useEffect(() => {
     const onPop = () => {
       abortRef.current?.abort();
@@ -174,6 +356,45 @@ export function ChatApp() {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, [store, finalize]);
+
+  // The model-source pill is shared by both render branches (conversation +
+  // landing); build it once so neither branch re-declares the ~16 props.
+  const modelPill = (
+    <ModelSourcePanel
+      source={config.source}
+      onSource={setSource}
+      geminiKey={config.geminiKey}
+      onGeminiKey={(v) => setField('geminiKey', v)}
+      geminiModel={config.geminiModel}
+      onGeminiModel={(v) => setField('geminiModel', v)}
+      webgpuPreset={config.webgpuPreset}
+      onWebgpuPreset={(p) => {
+        setField('webgpuPreset', p);
+        // Switching the preset invalidates the loaded engine status.
+        setModelStatus({ phase: 'idle' });
+      }}
+      status={modelStatus}
+      onLoad={loadModel}
+      cachedPresets={cachedPresets as ReadonlySet<typeof config.webgpuPreset>}
+      storagePersisted={storagePersisted}
+      openrouterKey={config.openrouterKey}
+      onOpenrouterKey={(v) => setField('openrouterKey', v)}
+      openrouterModel={config.openrouterModel}
+      onOpenrouterModel={(v) => setField('openrouterModel', v)}
+      ollamaModel={config.ollamaModel}
+      onOllamaModel={(v) => setField('ollamaModel', v)}
+      ollamaBaseUrl={config.ollamaBaseUrl}
+      onOllamaBaseUrl={(v) => setField('ollamaBaseUrl', v)}
+    />
+  );
+
+  // Landing-only discoverability nudge: source-aware so the hint is accurate.
+  const pillHint =
+    config.source === 'webgpu'
+      ? 'runs in your browser'
+      : config.source === 'ollama'
+        ? 'your local server'
+        : 'browser-direct · your key';
 
   return (
     <div className="h-dvh flex flex-col">
@@ -201,8 +422,7 @@ export function ChatApp() {
         <>
           <PoweredByStrip
             agentLive={busy && phase === 'agent'}
-            relayLive={busy && phase === 'relay'}
-            resumableLive={busy}
+            modelLive={busy && phase === 'relay'}
           />
           {/* Scroll the conversation; the composer is docked below so it is
               always fully visible (no mid-screen float, no mobile-toolbar clip). */}
@@ -221,6 +441,7 @@ export function ChatApp() {
                 onStop={stop}
                 busy={busy}
               />
+              <div className="mt-2 flex justify-end">{modelPill}</div>
             </div>
           </div>
         </>
@@ -248,6 +469,10 @@ export function ChatApp() {
               onStop={stop}
               busy={busy}
             />
+            <div className="mt-3 flex items-center justify-end gap-3">
+              <span className="text-[11px] text-dim-text">{pillHint}</span>
+              {modelPill}
+            </div>
             <div className="mt-8 flex flex-wrap gap-2">
               {suggestions.map((ex) => (
                 <button

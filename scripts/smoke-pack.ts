@@ -98,6 +98,7 @@ const SPECS: PackSpec[] = [
       'package/dist/index.d.ts',
       'package/dist/contract.js',
       'package/dist/contract.d.ts',
+      'package/dist/engine-client.js',
       'package/dist/presets.js',
       'package/dist/worker.js',
       'package/dist/think.js',
@@ -332,6 +333,14 @@ console.log('  ✓ model/providers/gemini + model/with-retry: subpaths resolve t
 // (no runtime members to assert — importing it must pull no transformers).
 import '@inbrowser/model/contract';
 console.log('  ✓ model/contract: type-only contract subpath resolves');
+
+// The engine→ModelClient adapter resolves from both the root and its subpath
+// and is a function (the on-device engine is now a ModelClient).
+import { createEngineModelClient as engineClientFromRoot } from '@inbrowser/model';
+import { createEngineModelClient as engineClientViaSubpath } from '@inbrowser/model/engine-client';
+assert.equal(typeof engineClientFromRoot, 'function', 'model root: createEngineModelClient');
+assert.equal(engineClientViaSubpath, engineClientFromRoot, 'engine-client subpath is the same fn');
+console.log('  ✓ model/engine-client: createEngineModelClient resolves (root + subpath)');
 `,
   );
   await $`node test.mjs`.cwd(SCRATCH);

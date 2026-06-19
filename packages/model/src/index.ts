@@ -15,6 +15,9 @@
  */
 
 export { createEngine, definePreset } from './engine.js';
+// The on-device engine as a `ModelClient` (wraps `EngineEvent` → `ModelEvent`).
+// Runtime, not type-only — also reachable via `@inbrowser/model/engine-client`.
+export { createEngineModelClient } from './engine-client.js';
 export { parseToolCalls, type ToolCallParseOpts } from './parse-tool-calls.js';
 export { splitThinking, type ThinkingSplitOpts } from './think.js';
 

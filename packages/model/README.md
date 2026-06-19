@@ -23,13 +23,15 @@ Two halves, one package:
 > relay and agent both consume a `ModelClient`. `createEngine` loads a
 > model through `@huggingface/transformers` and `generate()` streams real
 > tokens (the end-to-end load path runs in `examples/local-llm-poc`,
-> headless-verified). Known gaps: `GenerateOpts.stop` sequences are
-> accepted but not yet enforced, and the engine is **not yet a
-> `ModelClient`** — today you drive it directly via its `EngineEvent`
-> stream. A `createEngineModelClient` wrapper that lets the engine plug
-> into the relay/agent is planned but not built; the old
-> `@inbrowser/model/relay` and `@inbrowser/model/agent` adapter subpaths
-> have been removed.
+> headless-verified). The engine is now a `ModelClient` too, via
+> `createEngineModelClient` (root + `@inbrowser/model/engine-client`),
+> which widens the engine's `EngineEvent` stream to the contract's
+> `ModelEvent`. The old `@inbrowser/model/relay` and
+> `@inbrowser/model/agent` adapter subpaths have been removed.
+> Known gaps: `GenerateOpts.stop` sequences are accepted but not yet
+> enforced, and the site's in-browser docs-chat path that drives a local
+> engine through the agent is still forthcoming (the adapter exists; the
+> site toggle does not).
 
 ## A cloud model as a `ModelClient`
 
@@ -102,9 +104,29 @@ for await (const evt of engine.generate([
 ```
 
 The engine speaks `EngineEvent` (`token` / `thinking` / `tool_call` /
-`usage` / `error`), not `ModelEvent`. It is not yet a `ModelClient`; to
-use a local model from the relay or agent today you drive the engine
-directly, and the `createEngineModelClient` wrapper is forthcoming.
+`usage` / `error`), not `ModelEvent`. To use it as a `ModelClient` —
+e.g. to hand it to the agent — wrap it with `createEngineModelClient`:
+
+```ts
+import { createEngine, createEngineModelClient } from '@inbrowser/model';
+import { smollm2_360m } from '@inbrowser/model/presets';
+
+const engine = createEngine(smollm2_360m);
+const client = createEngineModelClient(engine); // a ModelClient
+
+for await (const evt of client.chat(
+  { messages: [{ role: 'user', text: 'Hello' }], tools: [], toolUseEnabled: false },
+  new AbortController().signal,
+)) {
+  if (evt.kind === 'text') process.stdout.write(evt.text);
+}
+```
+
+The adapter maps `token` → `text`, folds the engine's terminal `usage`
+into a `ModelEvent` `usage`, passes `tool_call`s through (no signature),
+and drops the engine-only extras (`decodeMs`, `recoverable`). Wiring a
+local model into the docs-chat site through the agent is forthcoming;
+the `createEngineModelClient` building block it needs now exists.
 
 ## Surface
 
@@ -116,6 +138,7 @@ directly, and the `createEngineModelClient` wrapper is forthcoming.
 | `withRetry(client, opts?)` | Decorator that retries transient upstream errors while nothing has streamed. Also at `@inbrowser/model/with-retry` |
 | `CloudProviderConfig`, `ModelClientFactory` | Shared provider config + the factory type the relay routes on |
 | `createEngine(preset)` | Runtime `Engine` — owns load state + decode loop, streams `EngineEvent` |
+| `createEngineModelClient(engine, id?)` | Wraps an `Engine` as a `ModelClient` (maps `EngineEvent` → `ModelEvent`). Also at `@inbrowser/model/engine-client` |
 | `definePreset(p)` | Type-safe identity helper for community presets |
 | `parseToolCalls`, `splitThinking` | Stream transformers over an `EngineEvent` stream |
 | `ModelPreset`, `Engine`, `EngineEvent`, … | Public engine types |
@@ -140,8 +163,8 @@ directly, and the `createEngineModelClient` wrapper is forthcoming.
 - `capabilities` is on the preset, not the engine — interrogable
   pre-load (`gemma4_E2B.capabilities.contextWindow`).
 - `EngineEvent` is narrower than the contract's `ModelEvent` (no
-  cost, no `thoughtSignature`). A `ModelClient` wrapper for the engine
-  is the planned place to widen it; that wrapper is not built yet.
+  cost, no `thoughtSignature`). `createEngineModelClient` is the place
+  that widens it — translate at that boundary, not in the engine.
 - Worker subpath returns the same `Engine` shape; a consumer cannot
   tell whether it holds a direct or remote engine.
 - Tool calling is not native to Gemma 4. The polyfill (prompt-engineered
