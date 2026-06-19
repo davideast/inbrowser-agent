@@ -14,24 +14,20 @@ those.
 
 ## Exports
 
-| Import path | Exports |
-| --- | --- |
-| `@inbrowser/model` (engine half) | `createEngine`, `definePreset`, `parseToolCalls`, `splitThinking`, the six bundled presets, and engine types |
-| `@inbrowser/model` (model half) | The cloud provider factories (`geminiModelClient`, …), `withRetry`, and the `ModelClient` contract types |
-| `@inbrowser/model/contract` | `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` (type-only) |
-| `@inbrowser/model/engine-client` | `createEngineModelClient` — wraps an `Engine` as a `ModelClient` (also re-exported from the root). See [./adapters-and-worker.md](./adapters-and-worker.md). |
-| `@inbrowser/model/presets` | The six bundled presets. See [./presets.md](./presets.md). |
-| `@inbrowser/model/providers/<name>` | A single cloud provider factory. |
-| `@inbrowser/model/with-retry` | `withRetry`. |
-| `@inbrowser/model/worker` | `hostEngineInWorker`, `connectWorkerEngine`. See [./adapters-and-worker.md](./adapters-and-worker.md). |
+Everything is imported from the package root `@inbrowser/model`.
 
-The bundled presets (`deepseek_r1_qwen_1_5b`, `gemma4_E2B`, `gemma4_E4B`,
-`qwen2_5_coder_1_5b`, `qwen3_1_7b`, `smollm2_360m`) are re-exported from the
-root as well as from `@inbrowser/model/presets`.
+| Symbols | What they are |
+| --- | --- |
+| `createEngine`, `definePreset`, `parseToolCalls`, `splitThinking`, and engine types | The on-device engine surface |
+| The six bundled presets | `deepseek_r1_qwen_1_5b`, `gemma4_E2B`, `gemma4_E4B`, `qwen2_5_coder_1_5b`, `qwen3_1_7b`, `smollm2_360m`. See [./presets.md](./presets.md). |
+| The cloud provider factories (`geminiModelClient`, …), `withRetry` | Cloud providers + the retry decorator |
+| `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` | The shared `ModelClient` contract types (type-only) |
+| `createEngineModelClient` | Wraps an `Engine` as a `ModelClient`. See [./adapters-and-worker.md](./adapters-and-worker.md). |
+| `hostEngineInWorker`, `connectWorkerEngine` | Worker host/connect helpers. See [./adapters-and-worker.md](./adapters-and-worker.md). |
 
 > The removed `@inbrowser/model/relay` and `@inbrowser/model/agent` adapter
 > subpaths are gone. The engine is now a `ModelClient` via
-> `createEngineModelClient` (root + `@inbrowser/model/engine-client`). See
+> `createEngineModelClient` (from `@inbrowser/model`). See
 > [./adapters-and-worker.md](./adapters-and-worker.md).
 
 ## `createEngine`
@@ -45,8 +41,7 @@ until `ensureReady()` or the first `generate()` call. Spread a `ModelPreset`
 into the call along with optional `EngineHooks`.
 
 ```ts
-import { createEngine } from '@inbrowser/model';
-import { gemma4_E2B } from '@inbrowser/model/presets';
+import { createEngine, gemma4_E2B } from '@inbrowser/model';
 
 const engine = createEngine({ ...gemma4_E2B, onLoadProgress: console.log });
 ```

@@ -6,6 +6,6 @@
  * `../lib/on-device-agent.ts`). `hostEngineInWorker` defaults its factory to
  * `createEngine`, so this is the whole worker entry.
  */
-import { hostEngineInWorker } from '@inbrowser/model/worker';
+import { hostEngineInWorker } from '@inbrowser/model';
 
 hostEngineInWorker(self as unknown as DedicatedWorkerGlobalScope);

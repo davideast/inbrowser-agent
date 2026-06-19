@@ -26,7 +26,7 @@ The relay is a pure transport. It does not own providers — it consumes
 `ModelClient` factories. A provider knows an upstream LLM protocol: it converts a
 `ModelRequest` into Gemini, OpenRouter, Anthropic, or another API and yields
 `ModelEvent`s from `.chat()`. Those factories live in `@inbrowser/model`
-(`@inbrowser/model/providers/*`) and are registered in `createRelay`'s
+and are registered in `createRelay`'s
 `providers` map. The same `ModelClient` contract is also what `@inbrowser/agent`
 consumes and what a page-direct call drives, so one client works everywhere.
 

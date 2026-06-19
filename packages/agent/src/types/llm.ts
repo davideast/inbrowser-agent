@@ -1,6 +1,6 @@
 /**
  * The agent's model-call contract is now the shared `ModelClient`
- * contract from `@inbrowser/model/contract` — the one type the cloud
+ * contract from `@inbrowser/model` — the one type the cloud
  * providers, the on-device engine, the relay (transport), and the
  * agent (runtime) all speak. This module re-exports it so the
  * `./types/llm.js` import site downstream code already uses keeps
@@ -8,7 +8,7 @@
  * `LlmClientFactory`) plus the agent-local `JsonSchema` type.
  */
 
-import type { ModelClient } from '@inbrowser/model/contract';
+import type { ModelClient } from '@inbrowser/model';
 
 export type {
   ModelClient,
@@ -18,7 +18,7 @@ export type {
   ModelUsage,
   ToolSpec,
   ReasoningEffort,
-} from '@inbrowser/model/contract';
+} from '@inbrowser/model';
 
 export interface LlmConfig {
   apiKey?: string;

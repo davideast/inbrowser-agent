@@ -20,7 +20,7 @@ for await (const evt of splitThinking(engine.generate(messages))) {
 If your model uses different tags, pass `openTag` and `closeTag`. The cleanest path is to read them off the preset so your consumer stays model-agnostic:
 
 ```ts
-import { deepseek_r1_qwen_1_5b } from '@inbrowser/model/presets';
+import { deepseek_r1_qwen_1_5b } from '@inbrowser/model';
 
 const tags = deepseek_r1_qwen_1_5b.capabilities.thinkingTags;
 for await (const evt of splitThinking(engine.generate(messages), tags)) {

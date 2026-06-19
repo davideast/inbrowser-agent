@@ -64,8 +64,7 @@ as they decode, and `#usage` will hold the final accounting line.
 Create `src/main.ts`. First, import the factory and the preset:
 
 ```ts
-import { createEngine } from '@inbrowser/model';
-import { smollm2_360m } from '@inbrowser/model/presets';
+import { createEngine, smollm2_360m } from '@inbrowser/model';
 
 const statusEl = document.getElementById('status') as HTMLDivElement;
 const outputEl = document.getElementById('output') as HTMLPreElement;

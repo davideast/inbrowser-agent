@@ -1,30 +1,39 @@
 /**
  * `@inbrowser/model` — on-device LLM engine.
  *
- * Root export carries the engine factory + types + `definePreset`.
- * Subpaths:
- *   - `@inbrowser/model/presets`  — bundled Gemma 4 presets.
- *   - `@inbrowser/model/contract` — the shared `ModelClient` contract.
- *   - `@inbrowser/model/worker`   — host/connect helpers.
+ * Everything ships from this single root export: the engine factory +
+ * types + `definePreset`, the bundled presets, the shared `ModelClient`
+ * contract, the cloud provider factories, the engine-client adapter,
+ * `withRetry`, and the in-worker host/connect helpers. There are no
+ * subpaths — the on-device transformers runtime is lazy-loaded, so
+ * importing the root never statically pulls ONNX/WASM into a
+ * cloud-only consumer.
  *
  * Spread a preset into `createEngine` to get a running engine:
  *
- *   import { createEngine } from '@inbrowser/model';
- *   import { gemma4_E2B } from '@inbrowser/model/presets';
+ *   import { createEngine, gemma4_E2B } from '@inbrowser/model';
  *   const engine = createEngine(gemma4_E2B);
  */
 
 export { createEngine, definePreset } from './engine.js';
 // The on-device engine as a `ModelClient` (wraps `EngineEvent` → `ModelEvent`).
-// Runtime, not type-only — also reachable via `@inbrowser/model/engine-client`.
+// Runtime, not type-only.
 export { createEngineModelClient } from './engine-client.js';
 export { parseToolCalls, type ToolCallParseOpts } from './parse-tool-calls.js';
 export { splitThinking, type ThinkingSplitOpts } from './think.js';
+// In-worker transport: host an `Engine` inside a Web Worker and connect a
+// matching `Engine` stub on the main thread.
+export {
+  connectWorkerEngine,
+  hostEngineInWorker,
+  type ConnectWorkerEngineOpts,
+  type HostEngineInWorkerOpts,
+  type WorkerHostHandle,
+} from './worker.js';
 
 // Cloud provider factories. Each returns a `ModelClient`; construction
 // settings (apiKey / model / baseUrl) come in the factory config, per-call
-// settings (messages / tools / sampling) come in the `ModelRequest`. Also
-// reachable via the `@inbrowser/model/providers/<name>` subpaths.
+// settings (messages / tools / sampling) come in the `ModelRequest`.
 export {
   geminiModelClient,
   buildGeminiRequest,
@@ -78,15 +87,13 @@ export { withRetry, type WithRetryOpts } from './with-retry.js';
 // Shared provider config + the factory type relay routes on.
 export type { CloudProviderConfig, ModelClientFactory } from './providers/types.js';
 
-// Bundled presets are also reachable via the `./presets` subpath for
-// users who want narrow imports. Lifted here for ergonomics — these
-// are pure data (~6 KB total) with no peer-dep activation, no
-// Node-only APIs, no bundle-weight concern that justifies the friction
-// of a separate import line.
+// Bundled presets — pure data (~6 KB total) with no peer-dep activation,
+// no Node-only APIs, no bundle-weight concern.
 export {
   deepseek_r1_qwen_1_5b,
   gemma4_E2B,
   gemma4_E4B,
+  qwen2_5_0_5b,
   qwen2_5_coder_1_5b,
   qwen3_1_7b,
   smollm2_360m,

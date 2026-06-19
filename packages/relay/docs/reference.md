@@ -15,7 +15,7 @@ This page describes the public surface of `@inbrowser/relay`.
 The relay does **not** export any providers. Import the cloud provider factories
 (`geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`,
 `ollamaModelClient`, `claudeCliModelClient`, `claudeCodeModelClient`) from
-`@inbrowser/model` or `@inbrowser/model/providers/<name>`.
+`@inbrowser/model`.
 
 ## `createRelay`
 
@@ -62,7 +62,7 @@ function createRelay(opts: CreateRelayOpts): Relay;
 ## `NormalizedRequest`
 
 `NormalizedRequest` is the shared `ModelRequest` (from
-`@inbrowser/model/contract`) plus the relay-only transport fields:
+`@inbrowser/model`) plus the relay-only transport fields:
 
 ```ts
 type NormalizedRequest = ModelRequest & {
@@ -135,7 +135,7 @@ apiKeys: {
 
 ## `ModelEvent`
 
-The relay's event type is `ModelEvent` from `@inbrowser/model/contract`,
+The relay's event type is `ModelEvent` from `@inbrowser/model`,
 re-exported from `@inbrowser/relay`:
 
 ```ts
@@ -163,7 +163,7 @@ the iterable returns with no `usage` event. Consumers can rely on exactly one of
 
 ## Provider contract: `ModelClientFactory`
 
-A provider is a `ModelClient` from `@inbrowser/model/contract`, registered as a
+A provider is a `ModelClient` from `@inbrowser/model`, registered as a
 `ModelClientFactory`:
 
 ```ts
@@ -184,7 +184,7 @@ per-request keys and routing both work), then drives `.chat(req, signal)` under
 ## Built-In Providers
 
 The relay ships none. The cloud provider factories live in `@inbrowser/model`
-and are imported from `@inbrowser/model` or `@inbrowser/model/providers/<name>`.
+and are imported from `@inbrowser/model`.
 Each is a factory that returns a `ModelClient`; the cloud ones match
 `ModelClientFactory` directly (config `{ apiKey?, model }`).
 

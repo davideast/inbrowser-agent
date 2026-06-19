@@ -52,8 +52,7 @@ right now — `llm` must be a `ModelClient`, and the engine is not one yet. Unti
 `EngineEvent` stream, outside the session:
 
 ```ts
-import { createEngine } from '@inbrowser/model';
-import { qwen3_1_7b } from '@inbrowser/model/presets';
+import { createEngine, qwen3_1_7b } from '@inbrowser/model';
 
 const engine = createEngine(qwen3_1_7b);
 await engine.ensureReady();

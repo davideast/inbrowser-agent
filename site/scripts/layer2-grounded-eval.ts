@@ -18,8 +18,12 @@ import {
  * Usage: `bun site/scripts/layer2-grounded-eval.ts [count]` (default: all).
  * The model is downloaded + compiled once (~180 MB), reused across questions.
  */
-import { createEngine, createEngineModelClient } from '@inbrowser/model';
-import { qwen2_5_0_5b, smollm2_360m } from '@inbrowser/model/presets';
+import {
+  createEngine,
+  createEngineModelClient,
+  qwen2_5_0_5b,
+  smollm2_360m,
+} from '@inbrowser/model';
 import { createGraphToolRegistry } from '../src/agent/graph-tools';
 import { getNode } from '../src/lib/graph';
 

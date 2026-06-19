@@ -9,11 +9,15 @@
  * tool-native ones realistically need WebGPU. This surface exists so the chat can
  * be tested on-device on a real device.
  */
-import type { Engine, EngineState, LoadProgress } from '@inbrowser/model';
-import type { ModelClient } from '@inbrowser/model/contract';
-import { createEngineModelClient } from '@inbrowser/model/engine-client';
-import { smollm2_360m } from '@inbrowser/model/presets';
-import { connectWorkerEngine } from '@inbrowser/model/worker';
+import {
+  type Engine,
+  type EngineState,
+  type LoadProgress,
+  type ModelClient,
+  connectWorkerEngine,
+  createEngineModelClient,
+  smollm2_360m,
+} from '@inbrowser/model';
 import type { AgentStreamHandlers } from './agent-types';
 import { runLocalAgent } from './local-agent';
 
