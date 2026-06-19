@@ -238,6 +238,11 @@ export function ChatApp() {
         finalize();
         return;
       }
+      if (config.source === 'llama' && !config.llamaBaseUrl.trim()) {
+        setError('Set the Llama server URL in the model bar above.');
+        finalize();
+        return;
+      }
 
       // Stamp the answer with what produced it, so it is never ambiguous which
       // path (source + model + backend) ran for this turn.
@@ -249,7 +254,9 @@ export function ChatApp() {
             ? `on-device · ${PRESET_META[config.webgpuPreset].label}${backend ? ` · ${backend}` : ''}`
             : config.source === 'openrouter'
               ? `openrouter · ${config.openrouterModel}`
-              : `ollama · ${config.ollamaModel}`;
+              : config.source === 'llama'
+                ? `llama · ${config.llamaModel}`
+                : `ollama · ${config.ollamaModel}`;
       let sourced = false;
       const stampSource = () => {
         if (!sourced) {
@@ -290,10 +297,13 @@ export function ChatApp() {
           finalize();
           return;
         }
-        // Tiny on-device models use single-shot retrieval (the default opts);
-        // capable cloud/local models drive the ReAct multi-tool loop.
+        // Retrieval (single-shot, the default opts) for sources that don't
+        // expose tool calling: the tiny on-device WebGPU model, and llama-server
+        // (it advertises only `completion`, and OpenAI-style tool calls need the
+        // server started with `--jinja`). Capable cloud/local models drive the
+        // ReAct multi-tool loop.
         const opts =
-          config.source === 'webgpu'
+          config.source === 'webgpu' || config.source === 'llama'
             ? undefined
             : {
                 strategy: createReactLoopStrategy({ maxTurns: 10 }),
@@ -385,6 +395,12 @@ export function ChatApp() {
       onOllamaModel={(v) => setField('ollamaModel', v)}
       ollamaBaseUrl={config.ollamaBaseUrl}
       onOllamaBaseUrl={(v) => setField('ollamaBaseUrl', v)}
+      llamaBaseUrl={config.llamaBaseUrl}
+      onLlamaBaseUrl={(v) => setField('llamaBaseUrl', v)}
+      llamaModel={config.llamaModel}
+      onLlamaModel={(v) => setField('llamaModel', v)}
+      llamaKey={config.llamaKey}
+      onLlamaKey={(v) => setField('llamaKey', v)}
     />
   );
 
@@ -394,7 +410,9 @@ export function ChatApp() {
       ? 'runs in your browser'
       : config.source === 'ollama'
         ? 'your local server'
-        : 'browser-direct · your key';
+        : config.source === 'llama'
+          ? 'your self-hosted server'
+          : 'browser-direct · your key';
 
   return (
     <div className="h-dvh flex flex-col">

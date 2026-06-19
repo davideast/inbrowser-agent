@@ -1,22 +1,23 @@
 /**
  * Unified model-source selection for the docs chat. One config describes which
- * of the four sources the chat runs on (Gemini cloud, on-device WebGPU,
- * OpenRouter BYOK, local Ollama) plus the per-source settings. The config is
- * persisted to localStorage so a choice survives reloads.
+ * source the chat runs on (Gemini cloud, on-device WebGPU, OpenRouter BYOK,
+ * local Ollama, self-hosted Llama/llama-server) plus the per-source settings.
+ * The config is persisted to localStorage so a choice survives reloads.
  *
- * The lean cloud/local providers (OpenRouter, Ollama) are built here via
+ * The lean cloud/local providers (OpenRouter, Ollama, Llama) are built here via
  * `buildLocalModelClient`; the on-device WebGPU client is built by the caller
  * from the loaded engine (it owns the engine lifecycle), so this module never
  * imports the engine / worker / transformers.
  */
 import type { ModelClient } from '@inbrowser/model/contract';
 import { geminiModelClient } from '@inbrowser/model/providers/gemini';
+import { llamaServerModelClient } from '@inbrowser/model/providers/llama-server';
 import { ollamaModelClient } from '@inbrowser/model/providers/ollama';
 import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OnDevicePreset } from './on-device-agent';
 
-export type ModelSource = 'gemini' | 'webgpu' | 'openrouter' | 'ollama';
+export type ModelSource = 'gemini' | 'webgpu' | 'openrouter' | 'ollama' | 'llama';
 
 /** Everything the four sources need, in one persisted object. */
 export interface ModelSourceConfig {
@@ -28,6 +29,9 @@ export interface ModelSourceConfig {
   openrouterModel: string;
   ollamaModel: string;
   ollamaBaseUrl: string;
+  llamaBaseUrl: string;
+  llamaModel: string;
+  llamaKey: string;
 }
 
 export const DEFAULT_MODEL_SOURCE_CONFIG: ModelSourceConfig = {
@@ -39,6 +43,9 @@ export const DEFAULT_MODEL_SOURCE_CONFIG: ModelSourceConfig = {
   openrouterModel: 'openai/gpt-4o-mini',
   ollamaModel: 'llama3.2',
   ollamaBaseUrl: 'http://localhost:11434',
+  llamaBaseUrl: 'http://localhost:8080',
+  llamaModel: 'local-model',
+  llamaKey: '',
 };
 
 /** Static per-source descriptors driving the selector rows + gating. */
@@ -87,12 +94,20 @@ export const SOURCE_META: Record<ModelSource, SourceMeta> = {
     needsWebGPU: false,
     requirement: 'localhost',
   },
+  llama: {
+    label: 'Llama',
+    kind: 'local',
+    runner: 'local',
+    needsKey: false,
+    needsWebGPU: false,
+    requirement: 'self-hosted',
+  },
 };
 
 const STORAGE_KEY = 'inbrowser-model-source:v1';
 
 function isModelSource(x: unknown): x is ModelSource {
-  return x === 'gemini' || x === 'webgpu' || x === 'openrouter' || x === 'ollama';
+  return x === 'gemini' || x === 'webgpu' || x === 'openrouter' || x === 'ollama' || x === 'llama';
 }
 
 function isPreset(x: unknown): x is OnDevicePreset {
@@ -134,6 +149,15 @@ function load(): ModelSourceConfig {
         typeof p.ollamaBaseUrl === 'string' && p.ollamaBaseUrl.trim()
           ? p.ollamaBaseUrl
           : DEFAULT_MODEL_SOURCE_CONFIG.ollamaBaseUrl,
+      llamaBaseUrl:
+        typeof p.llamaBaseUrl === 'string' && p.llamaBaseUrl.trim()
+          ? p.llamaBaseUrl
+          : DEFAULT_MODEL_SOURCE_CONFIG.llamaBaseUrl,
+      llamaModel:
+        typeof p.llamaModel === 'string' && p.llamaModel.trim()
+          ? p.llamaModel
+          : DEFAULT_MODEL_SOURCE_CONFIG.llamaModel,
+      llamaKey: typeof p.llamaKey === 'string' ? p.llamaKey : DEFAULT_MODEL_SOURCE_CONFIG.llamaKey,
     };
   } catch {
     return DEFAULT_MODEL_SOURCE_CONFIG;
@@ -218,6 +242,14 @@ export function buildLocalModelClient(config: ModelSourceConfig): ModelClient {
   }
   if (config.source === 'ollama') {
     return ollamaModelClient({ baseUrl: config.ollamaBaseUrl, model: config.ollamaModel });
+  }
+  if (config.source === 'llama') {
+    return llamaServerModelClient({
+      baseUrl: config.llamaBaseUrl,
+      model: config.llamaModel,
+      apiKey: config.llamaKey || undefined,
+      temperature: 0.2,
+    });
   }
   throw new Error(`buildLocalModelClient: source "${config.source}" is not a lean local source`);
 }
