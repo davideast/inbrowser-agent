@@ -23,8 +23,13 @@ export function ChatThread({ messages, busy, error }: ChatThreadProps) {
         const turnBusy = busy && isLast;
         return (
           <div key={`${m.role}-${i}`} className="mb-10">
-            <div className="text-[10px] font-medium uppercase tracking-widest text-dim-text mb-2">
-              {m.role === 'user' ? 'You' : 'Assistant'}
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-[10px] font-medium uppercase tracking-widest text-dim-text">
+                {m.role === 'user' ? 'You' : 'Assistant'}
+              </span>
+              {m.role === 'assistant' && m.source ? (
+                <span className="text-[10px] text-label">{m.source}</span>
+              ) : null}
             </div>
             {m.role === 'user' ? (
               <p className="text-primary text-[15px] leading-[1.7] whitespace-pre-wrap">{m.text}</p>

@@ -29,8 +29,8 @@ export type OnDevicePreset = 'smollm2_360m' | 'qwen2_5_0_5b';
 const PRESETS = { smollm2_360m, qwen2_5_0_5b } as const;
 
 export const PRESET_META: Record<OnDevicePreset, { label: string; note: string }> = {
-  smollm2_360m: { label: 'SmolLM2 360M', note: '~180 MB · runs anywhere (WASM)' },
-  qwen2_5_0_5b: { label: 'Qwen2.5 0.5B', note: '~350 MB · WebGPU recommended' },
+  smollm2_360m: { label: 'SmolLM2 360M', note: '~180 MB · WebGPU, or WASM where unavailable' },
+  qwen2_5_0_5b: { label: 'Qwen2.5 0.5B', note: '~350 MB · needs WebGPU' },
 };
 
 const SYSTEM_PROMPT =

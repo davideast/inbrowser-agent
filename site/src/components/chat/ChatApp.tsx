@@ -145,12 +145,28 @@ export function ChatApp() {
         return;
       }
 
+      // Stamp the answer with what produced it, so it is never ambiguous which
+      // path (and which on-device model + backend) ran for this turn.
+      const backend = modelStatus.phase === 'ready' ? modelStatus.backend : '';
+      const source = onDevice
+        ? `on-device · ${PRESET_META[preset].label}${backend ? ` · ${backend}` : ''}`
+        : 'cloud · Gemini';
+      let sourced = false;
+      const stampSource = () => {
+        if (!sourced) {
+          sourced = true;
+          store.setAssistantSource(sid, source);
+        }
+      };
+
       const handlers: AgentStreamHandlers = {
         onToken: (t) => {
+          stampSource();
           setPhase('relay');
           store.appendAssistantText(sid, t);
         },
         onTool: (name, detail) => {
+          stampSource();
           setPhase('agent');
           store.addAssistantStep(sid, { name, detail });
         },
@@ -185,7 +201,7 @@ export function ChatApp() {
         finalize();
       }
     },
-    [input, busy, store, finalize, setUrl, onDevice, modelStatus.phase],
+    [input, busy, store, finalize, setUrl, onDevice, preset, modelStatus],
   );
 
   const stop = useCallback(() => {
@@ -372,18 +388,32 @@ function OnDeviceBar({
   onLoad: () => void;
 }) {
   return (
-    <div className="shrink-0 border-b border-border bg-bg">
+    <div
+      className={`shrink-0 border-b ${onDevice ? 'border-border-strong bg-surface' : 'border-border bg-bg'}`}
+    >
       <div className="max-w-[760px] mx-auto px-4 md:px-6 min-h-9 flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-[11px] text-secondary">
-        <label className="flex items-center gap-1.5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={onDevice}
-            onChange={(e) => onToggle(e.target.checked)}
-            className="accent-[color:var(--color-primary,currentColor)]"
-          />
-          <span>Run on-device</span>
-          <span className="text-dim-text">experimental</span>
-        </label>
+        <button
+          type="button"
+          onClick={() => onToggle(!onDevice)}
+          aria-pressed={onDevice}
+          className="flex items-center gap-2 cursor-pointer select-none"
+        >
+          <span
+            className={`inline-flex h-3.5 w-3.5 items-center justify-center border text-[9px] leading-none ${
+              onDevice
+                ? 'bg-primary border-primary text-bg'
+                : 'border-border-strong text-transparent'
+            }`}
+          >
+            ✓
+          </span>
+          <span className={onDevice ? 'text-primary font-medium' : 'text-secondary'}>
+            {onDevice ? 'On-device ON' : 'Run on-device'}
+          </span>
+          <span className="text-dim-text">
+            {onDevice ? 'experimental' : 'experimental · cloud otherwise'}
+          </span>
+        </button>
         {onDevice ? (
           <>
             <select
@@ -406,7 +436,11 @@ function OnDeviceBar({
               <span className="text-dim-text">{status.detail}</span>
             ) : status.phase === 'ready' ? (
               <span className="text-primary">
-                <span aria-hidden="true">▸ </span>ready · {status.backend}
+                <span aria-hidden="true">▸ </span>
+                {PRESET_META[preset].label} · {status.backend}
+                {status.backend === 'wasm' ? (
+                  <span className="text-dim-text"> (slow; no WebGPU)</span>
+                ) : null}
               </span>
             ) : (
               <span className="text-secondary">
