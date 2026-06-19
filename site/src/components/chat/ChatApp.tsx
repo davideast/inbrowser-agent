@@ -33,7 +33,7 @@ export function ChatApp() {
   const [phase, setPhase] = useState<'agent' | 'relay' | null>(null);
   const [error, setError] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { config, setSource, setField } = useModelSource();
+  const { config, setSource, setField, oauthError } = useModelSource();
   const [modelStatus, setModelStatus] = useState<ModelStatus>({ phase: 'idle' });
   const [cachedPresets, setCachedPresets] = useState<ReadonlySet<string>>(() => new Set());
   // Whether the browser granted persistent storage (so model weights survive).
@@ -391,6 +391,7 @@ export function ChatApp() {
       onOpenrouterKey={(v) => setField('openrouterKey', v)}
       openrouterModel={config.openrouterModel}
       onOpenrouterModel={(v) => setField('openrouterModel', v)}
+      openrouterOAuthError={oauthError}
       ollamaModel={config.ollamaModel}
       onOllamaModel={(v) => setField('ollamaModel', v)}
       ollamaBaseUrl={config.ollamaBaseUrl}

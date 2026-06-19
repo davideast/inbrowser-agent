@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { type ModelSource, SOURCE_META, fetchOaiModels } from '../../lib/model-source';
 import { type OnDevicePreset, PRESET_META, hasWebGPU } from '../../lib/on-device-agent';
+import { connectOpenRouter } from '../../lib/openrouter-oauth';
 
 /**
  * On-device load status. The `loading` variant carries the redesigned panel's
@@ -67,6 +68,8 @@ interface ModelSourcePanelProps {
   onOpenrouterKey(v: string): void;
   openrouterModel: string;
   onOpenrouterModel(v: string): void;
+  /** Last OpenRouter OAuth failure to surface in the config, or null. */
+  openrouterOAuthError?: string | null;
   // Ollama
   ollamaModel: string;
   onOllamaModel(v: string): void;
@@ -533,13 +536,29 @@ function OpenrouterConfig({
   onOpenrouterKey,
   openrouterModel,
   onOpenrouterModel,
+  openrouterOAuthError,
 }: ModelSourcePanelProps) {
   const keyId = useId();
   const modelId = useId();
   const ready = openrouterKey.trim().length > 0;
+  const [connecting, setConnecting] = useState(false);
+  // `connectOpenRouter` redirects the page to OpenRouter (PKCE). If it throws
+  // before redirecting (e.g. private mode blocking sessionStorage), re-enable.
+  const onConnect = useCallback(() => {
+    setConnecting(true);
+    connectOpenRouter().catch(() => setConnecting(false));
+  }, []);
   return (
     <div className="mt-2 space-y-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <button
+          type="button"
+          onClick={onConnect}
+          disabled={connecting}
+          className="bg-primary/10 border border-primary/40 hover:bg-primary/20 disabled:opacity-50 outline-none px-2.5 py-1 text-[11px] text-primary transition-colors"
+        >
+          {connecting ? 'Connecting…' : ready ? 'Reconnect OpenRouter' : 'Connect OpenRouter'}
+        </button>
         <label htmlFor={keyId} className="text-dim-text">
           API key
         </label>
@@ -550,7 +569,7 @@ function OpenrouterConfig({
           value={openrouterKey}
           onChange={(e) => onOpenrouterKey(e.target.value)}
           placeholder="sk-or-…"
-          className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[220px] transition-colors"
+          className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[200px] transition-colors"
         />
         <label htmlFor={modelId} className="text-dim-text">
           model
@@ -561,14 +580,24 @@ function OpenrouterConfig({
           value={openrouterModel}
           onChange={(e) => onOpenrouterModel(e.target.value)}
           placeholder="openai/gpt-4o-mini"
-          className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[200px] transition-colors"
+          className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[180px] transition-colors"
         />
         <span className={ready ? 'text-primary' : 'text-dim-text'}>
           <span aria-hidden="true">{ready ? '▸ ' : '· '}</span>
           {ready ? 'ready' : 'needs key'}
         </span>
       </div>
-      <div className="text-dim-text">Direct to OpenRouter; key stored only in your browser.</div>
+      {openrouterOAuthError ? (
+        <div className="text-primary">
+          <span aria-hidden="true">! </span>
+          Sign-in failed: {openrouterOAuthError}. Try Connect again.
+        </div>
+      ) : (
+        <div className="text-dim-text">
+          Connect provisions a revocable OpenRouter key, or paste your own; stored only in your
+          browser.
+        </div>
+      )}
     </div>
   );
 }
