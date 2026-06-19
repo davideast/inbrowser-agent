@@ -9,19 +9,12 @@
  * tool-native ones realistically need WebGPU. This surface exists so the chat can
  * be tested on-device on a real device.
  */
-import {
-  type ChatMessage,
-  createAgentSession,
-  createDispatch,
-  createMetricsCollector,
-  createRetrievalStrategy,
-} from '@inbrowser/agent';
 import type { Engine, EngineState, LoadProgress } from '@inbrowser/model';
+import type { ModelClient } from '@inbrowser/model/contract';
 import { createEngineModelClient } from '@inbrowser/model/engine-client';
 import { gemma4_E2B, gemma4_E4B, smollm2_360m } from '@inbrowser/model/presets';
 import { connectWorkerEngine } from '@inbrowser/model/worker';
-import { createGraphToolRegistry } from '../agent/graph-tools';
-import type { VisitedCard } from './agent-types';
+import { runLocalAgent } from './local-agent';
 import type { AgentStreamHandlers } from './stream-client';
 
 // Qwen2.5-0.5B is excluded: its q4f16 build degenerates badly (even on WebGPU).
@@ -34,15 +27,43 @@ const PRESETS = {
   gemma4_e4b: gemma4_E4B,
 } as const;
 
-export const PRESET_META: Record<OnDevicePreset, { label: string; note: string }> = {
-  smollm2_360m: { label: 'SmolLM2 360M', note: '~180 MB · WebGPU, or WASM where unavailable' },
-  gemma4_e2b: { label: 'Gemma 4 E2B', note: '~3 GB · needs WebGPU + a strong GPU' },
-  gemma4_e4b: { label: 'Gemma 4 E4B', note: '~6 GB · needs WebGPU + a strong GPU' },
-};
+/** Richer per-preset metadata: drives the dropdown rows (size + quality), the
+ *  WebGPU capability gating, and the load-button note. */
+export interface PresetMeta {
+  label: string;
+  /** Human-readable download size, e.g. `~180 MB`. */
+  sizeLabel: string;
+  /** Relative answer quality on this device class. */
+  quality: 'ok' | 'good' | 'best';
+  /** WebGPU-only: produces garbage / can't run on WASM. */
+  needsWebGPU: boolean;
+  /** One-line note for the load button + status. */
+  note: string;
+}
 
-const SYSTEM_PROMPT =
-  'You are the documentation assistant for the "inbrowser" monorepo. Answer the ' +
-  "user's question concisely and accurately, using only the provided documentation excerpts.";
+export const PRESET_META: Record<OnDevicePreset, PresetMeta> = {
+  smollm2_360m: {
+    label: 'SmolLM2 360M',
+    sizeLabel: '~180 MB',
+    quality: 'ok',
+    needsWebGPU: false,
+    note: '~180 MB · WebGPU, or WASM where unavailable',
+  },
+  gemma4_e2b: {
+    label: 'Gemma 4 E2B',
+    sizeLabel: '~3 GB',
+    quality: 'good',
+    needsWebGPU: true,
+    note: '~3 GB · needs WebGPU + a strong GPU',
+  },
+  gemma4_e4b: {
+    label: 'Gemma 4 E4B',
+    sizeLabel: '~6 GB',
+    quality: 'best',
+    needsWebGPU: true,
+    note: '~6 GB · needs WebGPU + a strong GPU',
+  },
+};
 
 /** Is the WebGPU backend available? (Just presence — not a feature probe.) */
 export function hasWebGPU(): boolean {
@@ -85,9 +106,18 @@ export async function loadOnDeviceEngine(
 }
 
 /**
+ * Wrap the currently-loaded engine as a `ModelClient`, so the shared
+ * `runLocalAgent` loop can drive it exactly like any cloud/local provider.
+ * Returns `null` when no engine is loaded yet.
+ */
+export function createOnDeviceModelClient(): ModelClient | null {
+  return current ? createEngineModelClient(current.engine) : null;
+}
+
+/**
  * Run one question through the on-device agent, dispatching to the same handlers
  * the cloud path uses (so the chat UI is identical). The engine must already be
- * loaded via `loadOnDeviceEngine`.
+ * loaded via `loadOnDeviceEngine`. Thin wrapper over the shared `runLocalAgent`.
  */
 export async function streamOnDeviceAgent(
   question: string,
@@ -95,80 +125,10 @@ export async function streamOnDeviceAgent(
   handlers: AgentStreamHandlers,
   signal: AbortSignal,
 ): Promise<void> {
-  if (!current) {
+  const llm = createOnDeviceModelClient();
+  if (!llm) {
     handlers.onError?.('on-device model is not loaded yet');
     return;
   }
-  const llm = createEngineModelClient(current.engine);
-  const registry = createGraphToolRegistry();
-  const hist: ChatMessage[] = history
-    .filter((m) => m.text.trim())
-    .map((m, i) => ({ id: `h${i}`, role: m.role, text: m.text }));
-
-  const session = createAgentSession({
-    strategy: createRetrievalStrategy(),
-    llm,
-    tools: createDispatch(registry),
-    toolList: registry.list(),
-    toolContext: () => ({ signal }),
-    systemPromptBuilder: () => SYSTEM_PROMPT,
-    metrics: createMetricsCollector(),
-    history: hist,
-  });
-
-  const toolNames = new Map<string, string>();
-  const seen = new Set<string>();
-
-  try {
-    for await (const ev of session.submit(question, signal)) {
-      if (ev.kind === 'text') {
-        if (ev.chunk) handlers.onToken?.(ev.chunk);
-      } else if (ev.kind === 'tool_started') {
-        toolNames.set(ev.callId, ev.name);
-        handlers.onTool?.(ev.name, readArg(ev.args));
-      } else if (ev.kind === 'tool_finished') {
-        if (
-          toolNames.get(ev.callId) === 'get_doc' &&
-          ev.result.ok &&
-          ev.result.data &&
-          typeof ev.result.data === 'object'
-        ) {
-          const card = toCard(ev.result.data as Partial<VisitedCard>);
-          if (card.route && !seen.has(card.route)) {
-            seen.add(card.route);
-            handlers.onVisited?.(card);
-          }
-        }
-      } else if (ev.kind === 'error') {
-        handlers.onError?.(ev.message);
-        return;
-      } else if (ev.kind === 'completed') {
-        handlers.onDone?.();
-        return;
-      }
-    }
-    handlers.onDone?.();
-  } catch (e) {
-    handlers.onError?.(e instanceof Error ? e.message : String(e));
-  }
-}
-
-function readArg(args: unknown): string {
-  if (args && typeof args === 'object') {
-    const a = args as Record<string, unknown>;
-    if (typeof a.route === 'string') return a.route;
-    if (typeof a.query === 'string') return a.query;
-  }
-  return '';
-}
-
-function toCard(d: Partial<VisitedCard>): VisitedCard {
-  return {
-    route: d.route ?? '',
-    title: d.title ?? d.route ?? '',
-    package: d.package ?? '',
-    packageLabel: d.packageLabel ?? '',
-    breadcrumb: d.breadcrumb ?? [],
-    summary: d.summary ?? '',
-  };
+  await runLocalAgent(llm, question, history, handlers, signal);
 }

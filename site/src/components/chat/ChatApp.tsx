@@ -1,12 +1,19 @@
 import type { LoadProgress } from '@inbrowser/model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChatStore } from '../../lib/chat-store';
+import { runLocalAgent } from '../../lib/local-agent';
 import {
-  type OnDevicePreset,
+  SOURCE_META,
+  buildLocalModelClient,
+  loadCachedPresets,
+  markPresetCached,
+  useModelSource,
+} from '../../lib/model-source';
+import {
   PRESET_META,
+  createOnDeviceModelClient,
   hasWebGPU,
   loadOnDeviceEngine,
-  streamOnDeviceAgent,
 } from '../../lib/on-device-agent';
 import { type AgentStreamHandlers, streamAgent } from '../../lib/stream-client';
 import { getSuggestions } from '../../lib/suggestions';
@@ -16,12 +23,7 @@ import { SiteHeader } from '../SiteHeader';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatThread } from './ChatThread';
 import { Composer } from './Composer';
-
-type ModelStatus =
-  | { phase: 'idle' }
-  | { phase: 'loading'; detail: string }
-  | { phase: 'ready'; backend: string }
-  | { phase: 'error'; msg: string };
+import { ModelSourcePanel, type ModelStatus } from './ModelSourcePanel';
 
 /** Centered docs chat: a prompt box to begin, an in-flow composer, and a
  *  toggle-only session drawer. */
@@ -34,9 +36,9 @@ export function ChatApp() {
   const [phase, setPhase] = useState<'agent' | 'relay' | null>(null);
   const [error, setError] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [onDevice, setOnDevice] = useState(false);
-  const [preset, setPreset] = useState<OnDevicePreset>('smollm2_360m');
+  const { config, setSource, setField } = useModelSource();
   const [modelStatus, setModelStatus] = useState<ModelStatus>({ phase: 'idle' });
+  const [cachedPresets, setCachedPresets] = useState<ReadonlySet<string>>(() => new Set());
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -44,6 +46,9 @@ export function ChatApp() {
 
   const messages = store.active?.messages ?? [];
   const hasMessages = messages.length > 0;
+  // Gemini is the only server-backed source (relay + resumable run for it);
+  // every other source streams from a client-side ModelClient (model lights up).
+  const isServerSource = SOURCE_META[config.source].runner === 'server';
 
   // Empty-state chips: cold-start orientation for a first-time user, else
   // "learn more" suggestions derived from their prior questions across sessions.
@@ -57,6 +62,9 @@ export function ChatApp() {
 
   // Focus the composer on mount.
   useEffect(() => focusComposer(), [focusComposer]);
+
+  // Hydrate the cached-preset set (drives the `✓ cached` badge) on mount.
+  useEffect(() => setCachedPresets(loadCachedPresets()), []);
 
   // Pin to the latest while streaming, but only in a conversation and only if
   // the user hasn't scrolled up. The empty-state landing must stay at the top
@@ -87,32 +95,82 @@ export function ChatApp() {
     window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
   }, []);
 
-  // Download + compile the chosen on-device preset (in a Web Worker). The
-  // weights (~180-350 MB) are fetched once, then cached for instant reloads.
+  // Download + compile the chosen on-device preset (in a Web Worker). Progress
+  // is AGGREGATED across files (overall % = Σloaded/Σtotal, no per-file resets,
+  // no filenames) and THROTTLED to ~150 ms so the panel glides instead of
+  // thrashing. The weights are fetched once, then cached for instant reloads.
   const loadModel = useCallback(async () => {
-    setModelStatus({ phase: 'loading', detail: 'starting…' });
+    const preset = config.webgpuPreset;
     const backend = hasWebGPU() ? 'webgpu' : 'wasm';
+    setModelStatus({ phase: 'loading', step: 'download', pct: 0, loadedBytes: 0, totalBytes: 0 });
+
+    // Per-file byte tallies; the overall bar reads their sums.
+    const files = new Map<string, { loaded: number; total: number }>();
+    let lastTick = 0;
+    let raf = 0;
+    const flushDownload = () => {
+      raf = 0;
+      let loaded = 0;
+      let total = 0;
+      for (const f of files.values()) {
+        loaded += f.loaded;
+        total += f.total;
+      }
+      const pct = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+      setModelStatus({
+        phase: 'loading',
+        step: 'download',
+        pct,
+        loadedBytes: loaded,
+        totalBytes: total,
+      });
+    };
+
     try {
       await loadOnDeviceEngine(preset, {
         onProgress: (p: LoadProgress) => {
           if (p.phase === 'fetch') {
-            const pct = p.totalBytes ? Math.round((p.loadedBytes / p.totalBytes) * 100) : 0;
-            const file = p.file.split('/').pop() ?? p.file;
-            setModelStatus({ phase: 'loading', detail: `downloading ${file} ${pct}%` });
+            files.set(p.file, { loaded: p.loadedBytes, total: p.totalBytes });
+            // Coalesce the 100s/sec fetch events behind a ~150 ms gate + rAF.
+            const now = Date.now();
+            if (now - lastTick >= 150 && !raf) {
+              lastTick = now;
+              if (typeof requestAnimationFrame === 'function') {
+                raf = requestAnimationFrame(flushDownload);
+              } else {
+                flushDownload();
+              }
+            }
           } else if (p.phase === 'init') {
-            // The engine reports the configured backend ('auto'); show the
-            // resolved one we inferred from WebGPU presence instead.
-            setModelStatus({ phase: 'loading', detail: `compiling (${backend})…` });
+            if (raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf);
+            raf = 0;
+            setModelStatus({
+              phase: 'loading',
+              step: 'compile',
+              pct: 100,
+              loadedBytes: 0,
+              totalBytes: 0,
+            });
           } else if (p.phase === 'warmup') {
-            setModelStatus({ phase: 'loading', detail: 'warming up…' });
+            setModelStatus({
+              phase: 'loading',
+              step: 'warmup',
+              pct: 100,
+              loadedBytes: 0,
+              totalBytes: 0,
+            });
           }
         },
       });
+      if (raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf);
       setModelStatus({ phase: 'ready', backend });
+      markPresetCached(preset);
+      setCachedPresets(loadCachedPresets());
     } catch (e) {
+      if (raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf);
       setModelStatus({ phase: 'error', msg: e instanceof Error ? e.message : String(e) });
     }
-  }, [preset]);
+  }, [config.webgpuPreset]);
 
   const send = useCallback(
     async (explicit?: string) => {
@@ -139,18 +197,34 @@ export function ChatApp() {
       const ctrl = new AbortController();
       abortRef.current = ctrl;
 
-      if (onDevice && modelStatus.phase !== 'ready') {
-        setError('Load the on-device model first (use the bar above).');
+      // Per-source pre-send guards. Gemini (server) is always ready.
+      if (config.source === 'webgpu' && modelStatus.phase !== 'ready') {
+        setError('Load the on-device model first (use the model bar above).');
+        finalize();
+        return;
+      }
+      if (config.source === 'openrouter' && !config.openrouterKey.trim()) {
+        setError('Add your OpenRouter API key in the model bar above.');
+        finalize();
+        return;
+      }
+      if (config.source === 'ollama' && !config.ollamaModel.trim()) {
+        setError('Set an Ollama model name in the model bar above.');
         finalize();
         return;
       }
 
       // Stamp the answer with what produced it, so it is never ambiguous which
-      // path (and which on-device model + backend) ran for this turn.
+      // path (source + model + backend) ran for this turn.
       const backend = modelStatus.phase === 'ready' ? modelStatus.backend : '';
-      const source = onDevice
-        ? `on-device · ${PRESET_META[preset].label}${backend ? ` · ${backend}` : ''}`
-        : 'cloud · Gemini';
+      const source =
+        config.source === 'gemini'
+          ? 'cloud · Gemini'
+          : config.source === 'webgpu'
+            ? `on-device · ${PRESET_META[config.webgpuPreset].label}${backend ? ` · ${backend}` : ''}`
+            : config.source === 'openrouter'
+              ? `openrouter · ${config.openrouterModel}`
+              : `ollama · ${config.ollamaModel}`;
       let sourced = false;
       const stampSource = () => {
         if (!sourced) {
@@ -179,17 +253,23 @@ export function ChatApp() {
       };
 
       try {
-        if (onDevice) {
-          // Run the agent entirely in the browser: retrieval strategy + the
-          // on-device engine, no server round-trip.
-          await streamOnDeviceAgent(
-            text,
-            convo.slice(0, -1) as { role: 'user' | 'assistant'; text: string }[],
-            handlers,
-            ctrl.signal,
-          );
-        } else {
+        if (config.source === 'gemini') {
+          // Cloud default: the existing server resumable path (the server holds
+          // GEMINI_API_KEY); relay streams + resumable persists.
           await streamAgent('/api/chat', { messages: convo }, handlers, ctrl.signal);
+        } else {
+          // Every other source runs the agent loop entirely in the browser
+          // against a `ModelClient`: webgpu = the loaded engine; openrouter /
+          // ollama = a browser-direct provider. No server round-trip.
+          const history = convo.slice(0, -1) as { role: 'user' | 'assistant'; text: string }[];
+          let client = config.source === 'webgpu' ? createOnDeviceModelClient() : null;
+          if (config.source !== 'webgpu') client = buildLocalModelClient(config);
+          if (!client) {
+            setError('Load the on-device model first (use the model bar above).');
+            finalize();
+            return;
+          }
+          await runLocalAgent(client, text, history, handlers, ctrl.signal);
         }
         finalize();
       } catch (e) {
@@ -201,7 +281,7 @@ export function ChatApp() {
         finalize();
       }
     },
-    [input, busy, store, finalize, setUrl, onDevice, preset, modelStatus],
+    [input, busy, store, finalize, setUrl, config, modelStatus],
   );
 
   const stop = useCallback(() => {
@@ -253,16 +333,26 @@ export function ChatApp() {
     <div className="h-dvh flex flex-col">
       <SiteHeader onMenu={() => setDrawerOpen((o) => !o)} menuOpen={drawerOpen} onHome={goEmpty} />
 
-      <OnDeviceBar
-        onDevice={onDevice}
-        onToggle={setOnDevice}
-        preset={preset}
-        onPreset={(p) => {
-          setPreset(p);
+      <ModelSourcePanel
+        source={config.source}
+        onSource={setSource}
+        webgpuPreset={config.webgpuPreset}
+        onWebgpuPreset={(p) => {
+          setField('webgpuPreset', p);
+          // Switching the preset invalidates the loaded engine status.
           setModelStatus({ phase: 'idle' });
         }}
         status={modelStatus}
         onLoad={loadModel}
+        cachedPresets={cachedPresets as ReadonlySet<typeof config.webgpuPreset>}
+        openrouterKey={config.openrouterKey}
+        onOpenrouterKey={(v) => setField('openrouterKey', v)}
+        openrouterModel={config.openrouterModel}
+        onOpenrouterModel={(v) => setField('openrouterModel', v)}
+        ollamaModel={config.ollamaModel}
+        onOllamaModel={(v) => setField('ollamaModel', v)}
+        ollamaBaseUrl={config.ollamaBaseUrl}
+        onOllamaBaseUrl={(v) => setField('ollamaBaseUrl', v)}
       />
 
       {drawerOpen ? (
@@ -287,9 +377,9 @@ export function ChatApp() {
         <>
           <PoweredByStrip
             agentLive={busy && phase === 'agent'}
-            relayLive={!onDevice && busy && phase === 'relay'}
-            resumableLive={!onDevice && busy}
-            modelLive={onDevice && busy && phase === 'relay'}
+            relayLive={isServerSource && busy && phase === 'relay'}
+            resumableLive={isServerSource && busy}
+            modelLive={!isServerSource && busy && phase === 'relay'}
           />
           {/* Scroll the conversation; the composer is docked below so it is
               always fully visible (no mid-screen float, no mobile-toolbar clip). */}
@@ -365,95 +455,6 @@ export function ChatApp() {
           </div>
         </main>
       )}
-    </div>
-  );
-}
-
-/** Thin control bar to enable on-device inference + load a small model.
- *  Experimental: cloud (Gemini) stays the default; this runs the whole agent
- *  in the browser for testing. */
-function OnDeviceBar({
-  onDevice,
-  onToggle,
-  preset,
-  onPreset,
-  status,
-  onLoad,
-}: {
-  onDevice: boolean;
-  onToggle: (v: boolean) => void;
-  preset: OnDevicePreset;
-  onPreset: (p: OnDevicePreset) => void;
-  status: ModelStatus;
-  onLoad: () => void;
-}) {
-  return (
-    <div
-      className={`shrink-0 border-b ${onDevice ? 'border-border-strong bg-surface' : 'border-border bg-bg'}`}
-    >
-      <div className="max-w-[760px] mx-auto px-4 md:px-6 min-h-9 flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-[11px] text-secondary">
-        <button
-          type="button"
-          onClick={() => onToggle(!onDevice)}
-          aria-pressed={onDevice}
-          className="flex items-center gap-2 cursor-pointer select-none"
-        >
-          <span
-            className={`inline-flex h-3.5 w-3.5 items-center justify-center border text-[9px] leading-none ${
-              onDevice
-                ? 'bg-primary border-primary text-bg'
-                : 'border-border-strong text-transparent'
-            }`}
-          >
-            ✓
-          </span>
-          <span className={onDevice ? 'text-primary font-medium' : 'text-secondary'}>
-            {onDevice ? 'On-device ON' : 'Run on-device'}
-          </span>
-          <span className="text-dim-text">
-            {onDevice ? 'experimental' : 'experimental · cloud otherwise'}
-          </span>
-        </button>
-        {onDevice ? (
-          <>
-            <select
-              value={preset}
-              onChange={(e) => onPreset(e.target.value as OnDevicePreset)}
-              disabled={status.phase === 'loading'}
-              className="bg-bg border border-border px-1.5 py-0.5 text-[11px] text-secondary"
-            >
-              {(Object.keys(PRESET_META) as OnDevicePreset[]).map((p) => (
-                <option key={p} value={p}>
-                  {PRESET_META[p].label}
-                </option>
-              ))}
-            </select>
-            {status.phase === 'idle' ? (
-              <button type="button" onClick={onLoad} className="text-primary hover:underline">
-                download &amp; load · {PRESET_META[preset].note}
-              </button>
-            ) : status.phase === 'loading' ? (
-              <span className="text-dim-text">{status.detail}</span>
-            ) : status.phase === 'ready' ? (
-              <span className="text-primary">
-                <span aria-hidden="true">▸ </span>
-                {PRESET_META[preset].label} · {status.backend}
-                {status.backend === 'wasm' ? (
-                  <span className="text-dim-text"> (slow; no WebGPU)</span>
-                ) : null}
-              </span>
-            ) : (
-              <span className="text-secondary">
-                load failed: {status.msg}{' '}
-                <button type="button" onClick={onLoad} className="text-primary underline">
-                  retry
-                </button>
-              </span>
-            )}
-            {!hasWebGPU() ? <span className="text-dim-text">· no WebGPU → WASM</span> : null}
-          </>
-        ) : null}
-      </div>
     </div>
   );
 }
