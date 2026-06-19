@@ -253,3 +253,29 @@ export function buildLocalModelClient(config: ModelSourceConfig): ModelClient {
   }
   throw new Error(`buildLocalModelClient: source "${config.source}" is not a lean local source`);
 }
+
+/**
+ * Fetch the model ids an OpenAI-compatible server advertises at `/v1/models`,
+ * browser-direct (the server must allow CORS for this origin). Used to
+ * auto-populate the Llama source's model picker. Throws on a non-OK response or
+ * network failure so callers can fall back to manual entry.
+ */
+export async function fetchOaiModels(
+  baseUrl: string,
+  apiKey?: string,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const url = `${baseUrl.replace(/\/+$/, '')}/v1/models`;
+  const headers: Record<string, string> = {};
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const res = await fetch(url, { headers, signal });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = (await res.json()) as {
+    data?: { id?: string }[];
+    models?: { id?: string; name?: string }[];
+  };
+  const list = json.data ?? json.models ?? [];
+  return list
+    .map((m) => m.id ?? (m as { name?: string }).name)
+    .filter((x): x is string => typeof x === 'string' && x.length > 0);
+}

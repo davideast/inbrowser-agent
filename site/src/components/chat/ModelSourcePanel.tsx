@@ -7,7 +7,7 @@
  * lives just below the composer, so the popover opens upward (`bottom-full`).
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { type ModelSource, SOURCE_META } from '../../lib/model-source';
+import { type ModelSource, SOURCE_META, fetchOaiModels } from '../../lib/model-source';
 import { type OnDevicePreset, PRESET_META, hasWebGPU } from '../../lib/on-device-agent';
 
 /**
@@ -648,6 +648,38 @@ function LlamaConfig({
     typeof location !== 'undefined' &&
     location.protocol === 'https:' &&
     /^http:\/\//.test(llamaBaseUrl.trim());
+
+  // Auto-populate the model picker from the server's /v1/models (browser-direct,
+  // debounced on the SERVER url/key). Falls back to a manual text input on any
+  // failure (server down / no CORS / bad URL).
+  const [models, setModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refetch only when the server (url/key) changes, not when the user picks a model
+  useEffect(() => {
+    const url = llamaBaseUrl.trim();
+    if (!/^https?:\/\//.test(url) || httpsBlocked) {
+      setModels([]);
+      setModelsLoading(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    setModelsLoading(true);
+    const t = setTimeout(() => {
+      fetchOaiModels(url, llamaKey || undefined, ctrl.signal)
+        .then((ids) => {
+          setModels(ids);
+          // Auto-select the first served model when the current one isn't offered.
+          if (ids.length && !ids.includes(llamaModel)) onLlamaModel(ids[0]);
+        })
+        .catch(() => setModels([]))
+        .finally(() => setModelsLoading(false));
+    }, 500);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [llamaBaseUrl, llamaKey, httpsBlocked]);
+
   return (
     <div className="mt-2 space-y-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -665,14 +697,29 @@ function LlamaConfig({
         <label htmlFor={modelId} className="text-dim-text">
           model
         </label>
-        <input
-          id={modelId}
-          type="text"
-          value={llamaModel}
-          onChange={(e) => onLlamaModel(e.target.value)}
-          placeholder="local-model"
-          className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[160px] transition-colors"
-        />
+        {models.length ? (
+          <select
+            id={modelId}
+            value={models.includes(llamaModel) ? llamaModel : models[0]}
+            onChange={(e) => onLlamaModel(e.target.value)}
+            className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary w-[200px] transition-colors"
+          >
+            {models.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id={modelId}
+            type="text"
+            value={llamaModel}
+            onChange={(e) => onLlamaModel(e.target.value)}
+            placeholder={modelsLoading ? 'loading models…' : 'local-model'}
+            className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[160px] transition-colors"
+          />
+        )}
         <label htmlFor={keyId} className="text-dim-text">
           API key
         </label>
@@ -687,7 +734,9 @@ function LlamaConfig({
         />
         <span className={ready ? 'text-primary' : 'text-dim-text'}>
           <span aria-hidden="true">{ready ? '▸ ' : '· '}</span>
-          {ready ? 'ready' : 'needs server'}
+          {ready
+            ? `ready${models.length ? ` · ${models.length} model${models.length > 1 ? 's' : ''}` : ''}`
+            : 'needs server'}
         </span>
       </div>
       {httpsBlocked ? (
