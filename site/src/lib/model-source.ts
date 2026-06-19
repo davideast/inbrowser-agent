@@ -91,7 +91,7 @@ function isModelSource(x: unknown): x is ModelSource {
 }
 
 function isPreset(x: unknown): x is OnDevicePreset {
-  return x === 'smollm2_360m' || x === 'gemma4_e2b' || x === 'gemma4_e4b';
+  return x === 'smollm2_360m';
 }
 
 function load(): ModelSourceConfig {

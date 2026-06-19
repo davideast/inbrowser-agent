@@ -179,6 +179,21 @@ export function ChatApp() {
     }
   }, [config.webgpuPreset]);
 
+  // Auto re-LOAD from cache on refresh: the in-memory engine is always gone
+  // after a reload, but if the weights are still in the Cache API we load them
+  // back seamlessly (no click, no "download"). We only do this when the model
+  // is the active source, sits at 'idle', and is actually cached — never an
+  // auto-download. `loadModel` moves status off 'idle', so this can't loop.
+  useEffect(() => {
+    if (
+      config.source === 'webgpu' &&
+      modelStatus.phase === 'idle' &&
+      cachedPresets.has(config.webgpuPreset)
+    ) {
+      loadModel();
+    }
+  }, [config.source, config.webgpuPreset, cachedPresets, modelStatus.phase, loadModel]);
+
   const send = useCallback(
     async (explicit?: string) => {
       const text = (explicit ?? input).trim();

@@ -28,8 +28,6 @@ export type ModelStatus =
 
 const SOURCE_ORDER: ModelSource[] = ['gemini', 'webgpu', 'openrouter', 'ollama'];
 
-const PRESET_ORDER: OnDevicePreset[] = ['smollm2_360m', 'gemma4_e2b', 'gemma4_e4b'];
-
 function formatBytes(n: number): string {
   if (!n) return '0 B';
   const gb = n / 1024 ** 3;
@@ -321,51 +319,18 @@ function SourceConfig(props: ModelSourcePanelProps & { webgpuAvailable: boolean 
 
 function WebgpuConfig({
   webgpuPreset,
-  onWebgpuPreset,
   status,
   onLoad,
   cachedPresets,
   storagePersisted,
   webgpuAvailable,
 }: ModelSourcePanelProps & { webgpuAvailable: boolean }) {
+  // Single on-device model now, so there's no preset picker: when its weights
+  // are already in the Cache API, the load button + loading panel re-LOAD from
+  // cache (no network), so a refresh doesn't look like a re-download.
+  const cached = cachedPresets.has(webgpuPreset);
   return (
     <div className="mt-2 space-y-2">
-      {/* Secondary preset picker. */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {PRESET_ORDER.map((p) => {
-          const meta = PRESET_META[p];
-          const gated = meta.needsWebGPU && !webgpuAvailable;
-          const selected = p === webgpuPreset;
-          return (
-            <button
-              key={p}
-              type="button"
-              disabled={gated || status.phase === 'loading'}
-              aria-pressed={selected}
-              onClick={() => onWebgpuPreset(p)}
-              className={`border px-2 py-1 text-[11px] transition-colors disabled:cursor-not-allowed ${
-                selected
-                  ? 'border-border-strong bg-surface text-primary'
-                  : 'border-border text-secondary hover:border-border-strong'
-              } ${gated ? 'opacity-40' : ''}`}
-              title={gated ? 'needs WebGPU' : meta.note}
-            >
-              <span>{meta.label}</span>
-              <span className="text-dim-text"> {meta.sizeLabel}</span>
-              <span className="text-dim-text"> · {meta.quality}</span>
-              {meta.needsWebGPU ? <span className="text-dim-text"> · GPU</span> : null}
-              {cachedPresets.has(p) ? (
-                <span className="text-secondary" title="cached · instant">
-                  {' '}
-                  ✓
-                </span>
-              ) : null}
-              {gated ? <span className="text-dim-text"> · needs WebGPU</span> : null}
-            </button>
-          );
-        })}
-      </div>
-
       {/* Load button + redesigned loading panel / ready / error. */}
       {status.phase === 'idle' ? (
         <button
@@ -374,10 +339,12 @@ function WebgpuConfig({
           disabled={PRESET_META[webgpuPreset].needsWebGPU && !webgpuAvailable}
           className="text-primary hover:underline disabled:opacity-40 disabled:no-underline"
         >
-          download &amp; load · {PRESET_META[webgpuPreset].note}
+          {cached
+            ? 'load · cached (no download)'
+            : `download & load · ${PRESET_META[webgpuPreset].note}`}
         </button>
       ) : status.phase === 'loading' ? (
-        <LoadingPanel preset={webgpuPreset} status={status} />
+        <LoadingPanel preset={webgpuPreset} status={status} cached={cached} />
       ) : status.phase === 'ready' ? (
         <div className="text-primary">
           <span aria-hidden="true">▸ </span>
@@ -414,17 +381,26 @@ function WebgpuConfig({
  * Calm, fixed-height loading panel. A `div` bar with a CSS width transition
  * during download; compile/warm-up are steady labels (no %). Named-phase
  * breadcrumb with `▸` on the current step. No raw filenames, no per-file %.
+ *
+ * `cached`: the weights are already in the Cache API, so the `download` step is
+ * really a fast local read — label it "loading from cache" and drop the byte
+ * counts + % (there's nothing to download); compile/warm-up are unchanged.
  */
 function LoadingPanel({
   preset,
   status,
+  cached,
 }: {
   preset: OnDevicePreset;
   status: Extract<ModelStatus, { phase: 'loading' }>;
+  cached: boolean;
 }) {
   const downloading = status.step === 'download';
+  // A real network download shows bytes + %; a cache read does not.
+  const showBytes = downloading && !cached;
+  const stepText = downloading && cached ? 'Loading from cache' : STEP_TEXT[status.step];
   const phases: Array<{ key: 'download' | 'compile' | 'warmup'; label: string }> = [
-    { key: 'download', label: 'download' },
+    { key: 'download', label: cached ? 'load' : 'download' },
     { key: 'compile', label: 'compile' },
     { key: 'warmup', label: 'warm up' },
   ];
@@ -432,10 +408,10 @@ function LoadingPanel({
     <div className="min-h-[68px] border border-border bg-surface px-3 py-2">
       <div className="flex items-center justify-between text-secondary">
         <span>
-          {STEP_TEXT[status.step]}
+          {stepText}
           <span className="text-dim-text"> · {PRESET_META[preset].label}</span>
         </span>
-        {downloading ? (
+        {showBytes ? (
           <span className="text-dim-text tabular-nums">
             {formatBytes(status.loadedBytes)} / {formatBytes(status.totalBytes)}
           </span>
@@ -444,7 +420,7 @@ function LoadingPanel({
       <div className="mt-1.5 h-1.5 w-full bg-bg border border-border overflow-hidden">
         <div
           className="h-full bg-primary transition-[width] duration-200 ease-out"
-          style={{ width: downloading ? `${status.pct}%` : '100%' }}
+          style={{ width: showBytes ? `${status.pct}%` : '100%' }}
         />
       </div>
       <div className="mt-1.5 flex items-center gap-2 text-[10px] text-dim-text">
@@ -457,7 +433,7 @@ function LoadingPanel({
             </span>
           );
         })}
-        {downloading ? (
+        {showBytes ? (
           <span className="ml-auto text-secondary tabular-nums">{status.pct}%</span>
         ) : null}
       </div>

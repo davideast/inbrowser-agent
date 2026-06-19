@@ -12,19 +12,17 @@
 import type { Engine, EngineState, LoadProgress } from '@inbrowser/model';
 import type { ModelClient } from '@inbrowser/model/contract';
 import { createEngineModelClient } from '@inbrowser/model/engine-client';
-import { gemma4_E2B, gemma4_E4B, smollm2_360m } from '@inbrowser/model/presets';
+import { smollm2_360m } from '@inbrowser/model/presets';
 import { connectWorkerEngine } from '@inbrowser/model/worker';
 import { runLocalAgent } from './local-agent';
 import type { AgentStreamHandlers } from './stream-client';
 
-// Qwen2.5-0.5B is excluded: its q4f16 build degenerates badly (even on WebGPU).
-// Gemma 4 E2B/E4B are the engine's strong WebGPU performers (big downloads).
-export type OnDevicePreset = 'smollm2_360m' | 'gemma4_e2b' | 'gemma4_e4b';
+// SmolLM2 360M is the only on-device preset: small enough to run on WASM where
+// WebGPU is unavailable, and it caches once for instant reloads.
+export type OnDevicePreset = 'smollm2_360m';
 
 const PRESETS = {
   smollm2_360m,
-  gemma4_e2b: gemma4_E2B,
-  gemma4_e4b: gemma4_E4B,
 } as const;
 
 const MODEL_CACHE = 'transformers-cache';
@@ -89,20 +87,6 @@ export const PRESET_META: Record<OnDevicePreset, PresetMeta> = {
     quality: 'ok',
     needsWebGPU: false,
     note: '~180 MB · WebGPU, or WASM where unavailable',
-  },
-  gemma4_e2b: {
-    label: 'Gemma 4 E2B',
-    sizeLabel: '~3 GB',
-    quality: 'good',
-    needsWebGPU: true,
-    note: '~3 GB · needs WebGPU + a strong GPU',
-  },
-  gemma4_e4b: {
-    label: 'Gemma 4 E4B',
-    sizeLabel: '~6 GB',
-    quality: 'best',
-    needsWebGPU: true,
-    note: '~6 GB · needs WebGPU + a strong GPU',
   },
 };
 
