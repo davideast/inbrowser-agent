@@ -1,0 +1,42 @@
+---
+// OAuth popup callback for the "Connect OpenRouter" flow. OpenRouter redirects
+// the popup here with `?code=`; this page posts that code back to the opener
+// window (same origin only) and closes. It is never linked in the app — only
+// loaded inside the Connect popup.
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Connecting OpenRouter…</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 2rem;
+        background: #0b0b0c;
+        color: #c8c8c8;
+        font: 13px/1.6 ui-monospace, "SF Mono", Menlo, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <p>Connecting OpenRouter… you can close this window.</p>
+    <script is:inline>
+      (function () {
+        var code = new URLSearchParams(window.location.search).get('code');
+        if (window.opener && code) {
+          // Target the opener's origin explicitly (same as ours); the opener
+          // also verifies event.origin before trusting the code.
+          window.opener.postMessage(
+            { type: 'openrouter-oauth', code: code },
+            window.location.origin,
+          );
+        }
+        window.close();
+      })();
+    </script>
+  </body>
+</html>
