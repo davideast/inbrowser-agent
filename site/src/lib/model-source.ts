@@ -43,7 +43,7 @@ export const DEFAULT_MODEL_SOURCE_CONFIG: ModelSourceConfig = {
   geminiModel: 'gemini-3.5-flash',
   webgpuPreset: 'smollm2_360m',
   openrouterKey: '',
-  openrouterModel: 'openai/gpt-4o-mini',
+  openrouterModel: 'z-ai/glm-5.2',
   ollamaModel: 'llama3.2',
   ollamaBaseUrl: 'http://localhost:11434',
   llamaBaseUrl: 'http://localhost:8080',
