@@ -11,6 +11,7 @@
  * (OpenRouter, Ollama) don't drag the on-device engine into their bundle.
  */
 import {
+  type AgentStrategy,
   type ChatMessage,
   type ModelClient,
   createAgentSession,
@@ -19,12 +20,28 @@ import {
   createRetrievalStrategy,
 } from '@inbrowser/agent';
 import { createGraphToolRegistry } from '../agent/graph-tools';
-import type { VisitedCard } from './agent-types';
-import type { AgentStreamHandlers } from './stream-client';
+import type { AgentStreamHandlers, VisitedCard } from './agent-types';
 
 export const SYSTEM_PROMPT =
   'You are the documentation assistant for the "inbrowser" monorepo. Answer the ' +
   "user's question concisely and accurately, using only the provided documentation excerpts.";
+
+/**
+ * ReAct system prompt for capable cloud models (Gemini, OpenRouter). Ported from
+ * the (deleted) server docs-agent: the model drives a multi-tool lookup loop
+ * (search/get_doc) rather than the single-shot retrieval the tiny on-device
+ * model uses. No qwen `/no_think` prefix here — that was Ollama-only.
+ */
+export const REACT_SYSTEM_PROMPT = `You are the documentation assistant for the "inbrowser" monorepo (packages: agent, relay, resumable, model).
+
+Answer the user's question using ONLY the documentation, looked up with the provided tools:
+- search_docs(query): find relevant pages.
+- get_doc(route): read a page's full content.
+- related_docs(route), list_packages(), list_docs(package): orient if needed.
+
+BE DECISIVE. Use AT MOST 3 tool calls total: typically one search_docs, then get_doc on the single best page, then ANSWER. Do not call list_packages/list_docs unless the question is about which packages exist. Never repeat a tool call. Once you have read a relevant page, STOP looking things up and write the answer.
+
+Ground every claim in what you read. Be concise (a short paragraph or a few bullets). Name the doc pages you used. If the docs don't cover it, say so.`;
 
 /**
  * Run one question through the client-side agent against an arbitrary
@@ -39,19 +56,25 @@ export async function runLocalAgent(
   history: { role: 'user' | 'assistant'; text: string }[],
   handlers: AgentStreamHandlers,
   signal: AbortSignal,
+  opts?: { strategy?: AgentStrategy; systemPrompt?: string },
 ): Promise<void> {
   const registry = createGraphToolRegistry();
   const hist: ChatMessage[] = history
     .filter((m) => m.text.trim())
     .map((m, i) => ({ id: `h${i}`, role: m.role, text: m.text }));
 
+  // On-device (tiny model) defaults: single-shot retrieval + the terse prompt.
+  // Capable cloud models pass a ReAct strategy + REACT_SYSTEM_PROMPT.
+  const strategy = opts?.strategy ?? createRetrievalStrategy();
+  const systemPrompt = opts?.systemPrompt ?? SYSTEM_PROMPT;
+
   const session = createAgentSession({
-    strategy: createRetrievalStrategy(),
+    strategy,
     llm,
     tools: createDispatch(registry),
     toolList: registry.list(),
     toolContext: () => ({ signal }),
-    systemPromptBuilder: () => SYSTEM_PROMPT,
+    systemPromptBuilder: () => systemPrompt,
     metrics: createMetricsCollector(),
     history: hist,
   });

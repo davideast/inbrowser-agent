@@ -14,8 +14,8 @@ import type { ModelClient } from '@inbrowser/model/contract';
 import { createEngineModelClient } from '@inbrowser/model/engine-client';
 import { smollm2_360m } from '@inbrowser/model/presets';
 import { connectWorkerEngine } from '@inbrowser/model/worker';
+import type { AgentStreamHandlers } from './agent-types';
 import { runLocalAgent } from './local-agent';
-import type { AgentStreamHandlers } from './stream-client';
 
 // SmolLM2 360M is the only on-device preset: small enough to run on WASM where
 // WebGPU is unavailable, and it caches once for instant reloads.

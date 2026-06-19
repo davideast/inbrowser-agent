@@ -1,8 +1,10 @@
+import { createReactLoopStrategy } from '@inbrowser/agent';
 import type { LoadProgress } from '@inbrowser/model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { AgentStreamHandlers } from '../../lib/agent-types';
 import { useChatStore } from '../../lib/chat-store';
-import { runLocalAgent } from '../../lib/local-agent';
-import { SOURCE_META, buildLocalModelClient, useModelSource } from '../../lib/model-source';
+import { REACT_SYSTEM_PROMPT, runLocalAgent } from '../../lib/local-agent';
+import { buildLocalModelClient, useModelSource } from '../../lib/model-source';
 import {
   PRESET_META,
   createOnDeviceModelClient,
@@ -11,7 +13,6 @@ import {
   loadOnDeviceEngine,
   requestPersistentStorage,
 } from '../../lib/on-device-agent';
-import { type AgentStreamHandlers, streamAgent } from '../../lib/stream-client';
 import { getSuggestions } from '../../lib/suggestions';
 import { PackageCards } from '../PackageCards';
 import { PoweredByStrip } from '../PoweredByStrip';
@@ -45,9 +46,6 @@ export function ChatApp() {
 
   const messages = store.active?.messages ?? [];
   const hasMessages = messages.length > 0;
-  // Gemini is the only server-backed source (relay + resumable run for it);
-  // every other source streams from a client-side ModelClient (model lights up).
-  const isServerSource = SOURCE_META[config.source].runner === 'server';
 
   // Empty-state chips: cold-start orientation for a first-time user, else
   // "learn more" suggestions derived from their prior questions across sessions.
@@ -219,7 +217,12 @@ export function ChatApp() {
       const ctrl = new AbortController();
       abortRef.current = ctrl;
 
-      // Per-source pre-send guards. Gemini (server) is always ready.
+      // Per-source pre-send guards.
+      if (config.source === 'gemini' && !config.geminiKey.trim()) {
+        setError('Add your Gemini API key (in the model bar above).');
+        finalize();
+        return;
+      }
       if (config.source === 'webgpu' && modelStatus.phase !== 'ready') {
         setError('Load the on-device model first (use the model bar above).');
         finalize();
@@ -275,24 +278,28 @@ export function ChatApp() {
       };
 
       try {
-        if (config.source === 'gemini') {
-          // Cloud default: the existing server resumable path (the server holds
-          // GEMINI_API_KEY); relay streams + resumable persists.
-          await streamAgent('/api/chat', { messages: convo }, handlers, ctrl.signal);
-        } else {
-          // Every other source runs the agent loop entirely in the browser
-          // against a `ModelClient`: webgpu = the loaded engine; openrouter /
-          // ollama = a browser-direct provider. No server round-trip.
-          const history = convo.slice(0, -1) as { role: 'user' | 'assistant'; text: string }[];
-          let client = config.source === 'webgpu' ? createOnDeviceModelClient() : null;
-          if (config.source !== 'webgpu') client = buildLocalModelClient(config);
-          if (!client) {
-            setError('Load the on-device model first (use the model bar above).');
-            finalize();
-            return;
-          }
-          await runLocalAgent(client, text, history, handlers, ctrl.signal);
+        // Every source now runs the agent loop entirely in the browser against
+        // a `ModelClient`: webgpu = the loaded on-device engine; gemini /
+        // openrouter / ollama = a browser-direct provider (BYOK for the cloud
+        // ones). No server round-trip.
+        const history = convo.slice(0, -1) as { role: 'user' | 'assistant'; text: string }[];
+        const client =
+          config.source === 'webgpu' ? createOnDeviceModelClient() : buildLocalModelClient(config);
+        if (!client) {
+          setError('Load the on-device model first (use the model bar above).');
+          finalize();
+          return;
         }
+        // Tiny on-device models use single-shot retrieval (the default opts);
+        // capable cloud/local models drive the ReAct multi-tool loop.
+        const opts =
+          config.source === 'webgpu'
+            ? undefined
+            : {
+                strategy: createReactLoopStrategy({ maxTurns: 10 }),
+                systemPrompt: REACT_SYSTEM_PROMPT,
+              };
+        await runLocalAgent(client, text, history, handlers, ctrl.signal, opts);
         finalize();
       } catch (e) {
         if ((e as Error)?.name === 'AbortError') {
@@ -338,7 +345,6 @@ export function ChatApp() {
   }, [store, finalize, focusComposer, setUrl]);
 
   // Sync the active session when the user navigates with Back/Forward.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: store identity is stable enough; re-subscribing per render is harmless
   useEffect(() => {
     const onPop = () => {
       abortRef.current?.abort();
@@ -358,6 +364,10 @@ export function ChatApp() {
       <ModelSourcePanel
         source={config.source}
         onSource={setSource}
+        geminiKey={config.geminiKey}
+        onGeminiKey={(v) => setField('geminiKey', v)}
+        geminiModel={config.geminiModel}
+        onGeminiModel={(v) => setField('geminiModel', v)}
         webgpuPreset={config.webgpuPreset}
         onWebgpuPreset={(p) => {
           setField('webgpuPreset', p);
@@ -400,9 +410,7 @@ export function ChatApp() {
         <>
           <PoweredByStrip
             agentLive={busy && phase === 'agent'}
-            relayLive={isServerSource && busy && phase === 'relay'}
-            resumableLive={isServerSource && busy}
-            modelLive={!isServerSource && busy && phase === 'relay'}
+            modelLive={busy && phase === 'relay'}
           />
           {/* Scroll the conversation; the composer is docked below so it is
               always fully visible (no mid-screen float, no mobile-toolbar clip). */}

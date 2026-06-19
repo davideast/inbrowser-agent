@@ -32,3 +32,17 @@ export type DocsAgentEvent =
   | { type: 'visited'; card: VisitedCard }
   | { type: 'error'; message: string }
   | { type: 'done' };
+
+/**
+ * Handlers the client-side agent runner dispatches its events to, so the chat
+ * UI is identical regardless of which `ModelClient` produced the answer. Pure
+ * types, client-safe — lives here so consumers don't import the (deleted)
+ * server stream client.
+ */
+export interface AgentStreamHandlers {
+  onToken?(text: string): void;
+  onTool?(name: string, detail: string): void;
+  onVisited?(card: VisitedCard): void;
+  onError?(message: string): void;
+  onDone?(): void;
+}

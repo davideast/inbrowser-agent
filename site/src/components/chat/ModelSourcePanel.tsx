@@ -46,6 +46,11 @@ const STEP_TEXT: Record<'download' | 'compile' | 'warmup', string> = {
 interface ModelSourcePanelProps {
   source: ModelSource;
   onSource(source: ModelSource): void;
+  // Gemini (BYOK, browser-direct)
+  geminiKey: string;
+  onGeminiKey(v: string): void;
+  geminiModel: string;
+  onGeminiModel(v: string): void;
   // WebGPU
   webgpuPreset: OnDevicePreset;
   onWebgpuPreset(preset: OnDevicePreset): void;
@@ -84,6 +89,8 @@ export function ModelSourcePanel(props: ModelSourcePanelProps) {
             recommended={recommended}
             webgpuAvailable={webgpuAvailable}
             status={props.status}
+            geminiKey={props.geminiKey}
+            geminiModel={props.geminiModel}
             webgpuPreset={props.webgpuPreset}
             openrouterModel={props.openrouterModel}
             openrouterKey={props.openrouterKey}
@@ -103,6 +110,8 @@ function SourceDropdown({
   recommended,
   webgpuAvailable,
   status,
+  geminiKey,
+  geminiModel,
   webgpuPreset,
   openrouterModel,
   openrouterKey,
@@ -113,6 +122,8 @@ function SourceDropdown({
   recommended: ModelSource;
   webgpuAvailable: boolean;
   status: ModelStatus;
+  geminiKey: string;
+  geminiModel: string;
   webgpuPreset: OnDevicePreset;
   openrouterModel: string;
   openrouterKey: string;
@@ -127,12 +138,23 @@ function SourceDropdown({
     () =>
       summarizeSource(source, {
         status,
+        geminiKey,
+        geminiModel,
         webgpuPreset,
         openrouterModel,
         openrouterKey,
         ollamaModel,
       }),
-    [source, status, webgpuPreset, openrouterModel, openrouterKey, ollamaModel],
+    [
+      source,
+      status,
+      geminiKey,
+      geminiModel,
+      webgpuPreset,
+      openrouterModel,
+      openrouterKey,
+      ollamaModel,
+    ],
   );
 
   // Close on outside click.
@@ -270,6 +292,8 @@ function summarizeSource(
   source: ModelSource,
   ctx: {
     status: ModelStatus;
+    geminiKey: string;
+    geminiModel: string;
     webgpuPreset: OnDevicePreset;
     openrouterModel: string;
     openrouterKey: string;
@@ -277,7 +301,10 @@ function summarizeSource(
   },
 ): { text: string; live: boolean } {
   const meta = SOURCE_META[source];
-  if (source === 'gemini') return { text: `${meta.label} · cloud`, live: false };
+  if (source === 'gemini') {
+    const state = ctx.geminiKey.trim() ? 'ready' : 'needs key';
+    return { text: `${meta.label} · ${shortModel(ctx.geminiModel)} · ${state}`, live: false };
+  }
   if (source === 'webgpu') {
     const label = PRESET_META[ctx.webgpuPreset].label;
     const state =
@@ -307,11 +334,7 @@ function shortModel(model: string): string {
 /** Per-source configuration (shown when that source is active). */
 function SourceConfig(props: ModelSourcePanelProps & { webgpuAvailable: boolean }) {
   const { source } = props;
-  if (source === 'gemini') {
-    return (
-      <div className="mt-1.5 text-dim-text">· cloud · no setup · the server holds the key</div>
-    );
-  }
+  if (source === 'gemini') return <GeminiConfig {...props} />;
   if (source === 'webgpu') return <WebgpuConfig {...props} />;
   if (source === 'openrouter') return <OpenrouterConfig {...props} />;
   return <OllamaConfig {...props} />;
@@ -436,6 +459,53 @@ function LoadingPanel({
         {showBytes ? (
           <span className="ml-auto text-secondary tabular-nums">{status.pct}%</span>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function GeminiConfig({
+  geminiKey,
+  onGeminiKey,
+  geminiModel,
+  onGeminiModel,
+}: ModelSourcePanelProps) {
+  const keyId = useId();
+  const modelId = useId();
+  const ready = geminiKey.trim().length > 0;
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <label htmlFor={keyId} className="text-dim-text">
+          API key
+        </label>
+        <input
+          id={keyId}
+          type="password"
+          autoComplete="off"
+          value={geminiKey}
+          onChange={(e) => onGeminiKey(e.target.value)}
+          placeholder="AIza…"
+          className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[220px] transition-colors"
+        />
+        <label htmlFor={modelId} className="text-dim-text">
+          model
+        </label>
+        <input
+          id={modelId}
+          type="text"
+          value={geminiModel}
+          onChange={(e) => onGeminiModel(e.target.value)}
+          placeholder="gemini-3.5-flash"
+          className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[200px] transition-colors"
+        />
+        <span className={ready ? 'text-primary' : 'text-dim-text'}>
+          <span aria-hidden="true">{ready ? '▸ ' : '· '}</span>
+          {ready ? 'ready' : 'needs key'}
+        </span>
+      </div>
+      <div className="text-dim-text">
+        Your key is sent browser-direct to Google and stored only in this browser.
       </div>
     </div>
   );

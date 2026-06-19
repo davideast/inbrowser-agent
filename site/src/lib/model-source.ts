@@ -10,6 +10,7 @@
  * imports the engine / worker / transformers.
  */
 import type { ModelClient } from '@inbrowser/model/contract';
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
 import { ollamaModelClient } from '@inbrowser/model/providers/ollama';
 import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -20,6 +21,8 @@ export type ModelSource = 'gemini' | 'webgpu' | 'openrouter' | 'ollama';
 /** Everything the four sources need, in one persisted object. */
 export interface ModelSourceConfig {
   source: ModelSource;
+  geminiKey: string;
+  geminiModel: string;
   webgpuPreset: OnDevicePreset;
   openrouterKey: string;
   openrouterModel: string;
@@ -29,6 +32,8 @@ export interface ModelSourceConfig {
 
 export const DEFAULT_MODEL_SOURCE_CONFIG: ModelSourceConfig = {
   source: 'gemini',
+  geminiKey: '',
+  geminiModel: 'gemini-3.5-flash',
   webgpuPreset: 'smollm2_360m',
   openrouterKey: '',
   openrouterModel: 'openai/gpt-4o-mini',
@@ -40,9 +45,9 @@ export const DEFAULT_MODEL_SOURCE_CONFIG: ModelSourceConfig = {
 export interface SourceMeta {
   label: string;
   kind: 'cloud' | 'local' | 'on-device';
-  /** `server` = the existing /api/chat resumable path; `local` = the
-   *  client-side `runLocalAgent` loop. */
-  runner: 'server' | 'local';
+  /** All sources now run the client-side `runLocalAgent` loop (the server is
+   *  gone); kept as a one-value union for the per-source descriptor shape. */
+  runner: 'local';
   needsKey: boolean;
   needsWebGPU: boolean;
   /** One-word setup requirement shown in the row. */
@@ -53,10 +58,10 @@ export const SOURCE_META: Record<ModelSource, SourceMeta> = {
   gemini: {
     label: 'Gemini',
     kind: 'cloud',
-    runner: 'server',
-    needsKey: false,
+    runner: 'local',
+    needsKey: true,
     needsWebGPU: false,
-    requirement: 'no setup',
+    requirement: 'API key',
   },
   webgpu: {
     label: 'On-device',
@@ -104,6 +109,12 @@ function load(): ModelSourceConfig {
     // blob can never produce an invalid source or preset.
     return {
       source: isModelSource(p.source) ? p.source : DEFAULT_MODEL_SOURCE_CONFIG.source,
+      geminiKey:
+        typeof p.geminiKey === 'string' ? p.geminiKey : DEFAULT_MODEL_SOURCE_CONFIG.geminiKey,
+      geminiModel:
+        typeof p.geminiModel === 'string' && p.geminiModel.trim()
+          ? p.geminiModel
+          : DEFAULT_MODEL_SOURCE_CONFIG.geminiModel,
       webgpuPreset: isPreset(p.webgpuPreset)
         ? p.webgpuPreset
         : DEFAULT_MODEL_SOURCE_CONFIG.webgpuPreset,
@@ -185,12 +196,23 @@ export function useModelSource(): UseModelSource {
 // lie after the browser evicted best-effort storage.
 
 /**
- * Build the `ModelClient` for the lean local/cloud sources (OpenRouter, Ollama).
- * WebGPU is intentionally NOT handled here — it's built by the caller from the
- * loaded engine via `createOnDeviceModelClient`, and gemini never runs locally
- * (it goes through the server path).
+ * Build the `ModelClient` for the lean cloud/local sources (Gemini, OpenRouter,
+ * Ollama). All three now run browser-direct (BYOK for the cloud ones). WebGPU is
+ * intentionally NOT handled here — it's built by the caller from the loaded
+ * engine via `createOnDeviceModelClient`.
+ *
+ * Gemini imports the lean `@inbrowser/model/providers/gemini` subpath (which has
+ * its own internal retry) rather than `@inbrowser/model`, so the on-device
+ * engine isn't dragged into this bundle.
  */
 export function buildLocalModelClient(config: ModelSourceConfig): ModelClient {
+  if (config.source === 'gemini') {
+    return geminiModelClient({
+      apiKey: config.geminiKey,
+      model: config.geminiModel,
+      temperature: 0.2,
+    });
+  }
   if (config.source === 'openrouter') {
     return openrouterModelClient({ apiKey: config.openrouterKey, model: config.openrouterModel });
   }
