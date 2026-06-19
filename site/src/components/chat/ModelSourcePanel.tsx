@@ -216,7 +216,7 @@ export function ModelSourcePanel(props: ModelSourcePanelProps) {
         ) : null}
       </button>
       {open ? (
-        <div className="absolute bottom-full left-0 z-30 mb-1 min-w-[300px] border border-border-strong bg-surface shadow-lg">
+        <div className="absolute bottom-full right-0 z-30 mb-1 min-w-[300px] border border-border-strong bg-surface shadow-lg">
           {/* 1. Source rows (keyboard nav + click-outside live on the root). */}
           <div
             id={listId}
@@ -264,8 +264,10 @@ export function ModelSourcePanel(props: ModelSourcePanelProps) {
           </div>
           {/* 2. Divider. */}
           <div className="border-t border-border" />
-          {/* 3. The active source's config (the heavy panel, now inside). */}
-          <div className="px-2.5 pb-2.5 text-[11px] text-secondary">
+          {/* 3. The active source's config (the heavy panel, now inside). A fixed
+              min-height keeps the popover the SAME height across sources, so
+              switching providers never makes it jump. */}
+          <div className="min-h-[136px] px-2.5 pb-2.5 text-[11px] text-secondary">
             <SourceConfig {...props} webgpuAvailable={webgpuAvailable} />
           </div>
         </div>
@@ -501,9 +503,7 @@ function GeminiConfig({
           {ready ? 'ready' : 'needs key'}
         </span>
       </div>
-      <div className="text-dim-text">
-        Your key is sent browser-direct to Google and stored only in this browser.
-      </div>
+      <div className="text-dim-text">Direct to Google; key stored only in your browser.</div>
     </div>
   );
 }
@@ -548,9 +548,7 @@ function OpenrouterConfig({
           {ready ? 'ready' : 'needs key'}
         </span>
       </div>
-      <div className="text-dim-text">
-        Your key is sent browser-direct to OpenRouter and stored only in this browser.
-      </div>
+      <div className="text-dim-text">Direct to OpenRouter; key stored only in your browser.</div>
     </div>
   );
 }
@@ -606,8 +604,8 @@ function OllamaConfig({
         </div>
       ) : null}
       <div className="text-dim-text">
-        Browser-direct to your local Ollama. Run it with{' '}
-        <code className="text-secondary">OLLAMA_ORIGINS</code> set so this origin is allowed.
+        Run Ollama with <code className="text-secondary">OLLAMA_ORIGINS</code> set to allow this
+        origin.
       </div>
     </div>
   );

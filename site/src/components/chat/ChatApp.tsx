@@ -441,7 +441,7 @@ export function ChatApp() {
                 onStop={stop}
                 busy={busy}
               />
-              <div className="mt-2">{modelPill}</div>
+              <div className="mt-2 flex justify-end">{modelPill}</div>
             </div>
           </div>
         </>
@@ -469,9 +469,9 @@ export function ChatApp() {
               onStop={stop}
               busy={busy}
             />
-            <div className="mt-3 flex items-center gap-3">
-              {modelPill}
+            <div className="mt-3 flex items-center justify-end gap-3">
               <span className="text-[11px] text-dim-text">{pillHint}</span>
+              {modelPill}
             </div>
             <div className="mt-8 flex flex-wrap gap-2">
               {suggestions.map((ex) => (
