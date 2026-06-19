@@ -1,66 +1,15 @@
 {
   "name": "@inbrowser/model",
   "version": "0.2.0",
-  "description": "The model layer for the inbrowser stack: it OWNS the shared ModelClient contract (./contract) that @inbrowser/relay (transport) and @inbrowser/agent (runtime) both consume, the cloud provider factories (Gemini, OpenRouter, Anthropic, Ollama, Claude-CLI, Claude-Code) in ./providers/* that each return a ModelClient, a withRetry decorator, and the on-device LLM engine (wraps @huggingface/transformers + ONNX Runtime Web behind a narrow EngineEvent-streaming Engine surface; Gemma 4 + Qwen + SmolLM2 presets; Worker subpath). The engine is also a ModelClient via createEngineModelClient (./engine-client).",
+  "description": "The model layer for the inbrowser stack: it OWNS the shared ModelClient contract that @inbrowser/relay (transport) and @inbrowser/agent (runtime) both consume, the cloud provider factories (Gemini, OpenRouter, Anthropic, Ollama, Claude-CLI, Claude-Code) that each return a ModelClient, a withRetry decorator, and the on-device LLM engine (lazy-loads @huggingface/transformers + ONNX Runtime Web behind a narrow EngineEvent-streaming Engine surface; Gemma 4 + Qwen + SmolLM2 presets; in-worker host/connect helpers). The engine is also a ModelClient via createEngineModelClient. Everything is exported from the package root.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./contract": {
-      "types": "./dist/contract.d.ts",
-      "import": "./dist/contract.js"
-    },
-    "./engine-client": {
-      "types": "./dist/engine-client.d.ts",
-      "import": "./dist/engine-client.js"
-    },
-    "./presets": {
-      "types": "./dist/presets.d.ts",
-      "import": "./dist/presets.js"
-    },
-    "./worker": {
-      "types": "./dist/worker.d.ts",
-      "import": "./dist/worker.js"
-    },
-    "./with-retry": {
-      "types": "./dist/with-retry.d.ts",
-      "import": "./dist/with-retry.js"
-    },
-    "./providers/gemini": {
-      "types": "./dist/providers/gemini.d.ts",
-      "import": "./dist/providers/gemini.js"
-    },
-    "./providers/openrouter": {
-      "types": "./dist/providers/openrouter.d.ts",
-      "import": "./dist/providers/openrouter.js"
-    },
-    "./providers/anthropic": {
-      "types": "./dist/providers/anthropic.d.ts",
-      "import": "./dist/providers/anthropic.js"
-    },
-    "./providers/oai-compat": {
-      "types": "./dist/providers/oai-compat.d.ts",
-      "import": "./dist/providers/oai-compat.js"
-    },
-    "./providers/ollama": {
-      "types": "./dist/providers/ollama.d.ts",
-      "import": "./dist/providers/ollama.js"
-    },
-    "./providers/llama-server": {
-      "types": "./dist/providers/llama-server.d.ts",
-      "import": "./dist/providers/llama-server.js"
-    },
-    "./providers/claude-cli": {
-      "types": "./dist/providers/claude-cli.d.ts",
-      "import": "./dist/providers/claude-cli.js"
-    },
-    "./providers/claude-code": {
-      "types": "./dist/providers/claude-code.d.ts",
-      "import": "./dist/providers/claude-code.js"
     }
   },
   "files": ["dist", "README.md", "AGENTS.md"],

@@ -282,15 +282,11 @@ for (const [name, p] of [
 }
 console.log('  ✓ model: createEngine + utilities + six presets exported from root');
 
-// Presets subpath also resolves to the same constants
-import { gemma4_E2B as gemmaViaSubpath } from '@inbrowser/model/presets';
-assert.equal(gemmaViaSubpath, gemma4_E2B, 'preset via subpath is the same reference');
-console.log('  ✓ model/presets: subpath resolves to same constants');
-
-import * as modelWorker from '@inbrowser/model/worker';
-assert.equal(typeof modelWorker.hostEngineInWorker, 'function');
-assert.equal(typeof modelWorker.connectWorkerEngine, 'function');
-console.log('  ✓ model/worker: host/connect helpers exported');
+// Worker host/connect helpers are exported from the root barrel.
+import * as modelRoot from '@inbrowser/model';
+assert.equal(typeof modelRoot.hostEngineInWorker, 'function');
+assert.equal(typeof modelRoot.connectWorkerEngine, 'function');
+console.log('  ✓ model: worker host/connect helpers exported from root');
 
 // === @inbrowser/model cloud provider factories + withRetry (stage 4) ===
 import {
@@ -322,25 +318,11 @@ assert.equal(llamaClient.id, 'llama:qwen2.5-coder');
 assert.equal(typeof llamaClient.chat, 'function');
 console.log('  ✓ model: cloud provider factories + withRetry exported from root');
 
-// Per-provider subpaths also resolve to the same factory.
-import { geminiModelClient as geminiViaSubpath } from '@inbrowser/model/providers/gemini';
-assert.equal(geminiViaSubpath, geminiModelClient, 'provider subpath is the same factory');
-import { withRetry as withRetryViaSubpath } from '@inbrowser/model/with-retry';
-assert.equal(withRetryViaSubpath, withRetry, 'with-retry subpath is the same fn');
-console.log('  ✓ model/providers/gemini + model/with-retry: subpaths resolve to same exports');
-
-// The shared model-call contract is a type-only subpath: verify it resolves
-// (no runtime members to assert — importing it must pull no transformers).
-import '@inbrowser/model/contract';
-console.log('  ✓ model/contract: type-only contract subpath resolves');
-
-// The engine→ModelClient adapter resolves from both the root and its subpath
-// and is a function (the on-device engine is now a ModelClient).
-import { createEngineModelClient as engineClientFromRoot } from '@inbrowser/model';
-import { createEngineModelClient as engineClientViaSubpath } from '@inbrowser/model/engine-client';
-assert.equal(typeof engineClientFromRoot, 'function', 'model root: createEngineModelClient');
-assert.equal(engineClientViaSubpath, engineClientFromRoot, 'engine-client subpath is the same fn');
-console.log('  ✓ model/engine-client: createEngineModelClient resolves (root + subpath)');
+// The engine→ModelClient adapter resolves from the root and is a function
+// (the on-device engine is now a ModelClient).
+import { createEngineModelClient } from '@inbrowser/model';
+assert.equal(typeof createEngineModelClient, 'function', 'model root: createEngineModelClient');
+console.log('  ✓ model: createEngineModelClient resolves from root');
 `,
   );
   await $`node test.mjs`.cwd(SCRATCH);

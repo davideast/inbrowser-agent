@@ -8,7 +8,7 @@
  *   // src/server/relay.ts
  *   import { createRelay } from '@inbrowser/relay';
  *   import { createAstroRoutes } from '@inbrowser/relay/adapters/astro';
- *   import { geminiModelClient } from '@inbrowser/model/providers/gemini';
+ *   import { geminiModelClient } from '@inbrowser/model';
  *
  *   const relay = createRelay({
  *     store,

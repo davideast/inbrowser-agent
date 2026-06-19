@@ -44,5 +44,15 @@ export default defineConfig({
     // Cast: duplicate vite versions in the dep tree make @tailwindcss/vite's
     // Plugin type mismatch Astro's expected PluginOption. Runtime is fine.
     plugins: [tailwindcss() as never],
+    // The on-device engine lazy-loads @huggingface/transformers (so the cloud
+    // path never statically bundles ONNX/WASM). That dynamic import runs inside
+    // the model worker, which then code-splits — unsupported by the default
+    // `iife` worker format — so emit ES-module workers. The worker is already
+    // spawned with `{ type: 'module' }`. (The Node-only providers in the root
+    // barrel stay out of the browser build via their own lazy/non-literal
+    // imports, so no `external` workaround is needed here.)
+    worker: {
+      format: 'es',
+    },
   },
 });

@@ -1,15 +1,13 @@
 # Presets Reference
 
-This page describes the `@inbrowser/model/presets` export: the six bundled
-`ModelPreset` values and the static types they carry.
+This page describes the six bundled `ModelPreset` values exported from
+`@inbrowser/model` and the static types they carry.
 
-All six presets are also re-exported from the root `@inbrowser/model` for
-ergonomic narrow imports. Spread a preset into `createEngine` to construct a
-running engine; see [./engine.md](./engine.md).
+Spread a preset into `createEngine` to construct a running engine; see
+[./engine.md](./engine.md).
 
 ```ts
-import { createEngine } from '@inbrowser/model';
-import { smollm2_360m } from '@inbrowser/model/presets';
+import { createEngine, smollm2_360m } from '@inbrowser/model';
 
 const engine = createEngine(smollm2_360m);
 ```

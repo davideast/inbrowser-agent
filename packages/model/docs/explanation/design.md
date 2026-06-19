@@ -71,7 +71,7 @@ invented a new field.
 
 The wider shape that consumers actually want is the stack's one
 `ModelClient` contract and its `ModelEvent` — owned by this same package
-(`@inbrowser/model/contract`) and implemented directly by the cloud providers.
+(`@inbrowser/model`) and implemented directly by the cloud providers.
 The engine deliberately does *not* implement that contract itself; the
 intended bridge is a single boundary, the planned `createEngineModelClient`
 wrapper, that widens `EngineEvent` into `ModelEvent` once. (The earlier

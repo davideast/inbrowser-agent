@@ -25,17 +25,19 @@
  * follow-up.
  */
 
-import {
-  AutoModelForCausalLM,
-  AutoTokenizer,
-  type PreTrainedModel,
-  type PreTrainedTokenizer,
-  type ProgressInfo,
-  TextStreamer,
-  env as transformersEnv,
-} from '@huggingface/transformers';
+import type { PreTrainedModel, PreTrainedTokenizer, ProgressInfo } from '@huggingface/transformers';
 
 import { parseToolCalls } from './parse-tool-calls.js';
+
+// Lazy-load the heavy transformers runtime so importing @inbrowser/model (e.g.
+// for a cloud provider) never statically bundles ONNX/WASM. The chunk is
+// fetched only when an engine actually loads or generates.
+let transformersModule: Promise<typeof import('@huggingface/transformers')> | null = null;
+function loadTransformers() {
+  transformersModule ??= import('@huggingface/transformers');
+  return transformersModule;
+}
+
 import type {
   Backend,
   CreateEngineOpts,
@@ -103,16 +105,21 @@ export function createEngine(opts: CreateEngineOpts): Engine {
     if (loadPromise) return loadPromise;
 
     setState('loading');
-    // `weightsBaseUrl` overrides the HF Hub origin for self-hosted
-    // mirrors. Transformers.js exposes this as the global
-    // `env.remoteHost`; we set it process-wide before load. Documented
-    // limitation: with multiple engines spanning different remotes,
-    // the last one to load wins. Realistic use case (one app, one
-    // mirror) is unaffected.
-    if (opts.weightsBaseUrl) {
-      transformersEnv.remoteHost = opts.weightsBaseUrl;
-    }
     loadPromise = (async () => {
+      const {
+        AutoTokenizer,
+        AutoModelForCausalLM,
+        env: transformersEnv,
+      } = await loadTransformers();
+      // `weightsBaseUrl` overrides the HF Hub origin for self-hosted
+      // mirrors. Transformers.js exposes this as the global
+      // `env.remoteHost`; we set it process-wide before load. Documented
+      // limitation: with multiple engines spanning different remotes,
+      // the last one to load wins. Realistic use case (one app, one
+      // mirror) is unaffected.
+      if (opts.weightsBaseUrl) {
+        transformersEnv.remoteHost = opts.weightsBaseUrl;
+      }
       // AutoTokenizer (not AutoProcessor): text-only models like
       // SmolLM2 ship no preprocessor_config.json and AutoProcessor
       // 404s on them. Multimodal models (e.g., Gemma 4 audio) still
@@ -250,6 +257,8 @@ export function createEngine(opts: CreateEngineOpts): Engine {
     // channels but inconsistent emission (Gemma 4 family — see
     // presets.ts) deliberately omit `thinkingTags` to take this path.
     const preserveSpecialTokens = useThinking && capabilities.thinkingTags !== undefined;
+    // Cached after `ensureReady` above already loaded it — resolves instantly.
+    const { TextStreamer } = await loadTransformers();
     const streamer = new TextStreamer(tokenizer, {
       skip_prompt: true,
       ...(preserveSpecialTokens ? { skip_special_tokens: false } : {}),

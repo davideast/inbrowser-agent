@@ -1,8 +1,8 @@
 # Worker Reference
 
-This page describes the `@inbrowser/model/worker` subpath, which hosts an
-`Engine` inside a Web Worker and exposes the same `Engine` shape on the main
-thread.
+This page describes the in-worker host/connect helpers (exported from
+`@inbrowser/model`), which host an `Engine` inside a Web Worker and expose the
+same `Engine` shape on the main thread.
 
 For the `Engine` surface and the `EngineEvent` vocabulary the worker transports,
 see [./engine.md](./engine.md).
@@ -25,9 +25,7 @@ removed**; `createEngineModelClient` is their single replacement against the
 shared `ModelClient` contract.
 
 ```ts
-import { createEngineModelClient, createEngine } from '@inbrowser/model';
-// or: import { createEngineModelClient } from '@inbrowser/model/engine-client';
-import { smollm2_360m } from '@inbrowser/model/presets';
+import { createEngineModelClient, createEngine, smollm2_360m } from '@inbrowser/model';
 
 const engine = createEngine(smollm2_360m);
 const client = createEngineModelClient(engine); // a ModelClient
@@ -78,9 +76,9 @@ error} per turn" invariant carries through — the adapter synthesizes nothing.
 > [../how-to/use-a-local-model-in-the-agent.md](../how-to/use-a-local-model-in-the-agent.md)
 > for the current state.
 
-## `@inbrowser/model/worker`
+## Worker host/connect helpers
 
-Hosts an `Engine` inside a Web Worker and exposes the same `Engine` shape on the
+Host an `Engine` inside a Web Worker and expose the same `Engine` shape on the
 main thread over a `postMessage` RPC.
 
 The key invariant: `connectWorkerEngine` returns a value that satisfies the same
@@ -99,7 +97,7 @@ function hostEngineInWorker(
 Installs the worker-side RPC. Call from inside a worker entry, passing `self`.
 
 ```ts
-import { hostEngineInWorker } from '@inbrowser/model/worker';
+import { hostEngineInWorker } from '@inbrowser/model';
 hostEngineInWorker(self);
 ```
 

@@ -35,7 +35,7 @@ A worker is a separate script with its own global scope. Create
 `src/engine.worker.ts`:
 
 ```ts
-import { hostEngineInWorker } from '@inbrowser/model/worker';
+import { hostEngineInWorker } from '@inbrowser/model';
 
 hostEngineInWorker(self);
 ```
@@ -52,8 +52,7 @@ Back in `src/main.ts`, replace the `createEngine` line. First, construct the
 `Worker`, then connect to it:
 
 ```ts
-import { connectWorkerEngine } from '@inbrowser/model/worker';
-import { smollm2_360m } from '@inbrowser/model/presets';
+import { connectWorkerEngine, smollm2_360m } from '@inbrowser/model';
 
 const worker = new Worker(new URL('./engine.worker.ts', import.meta.url), {
   type: 'module',

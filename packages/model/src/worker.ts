@@ -91,7 +91,7 @@ export interface HostEngineInWorkerOpts {
 /**
  * Install the worker-side RPC. Call from inside your worker entry:
  *
- *   import { hostEngineInWorker } from '@inbrowser/model/worker';
+ *   import { hostEngineInWorker } from '@inbrowser/model';
  *   hostEngineInWorker(self);
  */
 export function hostEngineInWorker(

@@ -5,7 +5,7 @@ shipped in `@inbrowser/model` (Gemini, OpenRouter, Anthropic, Ollama, and the
 two subscription-backed Claude providers).
 
 A "provider" is a `ModelClient` — the one model-call contract from
-`@inbrowser/model/contract`, shared by the cloud providers, the on-device
+`@inbrowser/model`, shared by the cloud providers, the on-device
 engine, the relay (transport), and the agent (runtime). A `ModelClient` is
 constructed from `{ apiKey, model }` and exposes `chat(req, signal)`, an async
 iterable of `ModelEvent`s. The relay registers your provider as a
@@ -20,7 +20,7 @@ import type {
   ModelClient,
   ModelEvent,
   ModelRequest,
-} from '@inbrowser/model/contract';
+} from '@inbrowser/model';
 
 /** Construction settings come in the config; per-call settings ride the
  *  `ModelRequest`. This factory shape (`{ apiKey?, model }`) is exactly
@@ -79,7 +79,7 @@ import type {
   ModelClient,
   ModelEvent,
   ModelRequest,
-} from '@inbrowser/model/contract';
+} from '@inbrowser/model';
 
 export function sseModelClient(config: { apiKey?: string; model: string }): ModelClient {
   return {

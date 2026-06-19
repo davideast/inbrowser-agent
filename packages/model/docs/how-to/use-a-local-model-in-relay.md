@@ -19,7 +19,7 @@ construct a `ModelClient` per request (so a BYOK key can be threaded in). Import
 a cloud provider factory from this package and register it under a key:
 
 ```ts
-import { geminiModelClient } from '@inbrowser/model/providers/gemini';
+import { geminiModelClient } from '@inbrowser/model';
 import { createRelay } from '@inbrowser/relay';
 
 const relay = createRelay({
@@ -47,8 +47,7 @@ right now. Two honest options:
    preset and consume its `EngineEvent` stream yourself:
 
    ```ts
-   import { createEngine } from '@inbrowser/model';
-   import { qwen3_1_7b } from '@inbrowser/model/presets';
+   import { createEngine, qwen3_1_7b } from '@inbrowser/model';
 
    const engine = createEngine(qwen3_1_7b);
    await engine.ensureReady();

@@ -8,7 +8,7 @@ single shared definition of "an LLM" for everything downstream.
 
 Two halves, one package:
 
-- **The contract + cloud providers.** `@inbrowser/model/contract`
+- **The contract + cloud providers.** `@inbrowser/model`
   defines `ModelClient` / `ModelRequest` / `ModelEvent`. The cloud
   providers (`geminiModelClient`, `openrouterModelClient`,
   `anthropicModelClient`, `openaiCompatModelClient`, `ollamaModelClient`,
@@ -24,7 +24,7 @@ Two halves, one package:
 > model through `@huggingface/transformers` and `generate()` streams real
 > tokens (the end-to-end load path runs in `examples/local-llm-poc`,
 > headless-verified). The engine is now a `ModelClient` too, via
-> `createEngineModelClient` (root + `@inbrowser/model/engine-client`),
+> `createEngineModelClient` (root),
 > which widens the engine's `EngineEvent` stream to the contract's
 > `ModelEvent`. The old `@inbrowser/model/relay` and
 > `@inbrowser/model/agent` adapter subpaths have been removed.
@@ -37,7 +37,6 @@ Two halves, one package:
 
 ```ts
 import { geminiModelClient } from '@inbrowser/model';
-// or: import { geminiModelClient } from '@inbrowser/model/providers/gemini';
 
 const client = geminiModelClient({ apiKey: process.env.GEMINI_KEY, model: 'gemini-3.5-flash' });
 
@@ -90,8 +89,7 @@ directly for any server without a named preset.
 ## An on-device model via the engine
 
 ```ts
-import { createEngine } from '@inbrowser/model';
-import { gemma4_E2B } from '@inbrowser/model/presets';
+import { createEngine, gemma4_E2B } from '@inbrowser/model';
 
 const engine = createEngine(gemma4_E2B);
 await engine.ensureReady();
@@ -108,8 +106,7 @@ The engine speaks `EngineEvent` (`token` / `thinking` / `tool_call` /
 e.g. to hand it to the agent — wrap it with `createEngineModelClient`:
 
 ```ts
-import { createEngine, createEngineModelClient } from '@inbrowser/model';
-import { smollm2_360m } from '@inbrowser/model/presets';
+import { createEngine, createEngineModelClient, smollm2_360m } from '@inbrowser/model';
 
 const engine = createEngine(smollm2_360m);
 const client = createEngineModelClient(engine); // a ModelClient
@@ -130,20 +127,22 @@ the `createEngineModelClient` building block it needs now exists.
 
 ## Surface
 
+Everything is imported from the package root `@inbrowser/model`.
+
 | Export | What it gives you |
 |---|---|
-| `@inbrowser/model/contract` | `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` — the shared contract (type-only) |
-| `geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`, `openaiCompatModelClient`, `ollamaModelClient`, `llamaServerModelClient`, `claudeCliModelClient`, `claudeCodeModelClient` | Cloud + local provider factories; each returns a `ModelClient`. Also at `@inbrowser/model/providers/<name>` |
+| `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` | The shared contract (type-only) |
+| `geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`, `openaiCompatModelClient`, `ollamaModelClient`, `llamaServerModelClient`, `claudeCliModelClient`, `claudeCodeModelClient` | Cloud + local provider factories; each returns a `ModelClient` |
 | `OpenAiCompatConfig`, `OllamaConfig`, `LlamaServerConfig` | Config shapes for the OpenAI-compatible factory and its local presets |
-| `withRetry(client, opts?)` | Decorator that retries transient upstream errors while nothing has streamed. Also at `@inbrowser/model/with-retry` |
+| `withRetry(client, opts?)` | Decorator that retries transient upstream errors while nothing has streamed |
 | `CloudProviderConfig`, `ModelClientFactory` | Shared provider config + the factory type the relay routes on |
 | `createEngine(preset)` | Runtime `Engine` — owns load state + decode loop, streams `EngineEvent` |
-| `createEngineModelClient(engine, id?)` | Wraps an `Engine` as a `ModelClient` (maps `EngineEvent` → `ModelEvent`). Also at `@inbrowser/model/engine-client` |
+| `createEngineModelClient(engine, id?)` | Wraps an `Engine` as a `ModelClient` (maps `EngineEvent` → `ModelEvent`) |
 | `definePreset(p)` | Type-safe identity helper for community presets |
 | `parseToolCalls`, `splitThinking` | Stream transformers over an `EngineEvent` stream |
 | `ModelPreset`, `Engine`, `EngineEvent`, … | Public engine types |
-| `@inbrowser/model/presets` | `gemma4_E2B`, `gemma4_E4B`, `qwen2_5_coder_1_5b`, `qwen3_1_7b`, `deepseek_r1_qwen_1_5b`, `smollm2_360m` (also re-exported from root) |
-| `@inbrowser/model/worker` | `hostEngineInWorker(self)` + `connectWorkerEngine(opts)` |
+| `gemma4_E2B`, `gemma4_E4B`, `qwen2_5_coder_1_5b`, `qwen3_1_7b`, `deepseek_r1_qwen_1_5b`, `smollm2_360m` | The six bundled presets |
+| `hostEngineInWorker(self)`, `connectWorkerEngine(opts)` | Worker host/connect helpers |
 
 ## Vocabulary anchor
 

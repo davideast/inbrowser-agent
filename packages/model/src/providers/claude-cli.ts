@@ -1,5 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process';
-import { tmpdir } from 'node:os';
+import type { ChildProcess } from 'node:child_process';
 import type { ModelClient, ModelEvent, ModelMessage, ModelRequest } from '../contract.js';
 
 /**
@@ -198,7 +197,6 @@ interface CliLine {
 export function claudeCliModelClient(config: ClaudeCliConfig): ModelClient {
   const claudePath = config.claudePath ?? 'claude';
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const cwd = config.cwd ?? tmpdir();
   const tools = config.tools ?? [];
   const extraArgs = config.extraArgs ?? [];
 
@@ -241,6 +239,11 @@ export function claudeCliModelClient(config: ClaudeCliConfig): ModelClient {
       const effort = toEffortFlag(req.reasoningEffort);
       if (effort) args.push('--effort', effort);
       args.push(...extraArgs);
+
+      // Lazy-load the Node-only deps so importing this module is browser-safe
+      // (the root barrel re-exports it; the browser never calls chat()).
+      const { spawn } = await import('node:child_process');
+      const cwd = config.cwd ?? (await import('node:os')).tmpdir();
 
       let child: ChildProcess;
       try {

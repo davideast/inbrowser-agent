@@ -190,7 +190,11 @@ export function claudeCodeModelClient(config: ClaudeCodeConfig): ModelClient {
   const loadSdk =
     config.loadSdk ??
     (async (): Promise<{ query: SdkQuery }> => {
-      const mod = (await import('@anthropic-ai/claude-agent-sdk')) as { query: SdkQuery };
+      // Non-literal specifier so the browser build (which reaches this module
+      // through the root barrel) doesn't resolve the Node-only SDK at build
+      // time; it loads at runtime only when this provider is actually used.
+      const sdkSpecifier = '@anthropic-ai/claude-agent-sdk';
+      const mod = (await import(sdkSpecifier)) as { query: SdkQuery };
       return { query: mod.query };
     });
 

@@ -29,7 +29,7 @@ All bundled presets ship at `dtype: 'q4f16'` with `backend: 'auto'` (WebGPU when
 Because a preset is inert data, read its fields directly without constructing an engine:
 
 ```ts
-import { gemma4_E2B } from '@inbrowser/model/presets';
+import { gemma4_E2B } from '@inbrowser/model';
 
 gemma4_E2B.capabilities.contextWindow; // 128000
 gemma4_E2B.capabilities.supportsTools; // false
@@ -38,7 +38,7 @@ gemma4_E2B.capabilities.supportsTools; // false
 Gate your own UI or routing on these fields before you spend a cold start. To choose at runtime from a list:
 
 ```ts
-import { qwen3_1_7b, gemma4_E2B } from '@inbrowser/model/presets';
+import { qwen3_1_7b, gemma4_E2B } from '@inbrowser/model';
 
 const candidates = [qwen3_1_7b, gemma4_E2B];
 const preset = needTools

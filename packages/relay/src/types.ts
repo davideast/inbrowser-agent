@@ -3,7 +3,7 @@
  *
  * The model-call shapes (`ModelEvent`, `ModelMessage`, `ToolSpec`,
  * `ModelRequest`, `ModelUsage`, `ReasoningEffort`) are NOT relay-owned —
- * they are the one shared contract in `@inbrowser/model/contract`, which
+ * they are the one shared contract in `@inbrowser/model`, which
  * the cloud providers, the on-device engine, the relay (transport), and
  * the agent (runtime) all speak. The relay re-exports them so its
  * provider/handler/client code (and downstream consumers) keep a single
@@ -17,7 +17,7 @@
  * resume "for free" without per-provider code.
  */
 
-import type { ModelRequest } from '@inbrowser/model/contract';
+import type { ModelRequest } from '@inbrowser/model';
 
 /**
  * The shared model-call contract, re-homed under the relay's import
@@ -31,7 +31,7 @@ export type {
   ModelUsage,
   ReasoningEffort,
   ToolSpec,
-} from '@inbrowser/model/contract';
+} from '@inbrowser/model';
 
 /**
  * The wire shape the relay accepts at `handleStart`. It is the shared
