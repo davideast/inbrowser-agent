@@ -18,6 +18,7 @@ import {
 } from '@inbrowser/model';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OnDevicePreset } from './on-device-agent';
+import { consumeOpenRouterCallback } from './openrouter-oauth';
 
 export type ModelSource = 'gemini' | 'webgpu' | 'openrouter' | 'ollama' | 'llama';
 
@@ -108,6 +109,10 @@ export const SOURCE_META: Record<ModelSource, SourceMeta> = {
 
 const STORAGE_KEY = 'inbrowser-model-source:v1';
 
+// Guards the one-time OAuth-callback consume against a remount / React
+// StrictMode double-invoke running the exchange twice for the same code.
+let oauthConsumed = false;
+
 function isModelSource(x: unknown): x is ModelSource {
   return x === 'gemini' || x === 'webgpu' || x === 'openrouter' || x === 'ollama' || x === 'llama';
 }
@@ -170,6 +175,8 @@ export interface UseModelSource {
   config: ModelSourceConfig;
   setSource(source: ModelSource): void;
   setField<K extends keyof ModelSourceConfig>(key: K, value: ModelSourceConfig[K]): void;
+  /** Last OpenRouter OAuth failure (transient), or null. */
+  oauthError: string | null;
 }
 
 /**
@@ -179,7 +186,22 @@ export interface UseModelSource {
  */
 export function useModelSource(): UseModelSource {
   const [config, setConfig] = useState<ModelSourceConfig>(DEFAULT_MODEL_SOURCE_CONFIG);
+  const [oauthError, setOauthError] = useState<string | null>(null);
   const loaded = useRef(false);
+
+  const configRef = useRef(config);
+  configRef.current = config;
+
+  // One writer for both the debounce and the hide-flush. Pass `next` to write a
+  // specific config synchronously (used for the freshly minted OAuth key, whose
+  // only durable copy is localStorage).
+  const persist = useCallback((next?: ModelSourceConfig) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next ?? configRef.current));
+    } catch {
+      /* quota / private mode — ignore */
+    }
+  }, []);
 
   // Load once on mount (client only).
   useEffect(() => {
@@ -187,23 +209,59 @@ export function useModelSource(): UseModelSource {
     loaded.current = true;
   }, []);
 
+  // If we returned from an OpenRouter OAuth redirect, exchange the code for a
+  // key. On success store it synchronously (it can't be re-minted) and switch to
+  // the OpenRouter source; on failure surface the error and still land on
+  // OpenRouter so the user can retry via Connect.
+  useEffect(() => {
+    if (oauthConsumed) return;
+    oauthConsumed = true;
+    let cancelled = false;
+    consumeOpenRouterCallback().then((result) => {
+      if (cancelled || result.status === 'none') return;
+      if (result.status === 'ok') {
+        const next = {
+          ...configRef.current,
+          openrouterKey: result.key,
+          source: 'openrouter' as const,
+        };
+        setConfig(next);
+        persist(next);
+      } else {
+        setOauthError(result.message);
+        setConfig((c) => ({ ...c, source: 'openrouter' }));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [persist]);
+
   // Debounced persist on change.
-  const configRef = useRef(config);
-  configRef.current = config;
   // biome-ignore lint/correctness/useExhaustiveDependencies: config is the change trigger
   useEffect(() => {
     if (!loaded.current) return;
-    const t = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(configRef.current));
-      } catch {
-        /* quota / private mode — ignore */
-      }
-    }, 300);
+    const t = setTimeout(() => persist(), 300);
     return () => clearTimeout(t);
-  }, [config]);
+  }, [config, persist]);
+
+  // Flush immediately when the tab is hidden/closed so a fast reload within the
+  // debounce window doesn't lose the last change (mirrors chat-store).
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') persist();
+    };
+    const onPageHide = () => persist();
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onPageHide);
+    };
+  }, [persist]);
 
   const setSource = useCallback((source: ModelSource) => {
+    setOauthError(null);
     setConfig((c) => ({ ...c, source }));
   }, []);
 
@@ -214,7 +272,7 @@ export function useModelSource(): UseModelSource {
     [],
   );
 
-  return { config, setSource, setField };
+  return { config, setSource, setField, oauthError };
 }
 
 // The `✓ cached` badge is driven by the REAL model cache (the Cache API) via

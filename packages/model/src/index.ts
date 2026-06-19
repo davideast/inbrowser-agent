@@ -46,6 +46,16 @@ export {
   toOaiTools as toOpenRouterTools,
   type OpenRouterConfig,
 } from './providers/openrouter.js';
+// OpenRouter OAuth (PKCE): a browser "Connect OpenRouter" flow that mints a
+// user-controlled, revocable key for `openrouterModelClient` with no backend.
+export {
+  beginOpenRouterOAuth,
+  completeOpenRouterOAuth,
+  type BeginOpenRouterOAuthOpts,
+  type CompleteOpenRouterOAuthOpts,
+  type OpenRouterOAuthResult,
+  type OpenRouterOAuthStart,
+} from './providers/openrouter-oauth.js';
 export {
   anthropicModelClient,
   toAnthropicTools,
