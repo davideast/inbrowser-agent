@@ -28,7 +28,7 @@ export type ModelStatus =
   | { phase: 'ready'; backend: string }
   | { phase: 'error'; msg: string };
 
-const SOURCE_ORDER: ModelSource[] = ['gemini', 'webgpu', 'openrouter', 'ollama'];
+const SOURCE_ORDER: ModelSource[] = ['gemini', 'webgpu', 'openrouter', 'ollama', 'llama'];
 
 function formatBytes(n: number): string {
   if (!n) return '0 B';
@@ -72,6 +72,13 @@ interface ModelSourcePanelProps {
   onOllamaModel(v: string): void;
   ollamaBaseUrl: string;
   onOllamaBaseUrl(v: string): void;
+  // Llama (self-hosted llama-server / OpenAI-compatible)
+  llamaBaseUrl: string;
+  onLlamaBaseUrl(v: string): void;
+  llamaModel: string;
+  onLlamaModel(v: string): void;
+  llamaKey: string;
+  onLlamaKey(v: string): void;
 }
 
 /**
@@ -91,6 +98,8 @@ export function ModelSourcePanel(props: ModelSourcePanelProps) {
     openrouterModel,
     openrouterKey,
     ollamaModel,
+    llamaBaseUrl,
+    llamaModel,
   } = props;
   const webgpuAvailable = hasWebGPU();
   // Recommended source: on-device when the GPU is there, else zero-config cloud.
@@ -111,6 +120,8 @@ export function ModelSourcePanel(props: ModelSourcePanelProps) {
         openrouterModel,
         openrouterKey,
         ollamaModel,
+        llamaBaseUrl,
+        llamaModel,
       }),
     [
       source,
@@ -121,6 +132,8 @@ export function ModelSourcePanel(props: ModelSourcePanelProps) {
       openrouterModel,
       openrouterKey,
       ollamaModel,
+      llamaBaseUrl,
+      llamaModel,
     ],
   );
 
@@ -287,6 +300,8 @@ function summarizeSource(
     openrouterModel: string;
     openrouterKey: string;
     ollamaModel: string;
+    llamaBaseUrl: string;
+    llamaModel: string;
   },
 ): { text: string; live: boolean } {
   const meta = SOURCE_META[source];
@@ -311,10 +326,14 @@ function summarizeSource(
     model = shortModel(ctx.openrouterModel);
     ready = !!ctx.openrouterKey.trim();
     if (!ready) blocker = 'needs key';
-  } else {
+  } else if (source === 'ollama') {
     model = ctx.ollamaModel || 'no model';
     ready = !!ctx.ollamaModel.trim();
     if (!ready) blocker = 'needs model';
+  } else {
+    model = shortModel(ctx.llamaModel) || 'no model';
+    ready = !!ctx.llamaBaseUrl.trim();
+    if (!ready) blocker = 'needs server';
   }
   // The trigger stays clean when ready ("Name · model"); it shows the one
   // actionable blocker only when action is needed. Full state lives in the
@@ -336,6 +355,7 @@ function SourceConfig(props: ModelSourcePanelProps & { webgpuAvailable: boolean 
   if (source === 'gemini') return <GeminiConfig {...props} />;
   if (source === 'webgpu') return <WebgpuConfig {...props} />;
   if (source === 'openrouter') return <OpenrouterConfig {...props} />;
+  if (source === 'llama') return <LlamaConfig {...props} />;
   return <OllamaConfig {...props} />;
 }
 
@@ -606,6 +626,79 @@ function OllamaConfig({
       <div className="text-dim-text">
         Run Ollama with <code className="text-secondary">OLLAMA_ORIGINS</code> set to allow this
         origin.
+      </div>
+    </div>
+  );
+}
+
+function LlamaConfig({
+  llamaBaseUrl,
+  onLlamaBaseUrl,
+  llamaModel,
+  onLlamaModel,
+  llamaKey,
+  onLlamaKey,
+}: ModelSourcePanelProps) {
+  const urlId = useId();
+  const modelId = useId();
+  const keyId = useId();
+  const ready = llamaBaseUrl.trim().length > 0;
+  // A browser on an HTTPS page can't reach an http:// server (mixed content).
+  const httpsBlocked =
+    typeof location !== 'undefined' &&
+    location.protocol === 'https:' &&
+    /^http:\/\//.test(llamaBaseUrl.trim());
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <label htmlFor={urlId} className="text-dim-text">
+          server
+        </label>
+        <input
+          id={urlId}
+          type="text"
+          value={llamaBaseUrl}
+          onChange={(e) => onLlamaBaseUrl(e.target.value)}
+          placeholder="http://localhost:8080"
+          className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[200px] transition-colors"
+        />
+        <label htmlFor={modelId} className="text-dim-text">
+          model
+        </label>
+        <input
+          id={modelId}
+          type="text"
+          value={llamaModel}
+          onChange={(e) => onLlamaModel(e.target.value)}
+          placeholder="local-model"
+          className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[160px] transition-colors"
+        />
+        <label htmlFor={keyId} className="text-dim-text">
+          API key
+        </label>
+        <input
+          id={keyId}
+          type="password"
+          autoComplete="off"
+          value={llamaKey}
+          onChange={(e) => onLlamaKey(e.target.value)}
+          placeholder="Bearer token (optional)"
+          className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[200px] transition-colors"
+        />
+        <span className={ready ? 'text-primary' : 'text-dim-text'}>
+          <span aria-hidden="true">{ready ? '▸ ' : '· '}</span>
+          {ready ? 'ready' : 'needs server'}
+        </span>
+      </div>
+      {httpsBlocked ? (
+        <div className="text-secondary">
+          served over HTTPS — a browser can't reach http://localhost (open the site on localhost, or
+          expose the server over HTTPS).
+        </div>
+      ) : null}
+      <div className="text-dim-text">
+        Self-hosted OpenAI-compatible server (llama.cpp, vLLM, …). Needs CORS for this origin;
+        expose it over HTTPS (e.g. tailscale serve) if the docs page is HTTPS.
       </div>
     </div>
   );
