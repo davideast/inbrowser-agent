@@ -590,7 +590,7 @@ function OpenrouterConfig({
           type="text"
           value={openrouterModel}
           onChange={(e) => onOpenrouterModel(e.target.value)}
-          placeholder="openai/gpt-4o-mini"
+          placeholder="z-ai/glm-5.2"
           className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[180px] transition-colors"
         />
         <span className={ready ? 'text-primary' : 'text-dim-text'}>
