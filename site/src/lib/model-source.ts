@@ -61,7 +61,7 @@ export const SOURCE_META: Record<ModelSource, SourceMeta> = {
     runner: 'local',
     needsKey: true,
     needsWebGPU: false,
-    requirement: 'API key',
+    requirement: 'needs key',
   },
   webgpu: {
     label: 'On-device',
@@ -69,7 +69,7 @@ export const SOURCE_META: Record<ModelSource, SourceMeta> = {
     runner: 'local',
     needsKey: false,
     needsWebGPU: true,
-    requirement: 'WebGPU',
+    requirement: 'in browser',
   },
   openrouter: {
     label: 'OpenRouter',
@@ -77,7 +77,7 @@ export const SOURCE_META: Record<ModelSource, SourceMeta> = {
     runner: 'local',
     needsKey: true,
     needsWebGPU: false,
-    requirement: 'API key',
+    requirement: 'needs key',
   },
   ollama: {
     label: 'Ollama',

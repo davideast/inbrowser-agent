@@ -258,26 +258,22 @@ function SourceDropdown({
                 onMouseEnter={() => setActive(i)}
                 onClick={() => choose(s)}
                 onKeyDown={onKeyDown}
-                className={`flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none ${
+                className={`grid grid-cols-[0.9rem_1fr_auto] items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none ${
                   isActive ? 'bg-bg' : ''
                 } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
               >
-                <span
-                  className={s === source ? 'text-primary' : 'text-dim-text'}
-                  aria-hidden="true"
-                >
-                  {s === source ? '▸' : '·'}
+                <span className="text-primary" aria-hidden="true">
+                  {s === source ? '▸' : ''}
                 </span>
                 <span className={disabled ? 'text-secondary' : 'text-primary'}>{meta.label}</span>
-                <span className="text-dim-text">· {meta.kind}</span>
-                <span className="text-dim-text">
-                  · {disabled ? 'needs WebGPU' : meta.requirement}
+                <span className="flex items-center justify-end gap-1.5 text-dim-text">
+                  {s === recommended && !disabled ? (
+                    <span title="recommended" aria-label="recommended">
+                      ★
+                    </span>
+                  ) : null}
+                  <span>{disabled ? 'needs WebGPU' : meta.requirement}</span>
                 </span>
-                {s === recommended && !disabled ? (
-                  <span className="ml-auto text-secondary" title="recommended">
-                    ★ recommended
-                  </span>
-                ) : null}
               </div>
             );
           })}
@@ -301,29 +297,39 @@ function summarizeSource(
   },
 ): { text: string; live: boolean } {
   const meta = SOURCE_META[source];
+  let model: string;
+  let ready: boolean;
+  let blocker = '';
   if (source === 'gemini') {
-    const state = ctx.geminiKey.trim() ? 'ready' : 'needs key';
-    return { text: `${meta.label} · ${shortModel(ctx.geminiModel)} · ${state}`, live: false };
-  }
-  if (source === 'webgpu') {
-    const label = PRESET_META[ctx.webgpuPreset].label;
-    const state =
-      ctx.status.phase === 'ready'
-        ? `${ctx.status.backend} · ready`
-        : ctx.status.phase === 'loading'
+    model = shortModel(ctx.geminiModel);
+    ready = !!ctx.geminiKey.trim();
+    if (!ready) blocker = 'needs key';
+  } else if (source === 'webgpu') {
+    model = PRESET_META[ctx.webgpuPreset].label;
+    ready = ctx.status.phase === 'ready';
+    if (!ready)
+      blocker =
+        ctx.status.phase === 'loading'
           ? STEP_TEXT[ctx.status.step].toLowerCase()
           : ctx.status.phase === 'error'
             ? 'load failed'
             : 'not loaded';
-    return { text: `${meta.label} · ${label} · ${state}`, live: ctx.status.phase === 'ready' };
+  } else if (source === 'openrouter') {
+    model = shortModel(ctx.openrouterModel);
+    ready = !!ctx.openrouterKey.trim();
+    if (!ready) blocker = 'needs key';
+  } else {
+    model = ctx.ollamaModel || 'no model';
+    ready = !!ctx.ollamaModel.trim();
+    if (!ready) blocker = 'needs model';
   }
-  if (source === 'openrouter') {
-    const state = ctx.openrouterKey.trim() ? 'ready' : 'needs key';
-    return { text: `${meta.label} · ${shortModel(ctx.openrouterModel)} · ${state}`, live: false };
-  }
-  // ollama
-  const state = ctx.ollamaModel.trim() ? 'ready' : 'needs model';
-  return { text: `${meta.label} · ${ctx.ollamaModel || 'no model'} · ${state}`, live: false };
+  // The trigger stays clean when ready ("Name · model"); it shows the one
+  // actionable blocker only when action is needed. Full state lives in the
+  // config panel directly below, and `live` drives the ▸ brightness.
+  return {
+    text: blocker ? `${meta.label} · ${model} · ${blocker}` : `${meta.label} · ${model}`,
+    live: ready,
+  };
 }
 
 function shortModel(model: string): string {
