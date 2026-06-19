@@ -180,33 +180,9 @@ export function useModelSource(): UseModelSource {
   return { config, setSource, setField };
 }
 
-const CACHED_PRESETS_KEY = 'inbrowser-cached-presets:v1';
-
-/** Read the set of presets known to have been downloaded (localStorage
- *  heuristic — drives the `✓ cached` badge; the weights live in the Cache API). */
-export function loadCachedPresets(): Set<OnDevicePreset> {
-  if (typeof localStorage === 'undefined') return new Set();
-  try {
-    const raw = localStorage.getItem(CACHED_PRESETS_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    return new Set(Array.isArray(arr) ? arr.filter(isPreset) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-/** Record a preset as cached after a successful load. */
-export function markPresetCached(preset: OnDevicePreset): void {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    const set = loadCachedPresets();
-    set.add(preset);
-    localStorage.setItem(CACHED_PRESETS_KEY, JSON.stringify([...set]));
-  } catch {
-    /* quota / private mode — ignore */
-  }
-}
+// The `✓ cached` badge is driven by the REAL model cache (the Cache API) via
+// getCachedPresets() in on-device-agent — not a localStorage flag, which could
+// lie after the browser evicted best-effort storage.
 
 /**
  * Build the `ModelClient` for the lean local/cloud sources (OpenRouter, Ollama).

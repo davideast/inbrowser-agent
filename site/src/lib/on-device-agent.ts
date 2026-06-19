@@ -27,6 +27,47 @@ const PRESETS = {
   gemma4_e4b: gemma4_E4B,
 } as const;
 
+const MODEL_CACHE = 'transformers-cache';
+
+/**
+ * Which presets are ACTUALLY in the browser model cache. transformers.js stores
+ * weights in the `transformers-cache` Cache API under each model's URL; we check
+ * for a real weights file (.onnx) per preset's modelId. This is the truthful
+ * source for the `✓ cached` badge — the prior localStorage flag could lie after
+ * the browser evicted best-effort storage.
+ */
+export async function getCachedPresets(): Promise<Set<OnDevicePreset>> {
+  const out = new Set<OnDevicePreset>();
+  if (typeof caches === 'undefined') return out;
+  try {
+    const cache = await caches.open(MODEL_CACHE);
+    const urls = (await cache.keys()).map((r) => r.url);
+    for (const p of Object.keys(PRESETS) as OnDevicePreset[]) {
+      const id = PRESETS[p].model.modelId;
+      if (urls.some((u) => u.includes(id) && u.includes('.onnx'))) out.add(p);
+    }
+  } catch {
+    /* Cache API blocked / unavailable — treat as nothing cached. */
+  }
+  return out;
+}
+
+/**
+ * Ask the browser to keep our storage (the model weights) rather than treat it
+ * as best-effort and evict it under disk pressure — multi-GB Gemma weights are
+ * otherwise a prime eviction target, forcing a re-download each visit.
+ * Idempotent; returns the resulting persisted state.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  try {
+    if (typeof navigator === 'undefined' || !navigator.storage?.persist) return false;
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
+}
+
 /** Richer per-preset metadata: drives the dropdown rows (size + quality), the
  *  WebGPU capability gating, and the load-button note. */
 export interface PresetMeta {

@@ -54,6 +54,9 @@ interface ModelSourcePanelProps {
   status: ModelStatus;
   onLoad(): void;
   cachedPresets: ReadonlySet<OnDevicePreset>;
+  /** Whether the browser granted persistent storage (weights won't be evicted).
+   *  null = not yet requested. */
+  storagePersisted: boolean | null;
   // OpenRouter
   openrouterKey: string;
   onOpenrouterKey(v: string): void;
@@ -322,6 +325,7 @@ function WebgpuConfig({
   status,
   onLoad,
   cachedPresets,
+  storagePersisted,
   webgpuAvailable,
 }: ModelSourcePanelProps & { webgpuAvailable: boolean }) {
   return (
@@ -393,6 +397,13 @@ function WebgpuConfig({
       {!webgpuAvailable ? (
         <div className="text-dim-text">
           no WebGPU on this device — only SmolLM2 (WASM) runs; it is slow.
+        </div>
+      ) : null}
+      {storagePersisted !== null ? (
+        <div className="text-dim-text">
+          {storagePersisted
+            ? 'storage: persistent · weights are kept across visits'
+            : 'storage: best-effort · the browser may evict the weights (re-download)'}
         </div>
       ) : null}
     </div>

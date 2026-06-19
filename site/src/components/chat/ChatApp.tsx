@@ -2,18 +2,14 @@ import type { LoadProgress } from '@inbrowser/model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChatStore } from '../../lib/chat-store';
 import { runLocalAgent } from '../../lib/local-agent';
-import {
-  SOURCE_META,
-  buildLocalModelClient,
-  loadCachedPresets,
-  markPresetCached,
-  useModelSource,
-} from '../../lib/model-source';
+import { SOURCE_META, buildLocalModelClient, useModelSource } from '../../lib/model-source';
 import {
   PRESET_META,
   createOnDeviceModelClient,
+  getCachedPresets,
   hasWebGPU,
   loadOnDeviceEngine,
+  requestPersistentStorage,
 } from '../../lib/on-device-agent';
 import { type AgentStreamHandlers, streamAgent } from '../../lib/stream-client';
 import { getSuggestions } from '../../lib/suggestions';
@@ -39,6 +35,9 @@ export function ChatApp() {
   const { config, setSource, setField } = useModelSource();
   const [modelStatus, setModelStatus] = useState<ModelStatus>({ phase: 'idle' });
   const [cachedPresets, setCachedPresets] = useState<ReadonlySet<string>>(() => new Set());
+  // Whether the browser granted persistent storage (so model weights survive).
+  // null until requested.
+  const [storagePersisted, setStoragePersisted] = useState<boolean | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -63,8 +62,14 @@ export function ChatApp() {
   // Focus the composer on mount.
   useEffect(() => focusComposer(), [focusComposer]);
 
-  // Hydrate the cached-preset set (drives the `✓ cached` badge) on mount.
-  useEffect(() => setCachedPresets(loadCachedPresets()), []);
+  // Hydrate the `✓ cached` badge from the REAL model cache (Cache API), and
+  // reflect the current persisted-storage state, on mount.
+  useEffect(() => {
+    getCachedPresets().then(setCachedPresets);
+    if (typeof navigator !== 'undefined' && navigator.storage?.persisted) {
+      navigator.storage.persisted().then(setStoragePersisted);
+    }
+  }, []);
 
   // Pin to the latest while streaming, but only in a conversation and only if
   // the user hasn't scrolled up. The empty-state landing must stay at the top
@@ -103,6 +108,8 @@ export function ChatApp() {
     const preset = config.webgpuPreset;
     const backend = hasWebGPU() ? 'webgpu' : 'wasm';
     setModelStatus({ phase: 'loading', step: 'download', pct: 0, loadedBytes: 0, totalBytes: 0 });
+    // Ask the browser to keep these weights so they aren't evicted + re-downloaded.
+    requestPersistentStorage().then(setStoragePersisted);
 
     // Per-file byte tallies; the overall bar reads their sums.
     const files = new Map<string, { loaded: number; total: number }>();
@@ -164,8 +171,8 @@ export function ChatApp() {
       });
       if (raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf);
       setModelStatus({ phase: 'ready', backend });
-      markPresetCached(preset);
-      setCachedPresets(loadCachedPresets());
+      // Reflect the now-cached weights from the real cache (not a guessed flag).
+      getCachedPresets().then(setCachedPresets);
     } catch (e) {
       if (raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf);
       setModelStatus({ phase: 'error', msg: e instanceof Error ? e.message : String(e) });
@@ -345,6 +352,7 @@ export function ChatApp() {
         status={modelStatus}
         onLoad={loadModel}
         cachedPresets={cachedPresets as ReadonlySet<typeof config.webgpuPreset>}
+        storagePersisted={storagePersisted}
         openrouterKey={config.openrouterKey}
         onOpenrouterKey={(v) => setField('openrouterKey', v)}
         openrouterModel={config.openrouterModel}
