@@ -5,6 +5,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -25,11 +26,12 @@
   "files": ["dist", "bin", "skills", "AGENTS.md", "README.md"],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "bun run build",
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@inbrowser/model": "workspace:*",
+    "@inbrowser/model": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@opentui/core": "^0.1.0",
     "@opentui/react": "^0.1.0",

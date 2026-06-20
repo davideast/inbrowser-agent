@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/resumable",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Resumable streaming-job engine: a pluggable JobStore contract + JobEngine that lets producers stream events into a durable log a subscriber can tail and resume. Backend-agnostic, with memory and Firebase RTDB stores plus durability and TTL probes.",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,6 +15,7 @@
   "files": ["dist", "README.md", "docs"],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "bun run build",
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
