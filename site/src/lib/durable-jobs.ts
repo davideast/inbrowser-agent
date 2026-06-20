@@ -32,14 +32,47 @@ export type { JobEvent };
 // reuse the one client for the tab's lifetime.
 
 let client: ConnectedJobEngine<string, JobSpec> | null = null;
+let transport: 'shared' | 'dedicated' | null = null;
+
+/** Which worker the client connected through ('shared' = cross-tab SharedWorker,
+ *  'dedicated' = per-tab fallback). Null until the first job. For diagnostics. */
+export function jobTransport(): 'shared' | 'dedicated' | null {
+  return transport;
+}
 
 function jobClient(): ConnectedJobEngine<string, JobSpec> {
   if (client) return client;
+  client = connectJobEngine<string, JobSpec>(spawnPort());
+  return client;
+}
+
+/**
+ * Prefer the cross-tab SharedWorker (one engine + IndexedDB store for the whole
+ * origin; `extendedLifetime` on Chrome survives a sole-tab reload). Fall back to
+ * a per-tab dedicated Worker where SharedWorker is unavailable (Android Chrome)
+ * or blocked (some in-app WebViews) — same engine code, just one per tab,
+ * coordinating across tabs through the shared IndexedDB log instead.
+ */
+function spawnPort(): PortLike {
+  if (typeof SharedWorker !== 'undefined') {
+    try {
+      const sw = new SharedWorker(new URL('../workers/job-shared-worker.ts', import.meta.url), {
+        name: 'inbrowser-jobs',
+        type: 'module',
+        extendedLifetime: true,
+      } as WorkerOptions & { extendedLifetime?: boolean });
+      sw.port.start();
+      transport = 'shared';
+      return sw.port as unknown as PortLike;
+    } catch {
+      // Construction can throw in restricted contexts; fall through to dedicated.
+    }
+  }
   const worker = new Worker(new URL('../workers/job-worker.ts', import.meta.url), {
     type: 'module',
   });
-  client = connectJobEngine<string, JobSpec>(worker as unknown as PortLike);
-  return client;
+  transport = 'dedicated';
+  return worker as unknown as PortLike;
 }
 
 /** Start a job in the worker from a serializable spec; resolves with its id. */
