@@ -15,7 +15,6 @@ import {
 } from '../../lib/on-device-agent';
 import { getSuggestions } from '../../lib/suggestions';
 import { PackageCards } from '../PackageCards';
-import { PoweredByStrip } from '../PoweredByStrip';
 import { SiteHeader } from '../SiteHeader';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatThread } from './ChatThread';
@@ -28,9 +27,6 @@ export function ChatApp() {
   const store = useChatStore();
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  // Which package is working right now, for the powered-by strip. `agent` while
-  // a lookup/tool step runs, `relay` while tokens stream.
-  const [phase, setPhase] = useState<'agent' | 'relay' | null>(null);
   const [error, setError] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { config, setSource, setField, oauthError } = useModelSource();
@@ -86,7 +82,6 @@ export function ChatApp() {
 
   const finalize = useCallback(() => {
     setBusy(false);
-    setPhase(null);
     abortRef.current = null;
   }, []);
 
@@ -211,7 +206,6 @@ export function ChatApp() {
       setInput('');
       setError('');
       setBusy(true);
-      setPhase('agent');
       atBottomRef.current = true;
 
       const ctrl = new AbortController();
@@ -268,12 +262,10 @@ export function ChatApp() {
       const handlers: AgentStreamHandlers = {
         onToken: (t) => {
           stampSource();
-          setPhase('relay');
           store.appendAssistantText(sid, t);
         },
         onTool: (name, detail) => {
           stampSource();
-          setPhase('agent');
           store.addAssistantStep(sid, { name, detail });
         },
         onVisited: (card) => store.addAssistantCard(sid, card),
@@ -439,10 +431,6 @@ export function ChatApp() {
 
       {hasMessages ? (
         <>
-          <PoweredByStrip
-            agentLive={busy && phase === 'agent'}
-            modelLive={busy && phase === 'relay'}
-          />
           {/* Scroll the conversation; the composer is docked below so it is
               always fully visible (no mid-screen float, no mobile-toolbar clip). */}
           <main ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
