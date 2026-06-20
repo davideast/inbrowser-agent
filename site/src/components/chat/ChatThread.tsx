@@ -35,6 +35,27 @@ export function ChatThread({ messages, busy, error, stalledJobs, onContinue }: C
               {m.role === 'assistant' && m.source ? (
                 <span className="text-[10px] text-label">{m.source}</span>
               ) : null}
+              {/* Durable-job badge: legible proof a CLOUD turn is backed by a
+                  resumable worker job (it survives reload / resumes cross-tab).
+                  Spins while this turn is streaming, static once persisted. */}
+              {m.role === 'assistant' && m.jobId ? (
+                <span
+                  className="inline-flex items-center gap-1 border border-border px-1.5 py-px text-[10px] text-label"
+                  title="Durable answer: this turn runs as a resumable job in a background worker, so reloading or reopening it mid-stream resumes from the saved log instead of losing the answer."
+                >
+                  <span
+                    aria-hidden="true"
+                    className={
+                      turnBusy
+                        ? 'motion-safe:animate-spin motion-safe:[animation-duration:2.5s]'
+                        : ''
+                    }
+                  >
+                    ⟳
+                  </span>
+                  resumable
+                </span>
+              ) : null}
             </div>
             {m.role === 'user' ? (
               <p className="text-primary text-[15px] leading-[1.7] whitespace-pre-wrap">{m.text}</p>
