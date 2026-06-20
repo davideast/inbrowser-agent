@@ -661,20 +661,66 @@ function OllamaConfig({
   const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(url);
   const mixedBlocked = onHttps && isHttp && !isLocalhost;
   const origin = typeof location !== 'undefined' ? location.origin : 'https://inbrowser.io';
+
+  // Auto-populate the model picker from the server's /v1/models (Ollama serves
+  // the OpenAI-compatible endpoint). Debounced on the SERVER url; falls back to a
+  // manual text input on any failure (server down / origin not allowed / bad URL).
+  const [models, setModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refetch only when the server url changes, not when the user picks a model
+  useEffect(() => {
+    if (!/^https?:\/\//.test(url) || mixedBlocked) {
+      setModels([]);
+      setModelsLoading(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    setModelsLoading(true);
+    const t = setTimeout(() => {
+      fetchOaiModels(url, undefined, ctrl.signal)
+        .then((ids) => {
+          setModels(ids);
+          // Auto-select the first served model when the current one isn't offered.
+          if (ids.length && !ids.includes(ollamaModel)) onOllamaModel(ids[0]);
+        })
+        .catch(() => setModels([]))
+        .finally(() => setModelsLoading(false));
+    }, 500);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [url, mixedBlocked]);
+
   return (
     <div className="mt-2 space-y-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <label htmlFor={modelId} className="text-dim-text">
           model
         </label>
-        <input
-          id={modelId}
-          type="text"
-          value={ollamaModel}
-          onChange={(e) => onOllamaModel(e.target.value)}
-          placeholder="llama3.2"
-          className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[160px] transition-colors"
-        />
+        {models.length ? (
+          <select
+            id={modelId}
+            value={models.includes(ollamaModel) ? ollamaModel : models[0]}
+            onChange={(e) => onOllamaModel(e.target.value)}
+            className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary w-[200px] transition-colors"
+          >
+            {models.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id={modelId}
+            type="text"
+            value={ollamaModel}
+            onChange={(e) => onOllamaModel(e.target.value)}
+            placeholder={modelsLoading ? 'loading models…' : 'llama3.2'}
+            className="bg-bg border border-border focus:border-primary outline-none px-2 py-1 text-[11px] text-primary placeholder:text-dim-text w-[160px] transition-colors"
+          />
+        )}
         <label htmlFor={urlId} className="text-dim-text">
           server
         </label>
@@ -688,7 +734,9 @@ function OllamaConfig({
         />
         <span className={ready ? 'text-primary' : 'text-dim-text'}>
           <span aria-hidden="true">{ready ? '▸ ' : '· '}</span>
-          {ready ? 'ready' : 'needs model'}
+          {ready
+            ? `ready${models.length ? ` · ${models.length} model${models.length > 1 ? 's' : ''}` : ''}`
+            : 'needs model'}
         </span>
       </div>
       {mixedBlocked ? (
