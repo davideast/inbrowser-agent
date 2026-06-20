@@ -35,4 +35,12 @@ export type {
   SweepResult,
 } from './store/contract.js';
 
+// The IndexedDB store — the browser-durable backing store. On the root barrel
+// (no subpath); the older memory/rtdb stores are flattened to root in a later pass.
+export {
+  createIdbJobStore,
+  type CreateIdbJobStoreOpts,
+  type IdbJobStore,
+} from './store/idb.js';
+
 export type { IdGenerator } from './ids.js';
