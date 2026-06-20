@@ -7,13 +7,18 @@ interface ChatThreadProps {
   messages: ChatTurn[];
   busy: boolean;
   error: string;
+  /** jobIds whose durable stream resumed but went quiet (driver tab died). The
+   *  matching assistant turn shows a "Continue" affordance. */
+  stalledJobs?: ReadonlySet<string>;
+  /** Re-run a stalled assistant turn (by its index) as a fresh durable job. */
+  onContinue?(turnIndex: number): void;
 }
 
 /** The conversation: labeled USER / ASSISTANT blocks (Terminal Modernism).
  *  Each assistant turn keeps a collapsible activity log (persisted on the turn).
  *  The in-flight turn shows live progress + a skeleton; source cards reveal once
  *  that turn is done. */
-export function ChatThread({ messages, busy, error }: ChatThreadProps) {
+export function ChatThread({ messages, busy, error, stalledJobs, onContinue }: ChatThreadProps) {
   const lastIsAssistant = messages[messages.length - 1]?.role === 'assistant';
 
   return (
@@ -40,6 +45,20 @@ export function ChatThread({ messages, busy, error }: ChatThreadProps) {
                 {/* Sources reveal once the turn is done — surfacing the clickable
                     cards mid-stream pulls focus from the answer. */}
                 {turnBusy ? null : <SourceCards cards={m.cards ?? []} />}
+                {/* Stalled durable job (driver tab died mid-answer): show the
+                    partial answer above + a Continue affordance to re-run it. */}
+                {!turnBusy && m.jobId && stalledJobs?.has(m.jobId) ? (
+                  <div className="mt-3 flex items-center gap-3 border-l-2 border-border-strong pl-3">
+                    <span className="text-[12px] text-secondary">This answer stopped early.</span>
+                    <button
+                      type="button"
+                      onClick={() => onContinue?.(i)}
+                      className="text-[12px] text-primary border border-border hover:border-border-strong px-3 py-1 transition-colors"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                ) : null}
               </>
             )}
           </div>

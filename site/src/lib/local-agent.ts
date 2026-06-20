@@ -22,6 +22,26 @@ import {
 import { createGraphToolRegistry } from '../agent/graph-tools';
 import type { AgentStreamHandlers, VisitedCard } from './agent-types';
 
+/**
+ * One unit of agent output, as plain structured-clone-serializable data (no
+ * functions, no signals). This is the event type both the inline on-device path
+ * and the durable cloud job stream over: the durable-jobs `JobEngine` persists
+ * each one to IndexedDB and replays it on resume, so it MUST stay a plain value.
+ * (`VisitedCard` is already a flat data record, so it's clone-safe.) Completion
+ * and error are NOT members — `agentEvents` signals those by returning (done) or
+ * throwing (error), which is exactly what the durable producer contract wants.
+ */
+export type DurableEvent =
+  | { kind: 'token'; text: string }
+  | { kind: 'tool'; name: string; detail: string }
+  | { kind: 'visited'; card: VisitedCard };
+
+/** Per-run knobs shared by `agentEvents` and `runLocalAgent`. */
+export interface AgentRunOpts {
+  strategy?: AgentStrategy;
+  systemPrompt?: string;
+}
+
 export const SYSTEM_PROMPT =
   'You are the documentation assistant for the "inbrowser" monorepo. Answer the ' +
   "user's question concisely and accurately, using only the provided documentation excerpts.";
@@ -44,20 +64,28 @@ BE DECISIVE. Use AT MOST 3 tool calls total: typically one search_docs, then get
 Ground every claim in what you read. Be concise (a short paragraph or a few bullets). Name the doc pages you used. If the docs don't cover it, say so.`;
 
 /**
- * Run one question through the client-side agent against an arbitrary
- * `ModelClient`, dispatching SessionEvents to the same handlers the cloud path
- * uses (so the chat UI is identical regardless of source). The caller owns the
- * `ModelClient` lifecycle (engine load, key validation, …) and cancellation via
- * `signal`.
+ * The reusable event CORE of the agent loop. Drives the client-side agent
+ * against an arbitrary `ModelClient` and YIELDS each unit of output as a plain
+ * `DurableEvent` instead of calling handlers — so the SAME loop can run inline
+ * (on-device) or inside the durable-jobs worker (cloud), where the yielded
+ * values are persisted + replayed.
+ *
+ * Completion and error follow the async-generator / durable-producer contract:
+ * normal return = the agent completed (the engine finishes 'done'); a thrown
+ * error = the agent failed (the engine finishes 'error'). The caller owns the
+ * `ModelClient` lifecycle and cancellation via `opts.signal`.
+ *
+ * This mirrors the dispatch the old `runLocalAgent` did one-for-one: `text` →
+ * `token`, `tool_started` → `tool`, the deduped `get_doc` result → `visited`,
+ * `error` → throw, `completed`/stream-end → return.
  */
-export async function runLocalAgent(
+export async function* agentEvents(
   llm: ModelClient,
   question: string,
   history: { role: 'user' | 'assistant'; text: string }[],
-  handlers: AgentStreamHandlers,
-  signal: AbortSignal,
-  opts?: { strategy?: AgentStrategy; systemPrompt?: string },
-): Promise<void> {
+  opts: AgentRunOpts & { signal: AbortSignal },
+): AsyncIterable<DurableEvent> {
+  const { signal } = opts;
   const registry = createGraphToolRegistry();
   const hist: ChatMessage[] = history
     .filter((m) => m.text.trim())
@@ -65,8 +93,8 @@ export async function runLocalAgent(
 
   // On-device (tiny model) defaults: single-shot retrieval + the terse prompt.
   // Capable cloud models pass a ReAct strategy + REACT_SYSTEM_PROMPT.
-  const strategy = opts?.strategy ?? createRetrievalStrategy();
-  const systemPrompt = opts?.systemPrompt ?? SYSTEM_PROMPT;
+  const strategy = opts.strategy ?? createRetrievalStrategy();
+  const systemPrompt = opts.systemPrompt ?? SYSTEM_PROMPT;
 
   const session = createAgentSession({
     strategy,
@@ -82,38 +110,68 @@ export async function runLocalAgent(
   const toolNames = new Map<string, string>();
   const seen = new Set<string>();
 
-  try {
-    for await (const ev of session.submit(question, signal)) {
-      if (ev.kind === 'text') {
-        if (ev.chunk) handlers.onToken?.(ev.chunk);
-      } else if (ev.kind === 'tool_started') {
-        toolNames.set(ev.callId, ev.name);
-        handlers.onTool?.(ev.name, readArg(ev.args));
-      } else if (ev.kind === 'tool_finished') {
-        if (
-          toolNames.get(ev.callId) === 'get_doc' &&
-          ev.result.ok &&
-          ev.result.data &&
-          typeof ev.result.data === 'object'
-        ) {
-          const card = toCard(ev.result.data as Partial<VisitedCard>);
-          if (card.route && !seen.has(card.route)) {
-            seen.add(card.route);
-            handlers.onVisited?.(card);
-          }
+  for await (const ev of session.submit(question, signal)) {
+    if (ev.kind === 'text') {
+      if (ev.chunk) yield { kind: 'token', text: ev.chunk };
+    } else if (ev.kind === 'tool_started') {
+      toolNames.set(ev.callId, ev.name);
+      yield { kind: 'tool', name: ev.name, detail: readArg(ev.args) };
+    } else if (ev.kind === 'tool_finished') {
+      if (
+        toolNames.get(ev.callId) === 'get_doc' &&
+        ev.result.ok &&
+        ev.result.data &&
+        typeof ev.result.data === 'object'
+      ) {
+        const card = toCard(ev.result.data as Partial<VisitedCard>);
+        if (card.route && !seen.has(card.route)) {
+          seen.add(card.route);
+          yield { kind: 'visited', card };
         }
-      } else if (ev.kind === 'error') {
-        handlers.onError?.(ev.message);
-        return;
-      } else if (ev.kind === 'completed') {
-        handlers.onDone?.();
-        return;
       }
+    } else if (ev.kind === 'error') {
+      // Surface as a thrown error so the durable producer finishes 'error'; the
+      // inline wrapper catches it and calls `onError` (same as before).
+      throw new Error(ev.message);
+    } else if (ev.kind === 'completed') {
+      return;
+    }
+  }
+}
+
+/**
+ * Run one question through the client-side agent against an arbitrary
+ * `ModelClient`, dispatching the loop's events to the same handlers the cloud
+ * path uses (so the chat UI is identical regardless of source). A thin wrapper
+ * over `agentEvents`: for-await each `DurableEvent` to a handler, then call
+ * `onDone` on completion or `onError` on failure — byte-for-byte the behavior of
+ * the prior inline implementation (this is the ON-DEVICE inline path). The
+ * caller owns the `ModelClient` lifecycle and cancellation via `signal`.
+ */
+export async function runLocalAgent(
+  llm: ModelClient,
+  question: string,
+  history: { role: 'user' | 'assistant'; text: string }[],
+  handlers: AgentStreamHandlers,
+  signal: AbortSignal,
+  opts?: AgentRunOpts,
+): Promise<void> {
+  try {
+    for await (const ev of agentEvents(llm, question, history, { ...opts, signal })) {
+      dispatchDurableEvent(ev, handlers);
     }
     handlers.onDone?.();
   } catch (e) {
     handlers.onError?.(e instanceof Error ? e.message : String(e));
   }
+}
+
+/** Dispatch one `DurableEvent` to the stream handlers. Shared by the inline
+ *  wrapper and the durable subscription mapping, so both produce identical UX. */
+export function dispatchDurableEvent(ev: DurableEvent, handlers: AgentStreamHandlers): void {
+  if (ev.kind === 'token') handlers.onToken?.(ev.text);
+  else if (ev.kind === 'tool') handlers.onTool?.(ev.name, ev.detail);
+  else if (ev.kind === 'visited') handlers.onVisited?.(ev.card);
 }
 
 function readArg(args: unknown): string {
