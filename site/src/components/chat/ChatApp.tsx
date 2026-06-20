@@ -22,6 +22,21 @@ import { ChatThread } from './ChatThread';
 import { Composer } from './Composer';
 import { ModelSourcePanel, type ModelStatus } from './ModelSourcePanel';
 
+/** Ollama / llama-server (and some OpenAI-compatible servers) reject a tool-using
+ *  request for models that have no tool support, e.g. "... does not support
+ *  tools". Detect that so the agent can fall back to the retrieval-only strategy. */
+function isToolUnsupportedError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('tool') &&
+    (m.includes('does not support') ||
+      m.includes("doesn't support") ||
+      m.includes('not support') ||
+      m.includes('not supported') ||
+      m.includes('unsupported'))
+  );
+}
+
 /** Centered docs chat: a prompt box to begin, an in-flow composer, and a
  *  toggle-only session drawer. */
 export function ChatApp() {
@@ -297,19 +312,53 @@ export function ChatApp() {
           finalize();
           return;
         }
-        // Retrieval (single-shot, the default opts) for sources that don't
-        // expose tool calling: the tiny on-device WebGPU model, and llama-server
-        // (it advertises only `completion`, and OpenAI-style tool calls need the
-        // server started with `--jinja`). Capable cloud/local models drive the
-        // ReAct multi-tool loop.
-        const opts =
-          config.source === 'webgpu' || config.source === 'llama'
-            ? undefined
-            : {
-                strategy: createReactLoopStrategy({ maxTurns: 10 }),
-                systemPrompt: REACT_SYSTEM_PROMPT,
-              };
-        await runLocalAgent(client, text, history, handlers, ctrl.signal, opts);
+        // Strategy is chosen by the model's tool support, decided at runtime:
+        //  - webgpu (tiny model) + llama-server (advertises only `completion`)
+        //    always run the single-shot retrieval strategy (the default opts).
+        //  - gemini / openrouter / ollama attempt the ReAct multi-tool loop, but
+        //    Ollama can serve arbitrary models — many have no tool support and
+        //    reject the call ("... does not support tools"). When that happens
+        //    before any output, fall back to retrieval-only so the same model
+        //    still answers. The agent adapts to the model, not the source.
+        const reactOpts = {
+          strategy: createReactLoopStrategy({ maxTurns: 10 }),
+          systemPrompt: REACT_SYSTEM_PROMPT,
+        };
+        const wantsTools =
+          config.source === 'gemini' ||
+          config.source === 'openrouter' ||
+          config.source === 'ollama';
+
+        if (!wantsTools) {
+          await runLocalAgent(client, text, history, handlers, ctrl.signal, undefined);
+        } else {
+          let toolUnsupported = false;
+          let produced = false;
+          const probe: AgentStreamHandlers = {
+            ...handlers,
+            onToken: (t) => {
+              produced = true;
+              handlers.onToken?.(t);
+            },
+            onTool: (name, detail) => {
+              produced = true;
+              handlers.onTool?.(name, detail);
+            },
+            // Swallow the tool-unsupported error (only when nothing was produced
+            // yet) so the retry can take over silently; surface anything else.
+            onError: (message) => {
+              if (!produced && isToolUnsupportedError(message)) {
+                toolUnsupported = true;
+                return;
+              }
+              handlers.onError?.(message);
+            },
+          };
+          await runLocalAgent(client, text, history, probe, ctrl.signal, reactOpts);
+          if (toolUnsupported) {
+            await runLocalAgent(client, text, history, handlers, ctrl.signal, undefined);
+          }
+        }
         finalize();
       } catch (e) {
         if ((e as Error)?.name === 'AbortError') {
