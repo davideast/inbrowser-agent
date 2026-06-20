@@ -44,3 +44,14 @@ export {
 } from './store/idb.js';
 
 export type { IdGenerator } from './ids.js';
+
+// Worker transport — host a `JobEngine` inside a worker and drive it over a
+// `MessagePort` from another context. Root barrel only (no `./worker` subpath).
+export {
+  connectJobEngine,
+  hostJobEngine,
+  type ConnectedJobEngine,
+  type HostJobEngineOpts,
+  type JobEngineHost,
+  type PortLike,
+} from './worker.js';
