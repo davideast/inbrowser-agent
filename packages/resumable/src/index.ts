@@ -1,11 +1,13 @@
 /**
  * `@inbrowser/resumable` — resumable streaming-job engine.
  *
- * Root export carries the engine + types + the `JobStore` contract.
- * Store implementations live at subpaths:
- *   - `@inbrowser/resumable/memory`   — in-process, zero-dep
- *   - `@inbrowser/resumable/rtdb`     — Firebase RTDB (Phase 2)
- *   - `@inbrowser/resumable/testing`  — shared conformance suite + probes
+ * ONE root barrel, no subpaths. The engine + types + `JobStore` contract,
+ * every store implementation (memory / rtdb / idb), the SSE HTTP binding,
+ * the reconnecting client, the worker transport, and the conformance
+ * probes all hang off this single entrypoint. Each backing module is
+ * browser-safe (the RTDB store is fetch-based; its service-account token
+ * provider lazy-`import()`s `node:` only when invoked), so the root barrel
+ * never statically pulls a Node builtin.
  *
  * See `plans/resumable-and-llm-relay-extraction.md` for the design.
  */
@@ -55,3 +57,52 @@ export {
   type JobEngineHost,
   type PortLike,
 } from './worker.js';
+
+// ── Stores (formerly the `./memory` and `./rtdb` subpaths) ──────────
+// In-process, zero-dependency store — the default for tests and local dev.
+export {
+  createMemoryJobStore,
+  type CreateMemoryJobStoreOpts,
+} from './store/memory.js';
+
+// Firebase RTDB store — fetch/SSE-based, browser-safe. Its token providers
+// lazy-`import()` `node:` only when called, so this stays browser-importable.
+export {
+  createRtdbJobStore,
+  staticTokenProvider,
+  serviceAccountTokenProvider,
+  type CreateRtdbJobStoreOpts,
+  type TokenProvider,
+  type ServiceAccountTokenProviderOpts,
+} from './store/rtdb/index.js';
+
+// ── SSE HTTP binding (formerly the `./http` subpath) ────────────────
+// Serve a job subscription as Server-Sent Events. Web-standard; browser-safe.
+export {
+  sseFromJob,
+  encodeSseEvent,
+  SSE_DONE_LINE,
+  SSE_STREAM_OPEN,
+  type SseFromJobOpts,
+} from './http.js';
+
+// ── Reconnecting client (formerly the `./client` subpath) ───────────
+// Environment-agnostic reconnecting consumer of a job's start + stream
+// HTTP endpoints. `installBrowserLifecycle` is SSR-safe (guards `document`).
+export {
+  createResumableClient,
+  installBrowserLifecycle,
+  type ClientMessage,
+  type ResumableClient,
+  type ResumableClientOptions,
+} from './client.js';
+
+// ── Conformance probes (formerly the `./testing` subpath) ───────────
+// Durability + TTL-sweep probes any `JobStore` implementation can run.
+export {
+  probeStoreDurability,
+  probeSweepTtl,
+  type DurabilityProbeOpts,
+  type ProbeResult,
+  type SweepProbeOpts,
+} from './testing.js';

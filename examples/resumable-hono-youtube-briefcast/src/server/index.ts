@@ -1,12 +1,13 @@
 import { resolve } from 'node:path';
 import { serve } from '@hono/node-server';
-import { type JobStore, createJobEngine } from '@inbrowser/resumable';
-import { createMemoryJobStore } from '@inbrowser/resumable/memory';
 import {
+  type JobStore,
   type TokenProvider,
+  createJobEngine,
+  createMemoryJobStore,
   createRtdbJobStore,
   serviceAccountTokenProvider,
-} from '@inbrowser/resumable/rtdb';
+} from '@inbrowser/resumable';
 import type { BriefcastEvent } from '../shared/types';
 import { createBriefcastApp } from './app';
 import { createFileAudioStore } from './audio-store';

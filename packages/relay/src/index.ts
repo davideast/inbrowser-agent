@@ -1,6 +1,14 @@
 /**
  * `@inbrowser/relay` — resumable LLM inference relay.
  *
+ * ONE root barrel, no subpaths. The relay, the SSE wire-format helpers,
+ * the reconnecting client, and the Astro + Express adapters all hang off
+ * this single entrypoint. The root barrel is browser-import-safe: the
+ * Express adapter (re-exported below) keeps its `node:http` types
+ * type-only and lazy-`import()`s `node:stream` inside the function that
+ * uses it, so a browser bundle that imports `@inbrowser/relay` never
+ * statically pulls a Node builtin.
+ *
  * Built on `@inbrowser/resumable`. Wire format and provider plug-in
  * surface defined in `plans/resumable-and-llm-relay-extraction.md`.
  */
@@ -59,3 +67,20 @@ export type {
   ToolSpec,
   ReasoningEffort,
 } from './types.js';
+
+// Framework adapters (formerly the `./adapters/astro` + `./adapters/express`
+// subpaths). Astro already speaks Web `Request`/`Response`, so its adapter is
+// pure (type-only imports). The Express adapter is browser-import-safe: its
+// `node:http` imports are type-only and it lazy-`import()`s `node:stream`
+// inside the handler, so this root barrel never statically pulls `node:`.
+export {
+  createAstroRoutes,
+  type AstroRoutes,
+  type CreateAstroRoutesOpts,
+} from './adapters/astro.js';
+
+export {
+  createExpressHandlers,
+  type CreateExpressHandlersOpts,
+  type ExpressHandlers,
+} from './adapters/express.js';

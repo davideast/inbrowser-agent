@@ -6,9 +6,9 @@ import type { ModelClientFactory, ModelRequest } from '@inbrowser/model';
  *
  * The relay is **transport-agnostic** — it takes a Web-standard
  * `Request` and returns a Web-standard `Response`. Hono/Bun/Workers
- * plug in directly. The framework adapters at
- * `@inbrowser/relay/adapters/*` shim non-Web frameworks (Express,
- * Astro) without duplicating logic.
+ * plug in directly. The framework adapters (`createAstroRoutes`,
+ * `createExpressHandlers`, on the `@inbrowser/relay` root barrel) shim
+ * non-Web frameworks (Express, Astro) without duplicating logic.
  */
 import {
   type JobEngine,
@@ -16,8 +16,8 @@ import {
   type Logger as ResumableLogger,
   type SweepSchedule,
   createJobEngine,
+  sseFromJob,
 } from '@inbrowser/resumable';
-import { sseFromJob } from '@inbrowser/resumable/http';
 import type { ModelEvent, NormalizedRequest } from './types.js';
 
 /**

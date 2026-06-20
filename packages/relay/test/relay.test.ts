@@ -12,7 +12,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import type { ModelClientFactory } from '@inbrowser/model';
-import { createMemoryJobStore } from '@inbrowser/resumable/memory';
+import { createMemoryJobStore } from '@inbrowser/resumable';
 import { createRelay } from '../src/relay';
 import type { ModelEvent, NormalizedRequest } from '../src/types';
 
