@@ -22,6 +22,7 @@ import {
   connectJobEngine,
 } from '@inbrowser/resumable';
 import type { JobSpec } from './job-producer';
+import type { DurableEvent } from './local-agent';
 
 // Re-export so consumers of this module's API (e.g. the harness) get the event
 // type from the same place as `subscribeJob` / `runWithLeader`.
@@ -31,7 +32,7 @@ export type { JobEvent };
 // Spawn the worker on first use (mirrors `loadOnDeviceEngine`'s spawn), then
 // reuse the one client for the tab's lifetime.
 
-let client: ConnectedJobEngine<string, JobSpec> | null = null;
+let client: ConnectedJobEngine<DurableEvent, JobSpec> | null = null;
 let transport: 'shared' | 'dedicated' | null = null;
 
 /** Which worker the client connected through ('shared' = cross-tab SharedWorker,
@@ -40,9 +41,9 @@ export function jobTransport(): 'shared' | 'dedicated' | null {
   return transport;
 }
 
-function jobClient(): ConnectedJobEngine<string, JobSpec> {
+function jobClient(): ConnectedJobEngine<DurableEvent, JobSpec> {
   if (client) return client;
-  client = connectJobEngine<string, JobSpec>(spawnPort());
+  client = connectJobEngine<DurableEvent, JobSpec>(spawnPort());
   return client;
 }
 
@@ -87,7 +88,7 @@ export async function startJob(spec: JobSpec): Promise<{ jobId: string }> {
 export function subscribeJob(
   jobId: string,
   opts?: { from?: number; signal?: AbortSignal },
-): AsyncIterable<JobEvent<string>> {
+): AsyncIterable<JobEvent<DurableEvent>> {
   return jobClient().subscribe(jobId, opts);
 }
 
@@ -134,7 +135,7 @@ interface KeyAnnounce {
 export async function runWithLeader(
   key: string,
   spec: JobSpec,
-  onEvent: (e: JobEvent<string>) => void,
+  onEvent: (e: JobEvent<DurableEvent>) => void,
   signal?: AbortSignal,
 ): Promise<string> {
   // No Web Locks (older browsers / non-secure context) → just lead. There's no
@@ -184,7 +185,7 @@ export async function runWithLeader(
 async function lead(
   key: string,
   spec: JobSpec,
-  onEvent: (e: JobEvent<string>) => void,
+  onEvent: (e: JobEvent<DurableEvent>) => void,
   signal: AbortSignal | undefined,
   onJobId?: (jobId: string) => void,
 ): Promise<string> {
@@ -201,7 +202,7 @@ async function lead(
  */
 async function follow(
   key: string,
-  onEvent: (e: JobEvent<string>) => void,
+  onEvent: (e: JobEvent<DurableEvent>) => void,
   signal: AbortSignal | undefined,
   onJobId?: (jobId: string) => void,
 ): Promise<string> {
@@ -214,7 +215,7 @@ async function follow(
 /** Consume the job's stream, feeding each event to `onEvent`, until it ends. */
 async function drain(
   jobId: string,
-  onEvent: (e: JobEvent<string>) => void,
+  onEvent: (e: JobEvent<DurableEvent>) => void,
   signal: AbortSignal | undefined,
 ): Promise<void> {
   for await (const event of subscribeJob(jobId, signal ? { signal } : undefined)) {
