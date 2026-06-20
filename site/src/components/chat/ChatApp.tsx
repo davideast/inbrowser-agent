@@ -1,11 +1,10 @@
+import { createReactLoopStrategy } from '@inbrowser/agent';
 import type { LoadProgress } from '@inbrowser/model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentStreamHandlers, VisitedCard } from '../../lib/agent-types';
+import type { AgentStreamHandlers } from '../../lib/agent-types';
 import { useChatStore } from '../../lib/chat-store';
-import { type JobEvent, runWithLeader, subscribeJob } from '../../lib/durable-jobs';
-import type { AgentJobSpec, AgentProvider } from '../../lib/job-producer';
-import { type DurableEvent, dispatchDurableEvent, runLocalAgent } from '../../lib/local-agent';
-import { type ModelSourceConfig, useModelSource } from '../../lib/model-source';
+import { REACT_SYSTEM_PROMPT, runLocalAgent } from '../../lib/local-agent';
+import { buildLocalModelClient, useModelSource } from '../../lib/model-source';
 import {
   PRESET_META,
   createOnDeviceModelClient,
@@ -22,101 +21,19 @@ import { ChatThread } from './ChatThread';
 import { Composer } from './Composer';
 import { ModelSourcePanel, type ModelStatus } from './ModelSourcePanel';
 
-/** The CLOUD sources whose agent loop runs as a durable job in the worker. The
- *  on-device WebGPU source stays on the inline `runLocalAgent` path (it owns the
- *  loaded engine; durable jobs would have to ship weights across `postMessage`). */
-function isCloudSource(s: ModelSourceConfig['source']): s is AgentProvider {
-  return s === 'gemini' || s === 'openrouter' || s === 'ollama' || s === 'llama';
-}
-
-/**
- * Build the serializable `AgentJobSpec` for a cloud source from the live config +
- * this turn's question + prior history. Mirrors `buildLocalModelClient`'s cloud
- * branches, but flattened to plain spec fields the worker reconstitutes the
- * `ModelClient` from (provider / model / apiKey / baseUrl).
- */
-function buildAgentJobSpec(
-  provider: AgentProvider,
-  config: ModelSourceConfig,
-  question: string,
-  history: { role: 'user' | 'assistant'; text: string }[],
-): AgentJobSpec {
-  const base = { kind: 'agent' as const, provider, question, history };
-  if (provider === 'gemini') {
-    return { ...base, model: config.geminiModel, apiKey: config.geminiKey };
-  }
-  if (provider === 'openrouter') {
-    return { ...base, model: config.openrouterModel, apiKey: config.openrouterKey };
-  }
-  if (provider === 'ollama') {
-    return { ...base, model: config.ollamaModel, baseUrl: config.ollamaBaseUrl };
-  }
-  // llama
-  return {
-    ...base,
-    model: config.llamaModel,
-    baseUrl: config.llamaBaseUrl,
-    apiKey: config.llamaKey || undefined,
-  };
-}
-
-/** How long after a RESUBSCRIBE we wait for a live event before deciding the job
- *  is stalled (its driver tab died with no SharedWorker keeping it alive) and
- *  offering "Continue". Replay events (the catch-up from `from`) don't count —
- *  only NEW events after the resubscribe reset this. */
-const STALL_MS = 3_000;
-
-/** The "what produced this" stamp for a turn (e.g. "cloud · Gemini"). `backend`
- *  (webgpu only) appends the runtime, e.g. "· webgpu". */
-function sourceLabel(config: ModelSourceConfig, backend?: string): string {
-  switch (config.source) {
-    case 'gemini':
-      return 'cloud · Gemini';
-    case 'webgpu':
-      return `on-device · ${PRESET_META[config.webgpuPreset].label}${backend ? ` · ${backend}` : ''}`;
-    case 'openrouter':
-      return `openrouter · ${config.openrouterModel}`;
-    case 'llama':
-      return `llama · ${config.llamaModel}`;
-    default:
-      return `ollama · ${config.ollamaModel}`;
-  }
-}
-
-/** The per-event store writes a durable subscription needs, so one mapping
- *  function serves both the live send and the resubscribe (each passes its own
- *  position- vs jobId-targeted setters). */
-interface DurableSink {
-  onToken(text: string): void;
-  onTool(name: string, detail: string): void;
-  onVisited(card: VisitedCard): void;
-  /** Record the highest applied seq (for resubscribe `from`). */
-  onSeq(seq: number): void;
-  /** The job reached terminal status. */
-  onTerminal(status: 'done' | 'error' | 'cancelled', reason: string | undefined): void;
-}
-
-/**
- * Map a durable `JobEvent` stream onto a `DurableSink`. The SAME mapping the old
- * inline handlers did: `event` → switch on the `DurableEvent.kind`
- * (token/tool/visited) via the shared `dispatchDurableEvent`, plus advance the
- * seq cursor; `terminal` → onTerminal. Returns the `(e) => void` callback
- * `runWithLeader` / `subscribeJob` feed.
- */
-function makeDurableHandler(sink: DurableSink): (e: JobEvent<DurableEvent>) => void {
-  const handlers: AgentStreamHandlers = {
-    onToken: sink.onToken,
-    onTool: sink.onTool,
-    onVisited: sink.onVisited,
-  };
-  return (e) => {
-    if (e.kind === 'event') {
-      dispatchDurableEvent(e.value, handlers);
-      sink.onSeq(e.seq);
-    } else {
-      sink.onTerminal(e.status, e.reason);
-    }
-  };
+/** Ollama / llama-server (and some OpenAI-compatible servers) reject a tool-using
+ *  request for models that have no tool support, e.g. "... does not support
+ *  tools". Detect that so the agent can fall back to the retrieval-only strategy. */
+function isToolUnsupportedError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('tool') &&
+    (m.includes('does not support') ||
+      m.includes("doesn't support") ||
+      m.includes('not support') ||
+      m.includes('not supported') ||
+      m.includes('unsupported'))
+  );
 }
 
 /** Centered docs chat: a prompt box to begin, an in-flow composer, and a
@@ -133,16 +50,7 @@ export function ChatApp() {
   // Whether the browser granted persistent storage (so model weights survive).
   // null until requested.
   const [storagePersisted, setStoragePersisted] = useState<boolean | null>(null);
-  // jobIds whose resubscribe replayed a partial answer but went quiet (the driver
-  // tab died with no SharedWorker / extended-lifetime keeping it alive). These get
-  // a "Continue" affordance to re-run the turn.
-  const [stalledJobs, setStalledJobs] = useState<ReadonlySet<string>>(() => new Set());
   const abortRef = useRef<AbortController | null>(null);
-  // Active resubscriptions, keyed by jobId, so we can tear them down on switch.
-  const resubRef = useRef<Map<string, AbortController>>(new Map());
-  // jobIds this tab is driving LIVE right now (a fresh send / continue). The
-  // resubscribe effect skips these so a live stream isn't double-applied.
-  const liveJobsRef = useRef<Set<string>>(new Set());
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -170,28 +78,6 @@ export function ChatApp() {
     if (typeof navigator !== 'undefined' && navigator.storage?.persisted) {
       navigator.storage.persisted().then(setStoragePersisted);
     }
-  }, []);
-
-  // Ask once for PERSISTENT storage on mount, so the durable-jobs IndexedDB log
-  // (and the on-device weights) survive eviction. We request it unconditionally
-  // — durable chat relies on the IDB log even with no on-device model loaded —
-  // but only once, and only surface the honest result (no nagging).
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.storage?.persist) return;
-    let cancelled = false;
-    navigator.storage.persisted().then((already) => {
-      if (cancelled) return;
-      if (already) {
-        setStoragePersisted(true);
-        return;
-      }
-      navigator.storage.persist().then((granted) => {
-        if (!cancelled) setStoragePersisted(granted);
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   // Pin to the latest while streaming, but only in a conversation and only if
@@ -316,53 +202,6 @@ export function ChatApp() {
     }
   }, [config.source, config.webgpuPreset, cachedPresets, modelStatus.phase, loadModel]);
 
-  // Drive ONE cloud turn as a durable job: start it under leader-election, wire
-  // this tab's live subscription to the trailing assistant turn of `sid`, persist
-  // the jobId for later resubscribe, and own busy/abort. Shared by a fresh send
-  // and the "Continue" re-run. `source` is stamped up front. Assumes the trailing
-  // turn of `sid` is the assistant turn for this run (true while `busy` blocks a
-  // concurrent send and the turn was just (re)opened).
-  const runCloudJob = useCallback(
-    async (sid: string, turnKey: string, spec: AgentJobSpec, source: string) => {
-      setBusy(true);
-      atBottomRef.current = true;
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
-      store.setAssistantSource(sid, source);
-      let liveJobId = '';
-      const dispatch = makeDurableHandler({
-        onToken: (t) => store.appendAssistantText(sid, t),
-        onTool: (name, detail) => store.addAssistantStep(sid, { name, detail }),
-        onVisited: (card) => store.addAssistantCard(sid, card),
-        onSeq: (seq) => store.setAssistantSeq(sid, seq),
-        onTerminal: (status, reason) => {
-          store.setAssistantJobDone(sid);
-          if (liveJobId) liveJobsRef.current.delete(liveJobId);
-          if (status === 'done') finalize();
-          else {
-            setError(reason ?? 'The agent run failed.');
-            finalize();
-          }
-        },
-      });
-      try {
-        const jobId = await runWithLeader(turnKey, spec, dispatch, ctrl.signal);
-        liveJobId = jobId;
-        liveJobsRef.current.add(jobId);
-        // Persist the jobId so a reload / another tab can resubscribe + replay.
-        store.setAssistantJob(sid, jobId);
-      } catch (e) {
-        if ((e as Error)?.name === 'AbortError') {
-          finalize();
-          return;
-        }
-        setError(e instanceof Error ? e.message : String(e));
-        finalize();
-      }
-    },
-    [store, finalize],
-  );
-
   const send = useCallback(
     async (explicit?: string) => {
       const text = (explicit ?? input).trim();
@@ -417,23 +256,16 @@ export function ChatApp() {
       // Stamp the answer with what produced it, so it is never ambiguous which
       // path (source + model + backend) ran for this turn.
       const backend = modelStatus.phase === 'ready' ? modelStatus.backend : '';
-      const source = sourceLabel(config, backend);
-
-      const history = convo.slice(0, -1) as { role: 'user' | 'assistant'; text: string }[];
-
-      // ── CLOUD path: run the agent loop as a DURABLE job in the worker ────────
-      // The job persists every event to IndexedDB, so a reload / another tab can
-      // resubscribe and replay it; this tab subscribes to the live stream. The
-      // ON-DEVICE (webgpu) path below is the unchanged inline `runLocalAgent`.
-      if (isCloudSource(config.source)) {
-        const spec = buildAgentJobSpec(config.source, config, text, history);
-        // turnKey is a stable per-turn id; leader-election maps it to one jobId.
-        const turnId = `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-        await runCloudJob(sid, `${sid}:${turnId}`, spec, source);
-        return;
-      }
-
-      // ── ON-DEVICE path (webgpu): inline `runLocalAgent`, UNCHANGED ───────────
+      const source =
+        config.source === 'gemini'
+          ? 'cloud · Gemini'
+          : config.source === 'webgpu'
+            ? `on-device · ${PRESET_META[config.webgpuPreset].label}${backend ? ` · ${backend}` : ''}`
+            : config.source === 'openrouter'
+              ? `openrouter · ${config.openrouterModel}`
+              : config.source === 'llama'
+                ? `llama · ${config.llamaModel}`
+                : `ollama · ${config.ollamaModel}`;
       let sourced = false;
       const stampSource = () => {
         if (!sourced) {
@@ -441,6 +273,7 @@ export function ChatApp() {
           store.setAssistantSource(sid, source);
         }
       };
+
       const handlers: AgentStreamHandlers = {
         onToken: (t) => {
           stampSource();
@@ -459,15 +292,65 @@ export function ChatApp() {
       };
 
       try {
-        // The on-device engine runs the agent loop entirely in the browser; the
-        // tiny model always uses the single-shot retrieval strategy (default opts).
-        const client = createOnDeviceModelClient();
+        // Every source now runs the agent loop entirely in the browser against
+        // a `ModelClient`: webgpu = the loaded on-device engine; gemini /
+        // openrouter / ollama = a browser-direct provider (BYOK for the cloud
+        // ones). No server round-trip.
+        const history = convo.slice(0, -1) as { role: 'user' | 'assistant'; text: string }[];
+        const client =
+          config.source === 'webgpu' ? createOnDeviceModelClient() : buildLocalModelClient(config);
         if (!client) {
           setError('Load the on-device model first (use the model bar above).');
           finalize();
           return;
         }
-        await runLocalAgent(client, text, history, handlers, ctrl.signal, undefined);
+        // Strategy is chosen by the model's tool support, decided at runtime:
+        //  - webgpu (tiny model) + llama-server (advertises only `completion`)
+        //    always run the single-shot retrieval strategy (the default opts).
+        //  - gemini / openrouter / ollama attempt the ReAct multi-tool loop, but
+        //    Ollama can serve arbitrary models — many have no tool support and
+        //    reject the call ("... does not support tools"). When that happens
+        //    before any output, fall back to retrieval-only so the same model
+        //    still answers. The agent adapts to the model, not the source.
+        const reactOpts = {
+          strategy: createReactLoopStrategy({ maxTurns: 10 }),
+          systemPrompt: REACT_SYSTEM_PROMPT,
+        };
+        const wantsTools =
+          config.source === 'gemini' ||
+          config.source === 'openrouter' ||
+          config.source === 'ollama';
+
+        if (!wantsTools) {
+          await runLocalAgent(client, text, history, handlers, ctrl.signal, undefined);
+        } else {
+          let toolUnsupported = false;
+          let produced = false;
+          const probe: AgentStreamHandlers = {
+            ...handlers,
+            onToken: (t) => {
+              produced = true;
+              handlers.onToken?.(t);
+            },
+            onTool: (name, detail) => {
+              produced = true;
+              handlers.onTool?.(name, detail);
+            },
+            // Swallow the tool-unsupported error (only when nothing was produced
+            // yet) so the retry can take over silently; surface anything else.
+            onError: (message) => {
+              if (!produced && isToolUnsupportedError(message)) {
+                toolUnsupported = true;
+                return;
+              }
+              handlers.onError?.(message);
+            },
+          };
+          await runLocalAgent(client, text, history, probe, ctrl.signal, reactOpts);
+          if (toolUnsupported) {
+            await runLocalAgent(client, text, history, handlers, ctrl.signal, undefined);
+          }
+        }
         finalize();
       } catch (e) {
         if ((e as Error)?.name === 'AbortError') {
@@ -478,7 +361,7 @@ export function ChatApp() {
         finalize();
       }
     },
-    [input, busy, store, finalize, setUrl, config, modelStatus, runCloudJob],
+    [input, busy, store, finalize, setUrl, config, modelStatus],
   );
 
   const stop = useCallback(() => {
@@ -524,157 +407,6 @@ export function ChatApp() {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, [store, finalize]);
-
-  // ── Durable RESUBSCRIBE on mount / session switch ──────────────────────────
-  // For every assistant turn in the active session whose job is still NON-terminal
-  // and isn't being driven live in this tab, tail it from `lastSeq + 1` so a
-  // reload / another tab replays the partial answer and keeps streaming. A
-  // resubscribed job that goes quiet for STALL_MS (its driver tab died with no
-  // SharedWorker/extended-lifetime) is marked stalled → "Continue" is offered.
-  //
-  // Keyed on the active SESSION id (not its messages): runs on mount + switch,
-  // not on every streamed token. The live send wires its own subscription, so we
-  // skip live-driven jobs here. The store's jobId-targeted setters land each
-  // replayed event on its own turn regardless of position.
-  const activeSessionId = store.activeId;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: re-run on session switch, read the latest turns via the store
-  useEffect(() => {
-    if (!activeSessionId) return;
-    const session = store.sessions.find((s) => s.id === activeSessionId);
-    if (!session) return;
-
-    const subs = resubRef.current;
-    const timers = new Map<string, ReturnType<typeof setTimeout>>();
-
-    for (const turn of session.messages) {
-      if (turn.role !== 'assistant' || !turn.jobId || turn.jobDone) continue;
-      const jobId = turn.jobId;
-      if (liveJobsRef.current.has(jobId) || subs.has(jobId)) continue; // already streaming here
-
-      const ctrl = new AbortController();
-      subs.set(jobId, ctrl);
-
-      // Stall watchdog: (re)arm on every arriving event (replay OR live). If it
-      // fires, the stream has been quiet for STALL_MS → offer Continue. The
-      // terminal event clears it (a completed/failed job isn't stalled).
-      const arm = () => {
-        const prev = timers.get(jobId);
-        if (prev) clearTimeout(prev);
-        timers.set(
-          jobId,
-          setTimeout(() => {
-            if (!ctrl.signal.aborted) {
-              setStalledJobs((prev2) => new Set(prev2).add(jobId));
-            }
-          }, STALL_MS),
-        );
-      };
-
-      const dispatch = makeDurableHandler({
-        onToken: (t) => store.appendAssistantTextForJob(activeSessionId, jobId, t),
-        onTool: (name, detail) =>
-          store.addAssistantStepForJob(activeSessionId, jobId, { name, detail }),
-        onVisited: (card) => store.addAssistantCardForJob(activeSessionId, jobId, card),
-        onSeq: (seq) => store.setAssistantSeqForJob(activeSessionId, jobId, seq),
-        onTerminal: () => {
-          store.setAssistantJobDoneForJob(activeSessionId, jobId);
-          const prev = timers.get(jobId);
-          if (prev) clearTimeout(prev);
-          timers.delete(jobId);
-          // A job that resumed and finished is no longer stalled.
-          setStalledJobs((prev2) => {
-            if (!prev2.has(jobId)) return prev2;
-            const next = new Set(prev2);
-            next.delete(jobId);
-            return next;
-          });
-        },
-      });
-
-      arm();
-      // Replay from the turn's cursor. `lastSeq` is the highest applied 0-based
-      // index (undefined = none), so `from` = that + 1 (or 0). Advancing `lastSeq`
-      // as events arrive makes a re-mount idempotent (no re-applied tokens).
-      const from = (turn.lastSeq ?? -1) + 1;
-      void (async () => {
-        try {
-          for await (const e of subscribeJob(jobId, {
-            from,
-            signal: ctrl.signal,
-          })) {
-            arm();
-            dispatch(e);
-          }
-        } catch {
-          /* aborted on switch/unmount — nothing to surface */
-        }
-      })();
-    }
-
-    return () => {
-      // Tear down this session's resubscriptions on switch/unmount.
-      for (const t of timers.values()) clearTimeout(t);
-      for (const [jobId, ctrl] of subs) {
-        ctrl.abort();
-        subs.delete(jobId);
-      }
-    };
-  }, [
-    activeSessionId,
-    store.appendAssistantTextForJob,
-    store.addAssistantStepForJob,
-    store.addAssistantCardForJob,
-    store.setAssistantSeqForJob,
-    store.setAssistantJobDoneForJob,
-  ]);
-
-  // ── "Continue" a stalled turn ──────────────────────────────────────────────
-  // Re-run the turn from its original question as a FRESH durable job (the prior
-  // driver tab died mid-answer). Clears the partial answer + the stalled flag,
-  // then drives a new job into the SAME trailing assistant turn. Requires a cloud
-  // source selected (re-runs on the current config).
-  const continueTurn = useCallback(
-    async (turnIndex: number) => {
-      const session = store.sessions.find((s) => s.id === store.activeId);
-      if (!session) return;
-      const turn = session.messages[turnIndex];
-      if (!turn || turn.role !== 'assistant') return;
-      // The question is the user turn immediately before this assistant turn.
-      const userTurn = session.messages[turnIndex - 1];
-      if (!userTurn || userTurn.role !== 'user') return;
-      if (!isCloudSource(config.source)) {
-        setError('Select a cloud source (Gemini / OpenRouter / Ollama / Llama) to continue.');
-        return;
-      }
-      const sid = session.id;
-      // Stop any lingering resubscription for the old (stalled) job + clear flag.
-      if (turn.jobId) {
-        resubRef.current.get(turn.jobId)?.abort();
-        resubRef.current.delete(turn.jobId);
-        liveJobsRef.current.delete(turn.jobId);
-      }
-      setStalledJobs((prev) => {
-        if (!turn.jobId || !prev.has(turn.jobId)) return prev;
-        const next = new Set(prev);
-        next.delete(turn.jobId);
-        return next;
-      });
-      // Reset the trailing assistant turn so the fresh job streams cleanly. (The
-      // turn is the last message; Continue only shows on a non-terminal trailing
-      // turn whose job stalled.)
-      store.resetAssistantTurn(sid);
-      setError('');
-
-      const history = session.messages
-        .slice(0, turnIndex - 1)
-        .map((m) => ({ role: m.role, text: m.text }));
-      const source = sourceLabel(config);
-      const spec = buildAgentJobSpec(config.source, config, userTurn.text, history);
-      const turnId = `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-      await runCloudJob(sid, `${sid}:${turnId}`, spec, source);
-    },
-    [store, config, runCloudJob],
-  );
 
   // The model-source pill is shared by both render branches (conversation +
   // landing); build it once so neither branch re-declares the ~16 props.
@@ -724,23 +456,6 @@ export function ChatApp() {
           ? 'your self-hosted server'
           : 'browser-direct · your key';
 
-  // Honest, unobtrusive persistent-storage indicator: only shown once we KNOW the
-  // state (storagePersisted !== null), and only the truthful word — durable chat
-  // survives reload when granted, is best-effort (evictable) otherwise. No nag.
-  const persistDot =
-    storagePersisted === null ? null : (
-      <span
-        className="text-[11px] text-dim-text"
-        title={
-          storagePersisted
-            ? 'Persistent storage granted: chats and the durable job log survive reloads and eviction.'
-            : 'Storage is best-effort: the browser may evict chats and the durable job log under disk pressure.'
-        }
-      >
-        {storagePersisted ? 'persistent' : 'best-effort'}
-      </span>
-    );
-
   return (
     <div className="h-dvh flex flex-col">
       <SiteHeader onMenu={() => setDrawerOpen((o) => !o)} menuOpen={drawerOpen} onHome={goEmpty} />
@@ -769,13 +484,7 @@ export function ChatApp() {
               always fully visible (no mid-screen float, no mobile-toolbar clip). */}
           <main ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
             <div className="max-w-[760px] mx-auto px-4 md:px-6 py-8">
-              <ChatThread
-                messages={messages}
-                busy={busy}
-                error={error}
-                stalledJobs={stalledJobs}
-                onContinue={continueTurn}
-              />
+              <ChatThread messages={messages} busy={busy} error={error} />
             </div>
           </main>
           <div className="shrink-0 border-t border-border bg-bg">
@@ -788,10 +497,7 @@ export function ChatApp() {
                 onStop={stop}
                 busy={busy}
               />
-              <div className="mt-2 flex items-center justify-end gap-2">
-                {persistDot}
-                {modelPill}
-              </div>
+              <div className="mt-2 flex justify-end">{modelPill}</div>
             </div>
           </div>
         </>
