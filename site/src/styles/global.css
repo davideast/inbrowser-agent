@@ -369,7 +369,10 @@ pre {
 .docs-prose td:first-child {
   color: var(--color-primary);
   font-weight: 500;
-  white-space: nowrap;
+  /* No `white-space: nowrap`: when a key cell holds a long list (e.g. the
+     model contract's exports), nowrap forces one line, blows the column past
+     the container, and collapses the value column to ~1ch. `.docs-prose`
+     already sets `overflow-wrap: anywhere`, so let the cell wrap. */
 }
 
 .docs-prose blockquote {
