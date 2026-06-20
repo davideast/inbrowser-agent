@@ -10,7 +10,7 @@
 import {
   type ClientMessage,
   createResumableClient as createGenericClient,
-} from '@inbrowser/resumable/client';
+} from '@inbrowser/resumable';
 import type { ModelEvent, NormalizedRequest } from '../types.js';
 
 export interface ResumableClientOpts {

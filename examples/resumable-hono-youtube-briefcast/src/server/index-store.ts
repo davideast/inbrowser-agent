@@ -1,4 +1,4 @@
-import type { TokenProvider } from '@inbrowser/resumable/rtdb';
+import type { TokenProvider } from '@inbrowser/resumable';
 import { applyEventToIndex } from '../shared/reducer';
 import type { BriefcastEvent, BriefcastIndexEntry } from '../shared/types';
 

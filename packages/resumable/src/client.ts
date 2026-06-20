@@ -16,7 +16,7 @@
  *
  * Transport errors are surfaced as `{ type: 'error' }` messages (not thrown and
  * not synthesized into the event type, which the client cannot know). Pair it
- * with `@inbrowser/resumable/http` on the server.
+ * with `sseFromJob` on the server (both on the `@inbrowser/resumable` root).
  */
 
 /** One item from the client stream: a decoded event, or a transport error. */

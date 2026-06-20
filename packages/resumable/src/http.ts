@@ -2,7 +2,8 @@
  * `@inbrowser/resumable/http` — serve a job subscription as Server-Sent Events.
  *
  * The server half of resumable streaming, generic over the job's event type.
- * Pair it with the reconnecting consumer in `@inbrowser/resumable/client`.
+ * Pair it with the reconnecting consumer `createResumableClient` (both are on
+ * the `@inbrowser/resumable` root barrel).
  *
  * Wire format (relay <-> client channel):
  *   : stream-open\n\n            leading SSE comment; flushes buffering proxies

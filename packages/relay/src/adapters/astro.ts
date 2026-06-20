@@ -6,8 +6,7 @@
  * Wire-up:
  *
  *   // src/server/relay.ts
- *   import { createRelay } from '@inbrowser/relay';
- *   import { createAstroRoutes } from '@inbrowser/relay/adapters/astro';
+ *   import { createRelay, createAstroRoutes } from '@inbrowser/relay';
  *   import { geminiModelClient } from '@inbrowser/model';
  *
  *   const relay = createRelay({

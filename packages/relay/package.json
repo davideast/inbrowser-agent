@@ -5,30 +5,11 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./sse": {
-      "types": "./dist/sse.d.ts",
-      "import": "./dist/sse.js"
-    },
-    "./adapters/astro": {
-      "types": "./dist/adapters/astro.d.ts",
-      "import": "./dist/adapters/astro.js"
-    },
-    "./adapters/express": {
-      "types": "./dist/adapters/express.d.ts",
-      "import": "./dist/adapters/express.js"
-    },
-    "./client": {
-      "types": "./dist/client/index.d.ts",
-      "import": "./dist/client/index.js"
-    },
-    "./client/browser": {
-      "types": "./dist/client/browser.d.ts",
-      "import": "./dist/client/browser.js"
     }
   },
   "files": ["dist", "README.md", "docs"],

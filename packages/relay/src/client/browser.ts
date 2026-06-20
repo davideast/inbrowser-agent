@@ -1,9 +1,8 @@
 /**
  * Browser-lifecycle helper for the reconnecting client.
  *
- * The implementation now lives in `@inbrowser/resumable/client` (the generic
- * transport relay builds on). This module is kept as the public
- * `@inbrowser/relay/client/browser` subpath for backward compatibility, and
- * re-exports it unchanged.
+ * The implementation lives on the `@inbrowser/resumable` root barrel (the
+ * generic transport relay builds on). This module re-exports it for the
+ * relay-local client; both are surfaced from the `@inbrowser/relay` root.
  */
-export { installBrowserLifecycle } from '@inbrowser/resumable/client';
+export { installBrowserLifecycle } from '@inbrowser/resumable';

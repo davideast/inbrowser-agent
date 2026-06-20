@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { createJobEngine } from '@inbrowser/resumable';
-import { createMemoryJobStore } from '@inbrowser/resumable/memory';
+import { createJobEngine, createMemoryJobStore } from '@inbrowser/resumable';
 import { createBriefcastApp } from '../src/server/app';
 import type { AudioStore } from '../src/server/audio-store';
 import { createMemoryBriefcastIndexStore } from '../src/server/index-store';

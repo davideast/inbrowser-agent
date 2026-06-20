@@ -16,8 +16,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
  * Wire-up:
  *
  *   import express from 'express';
- *   import { createRelay } from '@inbrowser/relay';
- *   import { createExpressHandlers } from '@inbrowser/relay/adapters/express';
+ *   import { createRelay, createExpressHandlers } from '@inbrowser/relay';
  *
  *   const relay = createRelay({ store, providers });
  *   const { start, stream } = createExpressHandlers(relay);
@@ -27,7 +26,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
  *   app.post('/api/inference/job',           start);
  *   app.get('/api/inference/job/:id/stream', stream);
  */
-import { Readable } from 'node:stream';
 import type { Relay } from '../relay.js';
 
 /**
@@ -112,6 +110,12 @@ export function createExpressHandlers(
       // buffering; this flush makes Node itself send headers eagerly
       // so the client's fetch() doesn't sit on "no response yet."
       res.flushHeaders?.();
+      // Lazy `node:stream` import — keep it OUT of the module's static
+      // import graph so a browser bundle that pulls the relay root barrel
+      // (which re-exports this adapter) never statically references a Node
+      // builtin. The Express adapter only ever runs in Node, so paying the
+      // dynamic-import cost here is free in practice.
+      const { Readable } = await import('node:stream');
       Readable.fromWeb(
         response.body as unknown as import('node:stream/web').ReadableStream<Uint8Array>,
       ).pipe(res);

@@ -186,23 +186,23 @@ async function importTest(): Promise<void> {
     `
 import assert from 'node:assert/strict';
 
-// === @inbrowser/resumable ===
-import { createMemoryJobStore } from '@inbrowser/resumable/memory';
+// === @inbrowser/resumable (ROOT-ONLY barrel) ===
+// Stores, the SSE HTTP binding, and the reconnecting client all hang off
+// the single root export now (no /memory, /rtdb, /http, /client subpaths).
+import {
+  createMemoryJobStore,
+  sseFromJob,
+  createResumableClient as createResumableJobClient,
+  installBrowserLifecycle as installResumableLifecycle,
+} from '@inbrowser/resumable';
 const store = createMemoryJobStore();
 assert.equal(typeof store.create, 'function');
 assert.equal(typeof store.append, 'function');
-console.log('  ✓ resumable: createMemoryJobStore wired');
-
-// === @inbrowser/resumable/http + /client (generic streaming transport) ===
-import { sseFromJob } from '@inbrowser/resumable/http';
-import {
-  createResumableClient as createResumableJobClient,
-  installBrowserLifecycle as installResumableLifecycle,
-} from '@inbrowser/resumable/client';
-assert.equal(typeof sseFromJob, 'function', 'resumable/http: sseFromJob');
-assert.equal(typeof createResumableJobClient, 'function', 'resumable/client: createResumableClient');
-assert.equal(typeof installResumableLifecycle, 'function', 'resumable/client: installBrowserLifecycle');
-console.log('  ✓ resumable/http + /client: transport subpaths resolve');
+console.log('  ✓ resumable: createMemoryJobStore wired (root barrel)');
+assert.equal(typeof sseFromJob, 'function', 'resumable: sseFromJob');
+assert.equal(typeof createResumableJobClient, 'function', 'resumable: createResumableClient');
+assert.equal(typeof installResumableLifecycle, 'function', 'resumable: installBrowserLifecycle');
+console.log('  ✓ resumable: http binding + client lifted to root barrel');
 
 // === @inbrowser/relay ===
 // Providers moved to @inbrowser/model (stage 4) — relay no longer exports
@@ -214,24 +214,24 @@ import {
   encodeSseEvent,
   readSseDataLines,
   SSE_DONE_LINE,
+  createAstroRoutes,
+  createExpressHandlers,
 } from '@inbrowser/relay';
 assert.equal(typeof createRelay, 'function');
 console.log('  ✓ relay: createRelay exported (providers moved to @inbrowser/model)');
 
-// Lifted-from-subpath exports also reachable from root
+// Client + SSE utilities + framework adapters all on the ROOT barrel now
+// (no /client, /sse, /adapters/* subpaths).
 assert.equal(typeof createResumableClient, 'function');
 assert.equal(typeof installBrowserLifecycle, 'function');
 assert.equal(typeof encodeSseEvent, 'function');
 assert.equal(typeof readSseDataLines, 'function');
 assert.equal(typeof SSE_DONE_LINE, 'string');
-console.log('  ✓ relay: client + SSE utilities lifted to root');
+console.log('  ✓ relay: client + SSE utilities on root barrel');
 
-// === @inbrowser/relay/client + sse subpaths also resolve to same fns ===
-import { createResumableClient as resumableViaSubpath } from '@inbrowser/relay/client';
-assert.equal(resumableViaSubpath, createResumableClient, 'subpath and root export same fn');
-import { readSseDataLines as sseViaSubpath } from '@inbrowser/relay/sse';
-assert.equal(sseViaSubpath, readSseDataLines, 'subpath and root export same fn');
-console.log('  ✓ relay/client + relay/sse: subpaths still resolve to same exports');
+assert.equal(typeof createAstroRoutes, 'function', 'relay: createAstroRoutes');
+assert.equal(typeof createExpressHandlers, 'function', 'relay: createExpressHandlers');
+console.log('  ✓ relay: astro + express adapters on root barrel');
 
 // === @inbrowser/agent ===
 import { createAgentSession, createToolRegistry, createReactLoopStrategy } from '@inbrowser/agent';
@@ -330,15 +330,19 @@ console.log('  ✓ model: createEngineModelClient resolves from root');
 }
 
 async function browserBundle(): Promise<void> {
-  step('browser-target bundle of @inbrowser/relay/client/browser');
+  step('browser-target bundle of @inbrowser/relay (root barrel)');
   // The scratch dir already has @inbrowser/relay installed. Resolve
   // through node_modules so the test uses the *packed* output, not the
-  // local source.
-  const entry = join(SCRATCH, 'node_modules/@inbrowser/relay/dist/client/browser.js');
+  // local source. Bundling the ROOT barrel for the browser proves the
+  // whole flattened entrypoint is browser-import-safe: the Express
+  // adapter's `node:stream` is lazy-`import()`ed inside its handler and
+  // its `node:http` imports are type-only, so a browser-target bundle of
+  // the root must succeed with NO static `node:` reference.
+  const entry = join(SCRATCH, 'node_modules/@inbrowser/relay/dist/index.js');
   if (!existsSync(entry)) fail(`browser entry missing: ${entry}`);
   const out = join(SCRATCH, 'browser-bundle');
   await $`bun build --target=browser --outdir=${out} ${entry}`.cwd(SCRATCH);
-  ok(`bundled @inbrowser/relay/client/browser (output: ${out})`);
+  ok(`bundled @inbrowser/relay root barrel for the browser (output: ${out})`);
 }
 
 function showTarballSizes(): void {

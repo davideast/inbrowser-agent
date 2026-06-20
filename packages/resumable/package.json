@@ -5,30 +5,11 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./memory": {
-      "types": "./dist/store/memory.d.ts",
-      "import": "./dist/store/memory.js"
-    },
-    "./rtdb": {
-      "types": "./dist/store/rtdb/index.d.ts",
-      "import": "./dist/store/rtdb/index.js"
-    },
-    "./testing": {
-      "types": "./dist/testing.d.ts",
-      "import": "./dist/testing.js"
-    },
-    "./http": {
-      "types": "./dist/http.d.ts",
-      "import": "./dist/http.js"
-    },
-    "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
     }
   },
   "files": ["dist", "README.md", "docs"],
