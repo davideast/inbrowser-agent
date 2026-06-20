@@ -451,13 +451,15 @@ function LoadingPanel({
   ];
   return (
     <div className="min-h-[68px] border border-border bg-surface px-3 py-2">
-      <div className="flex items-center justify-between text-secondary">
-        <span>
+      <div className="flex items-center justify-between gap-2 text-secondary">
+        <span className="min-w-0">
           {stepText}
           <span className="text-dim-text"> · {PRESET_META[preset].label}</span>
         </span>
         {showBytes ? (
-          <span className="text-dim-text tabular-nums">
+          // nowrap + shrink-0 so "224 MB / 262 MB" never breaks the unit onto a
+          // second line; the label on the left shrinks/wraps instead.
+          <span className="text-dim-text tabular-nums whitespace-nowrap shrink-0">
             {formatBytes(status.loadedBytes)} / {formatBytes(status.totalBytes)}
           </span>
         ) : null}
@@ -613,6 +615,33 @@ function OpenrouterConfig({
   );
 }
 
+/** A one-line command shown as a click-to-copy chip. Copy needs a secure
+ *  context (we're on HTTPS), so `navigator.clipboard` is available. */
+function CopyCommand({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      title="Copy"
+      onClick={() => {
+        void navigator.clipboard?.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        });
+      }}
+      className="group flex w-full items-center justify-between gap-2 border border-border bg-bg px-2 py-1 text-left transition-colors hover:border-primary"
+    >
+      <code className="truncate text-[11px] text-primary">{text}</code>
+      <span
+        className="shrink-0 text-[10px] text-dim-text group-hover:text-secondary"
+        aria-hidden="true"
+      >
+        {copied ? '✓ copied' : 'copy'}
+      </span>
+    </button>
+  );
+}
+
 function OllamaConfig({
   ollamaModel,
   onOllamaModel,
@@ -622,11 +651,16 @@ function OllamaConfig({
   const modelId = useId();
   const urlId = useId();
   const ready = ollamaModel.trim().length > 0;
-  // A browser on an HTTPS page can't reach http://localhost (mixed content).
-  const httpsBlocked =
-    typeof location !== 'undefined' &&
-    location.protocol === 'https:' &&
-    /^http:\/\//.test(ollamaBaseUrl.trim());
+  // `http://localhost` is a *potentially-trustworthy* origin, so an HTTPS page
+  // CAN reach it — it is NOT mixed content. It only needs Ollama to allow this
+  // page's origin (CORS) via OLLAMA_ORIGINS. A non-localhost `http://` server
+  // (e.g. a LAN IP) IS mixed content and genuinely blocked.
+  const onHttps = typeof location !== 'undefined' && location.protocol === 'https:';
+  const url = ollamaBaseUrl.trim();
+  const isHttp = /^http:\/\//i.test(url);
+  const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(url);
+  const mixedBlocked = onHttps && isHttp && !isLocalhost;
+  const origin = typeof location !== 'undefined' ? location.origin : 'https://inbrowser.io';
   return (
     <div className="mt-2 space-y-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -657,16 +691,24 @@ function OllamaConfig({
           {ready ? 'ready' : 'needs model'}
         </span>
       </div>
-      {httpsBlocked ? (
+      {mixedBlocked ? (
         <div className="text-secondary">
-          served over HTTPS — a browser can't reach http://localhost (open the site on localhost to
-          use Ollama).
+          this page is HTTPS, so a plain <code className="text-primary">http://</code> server on the
+          network is blocked (mixed content). Use an <code className="text-primary">https://</code>{' '}
+          URL — e.g. expose it with <code className="text-primary">tailscale serve</code>.{' '}
+          <code className="text-primary">localhost</code> works without HTTPS.
         </div>
-      ) : null}
-      <div className="text-dim-text">
-        Run Ollama with <code className="text-secondary">OLLAMA_ORIGINS</code> set to allow this
-        origin.
-      </div>
+      ) : (
+        <div className="space-y-1.5 text-dim-text">
+          <div>Let Ollama accept this page — set its allowed origin, then restart it:</div>
+          <CopyCommand text={`OLLAMA_ORIGINS=${origin} ollama serve`} />
+          <div className="text-[10px]">
+            Using the macOS menu-bar app?{' '}
+            <code className="text-secondary">launchctl setenv OLLAMA_ORIGINS "{origin}"</code>, then
+            restart Ollama.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
