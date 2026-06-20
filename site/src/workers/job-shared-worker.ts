@@ -15,9 +15,8 @@
  */
 import { type PortLike, createIdbJobStore, hostJobEngine } from '@inbrowser/resumable';
 import { type JobSpec, buildProducer } from '../lib/job-producer';
-import type { DurableEvent } from '../lib/local-agent';
 
-const host = hostJobEngine<DurableEvent, JobSpec>({
+const host = hostJobEngine<string, JobSpec>({
   store: createIdbJobStore({ dbName: 'inbrowser-jobs', defaultTtlMs: 3_600_000 }),
   buildProducer,
 });
