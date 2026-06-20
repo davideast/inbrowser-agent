@@ -24,6 +24,19 @@ export interface ChatTurn {
    *  "on-device · SmolLM2 360M · webgpu". Stamped on the assistant turn so
    *  there's never ambiguity about which path ran. */
   source?: string;
+  /** Durable-jobs id for a CLOUD turn (the agent loop runs in the job worker,
+   *  not inline). Persisted so a reload / another tab can RESUBSCRIBE to the
+   *  same job and replay its stream from `lastSeq`. Absent on the on-device
+   *  inline path (which has no durable job). */
+  jobId?: string;
+  /** Highest durable-event `seq` (a 0-based event index) already applied to this
+   *  turn's text/steps/cards. A resubscribe passes `{ from: (lastSeq ?? -1) + 1 }`
+   *  so it replays only what this turn hasn't seen yet (no double-applied tokens).
+   *  UNDEFINED = nothing seen (resume from 0), distinct from 0 = event 0 applied. */
+  lastSeq?: number;
+  /** Whether this turn's job reached a terminal status (done/error). A resub only
+   *  fires for a NON-terminal turn, so a completed cloud answer doesn't re-stream. */
+  jobDone?: boolean;
 }
 
 export interface Session {
@@ -103,6 +116,26 @@ export interface ChatStore {
   addAssistantStep(id: string, step: AgentStep): void;
   /** Stamp the assistant turn with what produced it (created lazily). */
   setAssistantSource(id: string, source: string): void;
+  /** Attach the durable-jobs id to the assistant turn (created lazily), so a
+   *  reload / another tab can resubscribe to the same job. Resets the durable
+   *  cursor for a fresh job (`lastSeq` cleared = nothing applied, not done). */
+  setAssistantJob(id: string, jobId: string): void;
+  /** Advance the assistant turn's durable cursor to the highest seq it has
+   *  applied (no-op if it would move backwards). */
+  setAssistantSeq(id: string, seq: number): void;
+  /** Mark the assistant turn's job terminal (done/error), so a future mount
+   *  won't resubscribe to a completed cloud answer. */
+  setAssistantJobDone(id: string): void;
+  /** Clear the trailing assistant turn's answer (text/steps/cards/job fields) so
+   *  a fresh "Continue" job streams into a clean turn. Keeps the turn in place. */
+  resetAssistantTurn(id: string): void;
+  // jobId-targeted variants for the durable resubscribe path (address the turn
+  // by its jobId, not by position):
+  appendAssistantTextForJob(id: string, jobId: string, text: string): void;
+  addAssistantCardForJob(id: string, jobId: string, card: VisitedCard): void;
+  addAssistantStepForJob(id: string, jobId: string, step: AgentStep): void;
+  setAssistantSeqForJob(id: string, jobId: string, seq: number): void;
+  setAssistantJobDoneForJob(id: string, jobId: string): void;
 }
 
 export function useChatStore(): ChatStore {
@@ -229,6 +262,20 @@ export function useChatStore(): ChatStore {
     [touch],
   );
 
+  // Mutate the assistant turn that OWNS a given jobId (no positional guess, no
+  // lazy creation). Used by the durable RESUBSCRIBE path so a replayed stream
+  // can't contaminate a different turn if the session shape shifted; a no-op if
+  // no turn carries the jobId (e.g. the turn was deleted between mount + replay).
+  const mutateAssistantByJob = useCallback(
+    (id: string, jobId: string, fn: (turn: ChatTurn) => ChatTurn) => {
+      touch(id, (s) => ({
+        ...s,
+        messages: s.messages.map((m) => (m.role === 'assistant' && m.jobId === jobId ? fn(m) : m)),
+      }));
+    },
+    [touch],
+  );
+
   const appendAssistantText = useCallback(
     (id: string, text: string) => {
       mutateAssistant(id, (t) => ({ ...t, text: t.text + text }));
@@ -261,6 +308,90 @@ export function useChatStore(): ChatStore {
     [mutateAssistant],
   );
 
+  const setAssistantJob = useCallback(
+    (id: string, jobId: string) => {
+      // A fresh job → reset the durable cursor. `lastSeq` is the highest applied
+      // 0-based event index; UNDEFINED means "nothing applied" (resume `from: 0`),
+      // distinct from 0 which means "event index 0 was applied".
+      mutateAssistant(id, (t) => ({ ...t, jobId, lastSeq: undefined, jobDone: false }));
+    },
+    [mutateAssistant],
+  );
+
+  const setAssistantSeq = useCallback(
+    (id: string, seq: number) => {
+      // Monotonic: never move the cursor backwards (out-of-order / replayed event).
+      // `?? -1` so the first event (seq 0) advances from "nothing applied".
+      mutateAssistant(id, (t) => (seq > (t.lastSeq ?? -1) ? { ...t, lastSeq: seq } : t));
+    },
+    [mutateAssistant],
+  );
+
+  const setAssistantJobDone = useCallback(
+    (id: string) => {
+      mutateAssistant(id, (t) => ({ ...t, jobDone: true }));
+    },
+    [mutateAssistant],
+  );
+
+  const resetAssistantTurn = useCallback(
+    (id: string) => {
+      // Keep the role + source; drop the partial answer and all job state so a
+      // fresh job streams cleanly (and the old jobId stops matching any setter).
+      mutateAssistant(id, (t) => ({
+        role: 'assistant',
+        text: '',
+        source: t.source,
+      }));
+    },
+    [mutateAssistant],
+  );
+
+  // ── jobId-targeted setters (durable resubscribe) ───────────────────────────
+  // Same effects as the trailing-turn setters above, but addressed by jobId so a
+  // replayed stream lands on its own turn regardless of position.
+  const appendAssistantTextForJob = useCallback(
+    (id: string, jobId: string, text: string) => {
+      mutateAssistantByJob(id, jobId, (t) => ({ ...t, text: t.text + text }));
+    },
+    [mutateAssistantByJob],
+  );
+
+  const addAssistantCardForJob = useCallback(
+    (id: string, jobId: string, card: VisitedCard) => {
+      mutateAssistantByJob(id, jobId, (t) => {
+        const cards = t.cards ?? [];
+        if (cards.some((c) => c.route === card.route)) return t;
+        return { ...t, cards: [...cards, card] };
+      });
+    },
+    [mutateAssistantByJob],
+  );
+
+  const addAssistantStepForJob = useCallback(
+    (id: string, jobId: string, step: AgentStep) => {
+      mutateAssistantByJob(id, jobId, (t) => ({ ...t, steps: [...(t.steps ?? []), step] }));
+    },
+    [mutateAssistantByJob],
+  );
+
+  const setAssistantSeqForJob = useCallback(
+    (id: string, jobId: string, seq: number) => {
+      // `?? -1` so the first event (seq 0) advances from "nothing applied".
+      mutateAssistantByJob(id, jobId, (t) =>
+        seq > (t.lastSeq ?? -1) ? { ...t, lastSeq: seq } : t,
+      );
+    },
+    [mutateAssistantByJob],
+  );
+
+  const setAssistantJobDoneForJob = useCallback(
+    (id: string, jobId: string) => {
+      mutateAssistantByJob(id, jobId, (t) => ({ ...t, jobDone: true }));
+    },
+    [mutateAssistantByJob],
+  );
+
   const active = sessions.find((s) => s.id === activeId) ?? null;
 
   return {
@@ -276,5 +407,14 @@ export function useChatStore(): ChatStore {
     addAssistantCard,
     addAssistantStep,
     setAssistantSource,
+    setAssistantJob,
+    setAssistantSeq,
+    setAssistantJobDone,
+    resetAssistantTurn,
+    appendAssistantTextForJob,
+    addAssistantCardForJob,
+    addAssistantStepForJob,
+    setAssistantSeqForJob,
+    setAssistantJobDoneForJob,
   };
 }
