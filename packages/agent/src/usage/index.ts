@@ -1,4 +1,5 @@
 import type { ModelUsage, TurnMetrics } from '../types/llm.js';
+import type { TraceEvent } from '../types/trace.js';
 
 export type ContextWindowBasis = 'estimated-next-send';
 export type ContextWindowStatus = 'unknown' | 'low' | 'medium' | 'high' | 'critical';
@@ -7,6 +8,7 @@ export interface RequestCompositionMessageLike {
   role?: string;
   text?: string;
   callId?: string;
+  toolCallId?: string;
   name?: string;
   toolCalls?: unknown;
   resultJson?: string;
@@ -269,6 +271,11 @@ export interface ContextWindowTraceLike {
   };
 }
 
+export type ContextWindowTraceHostContext = NonNullable<ContextWindowTraceLike['hostCtx']>;
+export type ContextWindowTraceHostContextByTurn =
+  | Record<string, ContextWindowTraceHostContext | undefined>
+  | ((event: TraceEvent, turnId: string) => ContextWindowTraceHostContext | undefined);
+
 export type ContextWindowTokenEstimator = (value: string | undefined | null) => number;
 
 export type ContextWindowPromptCostEstimator = (input: {
@@ -417,6 +424,91 @@ export function collectRequestToolNames(request: RequestCompositionTraceLike): s
     }
   }
   return [...names].sort();
+}
+
+export function appendContextWindowTraceEvent(
+  tracesByTurn: Record<string, ContextWindowTraceLike>,
+  event: TraceEvent,
+  hostCtx?: ContextWindowTraceHostContext,
+): Record<string, ContextWindowTraceLike> {
+  if (event.kind === 'turn_dispatch_complete') return tracesByTurn;
+  if (event.kind === 'llm_request') {
+    const req = event.data;
+    const existing = tracesByTurn[req.turnId];
+    const nextTrace: ContextWindowTraceLike = {
+      turnId: req.turnId,
+      requests: upsertByRequestId(existing?.requests ?? [], req),
+      responses: existing?.responses ?? [],
+      hostCtx: existing?.hostCtx ?? hostCtx,
+    };
+    return { ...tracesByTurn, [req.turnId]: nextTrace };
+  }
+
+  const res = event.data;
+  const turnId = turnIdForResponse(res, tracesByTurn);
+  if (!turnId) return tracesByTurn;
+  const existing = tracesByTurn[turnId];
+  const nextTrace: ContextWindowTraceLike = {
+    turnId,
+    requests: existing?.requests ?? [],
+    responses: upsertByRequestId(existing?.responses ?? [], res),
+    hostCtx: existing?.hostCtx ?? hostCtx,
+  };
+  return { ...tracesByTurn, [turnId]: nextTrace };
+}
+
+export function contextWindowTraceEventsToTraces(
+  events: Iterable<TraceEvent>,
+  hostCtxByTurn?: ContextWindowTraceHostContextByTurn,
+): Record<string, ContextWindowTraceLike> {
+  let tracesByTurn: Record<string, ContextWindowTraceLike> = {};
+  for (const event of events) {
+    const turnId = turnIdForEvent(event, tracesByTurn);
+    const hostCtx = turnId ? resolveTraceHostContext(hostCtxByTurn, event, turnId) : undefined;
+    tracesByTurn = appendContextWindowTraceEvent(tracesByTurn, event, hostCtx);
+  }
+  return tracesByTurn;
+}
+
+function upsertByRequestId<T extends { requestId?: string }>(rows: readonly T[], row: T): T[] {
+  if (!row.requestId) return [...rows, row];
+  const index = rows.findIndex((existing) => existing.requestId === row.requestId);
+  if (index === -1) return [...rows, row];
+  const next = rows.slice();
+  next[index] = row;
+  return next;
+}
+
+function turnIdForEvent(
+  event: TraceEvent,
+  tracesByTurn: Record<string, ContextWindowTraceLike>,
+): string | undefined {
+  if (event.kind === 'llm_request') return event.data.turnId;
+  if (event.kind === 'turn_dispatch_complete') return event.data.turnId;
+  return turnIdForResponse(event.data, tracesByTurn);
+}
+
+function turnIdForResponse(
+  response: ContextWindowResponseLike,
+  tracesByTurn: Record<string, ContextWindowTraceLike>,
+): string | undefined {
+  if (!response.requestId) return undefined;
+  for (const trace of Object.values(tracesByTurn)) {
+    if (trace.requests.some((request) => request.requestId === response.requestId)) {
+      return trace.turnId;
+    }
+  }
+  const hashIndex = response.requestId.lastIndexOf('#');
+  return hashIndex > 0 ? response.requestId.slice(0, hashIndex) : undefined;
+}
+
+function resolveTraceHostContext(
+  hostCtxByTurn: ContextWindowTraceHostContextByTurn | undefined,
+  event: TraceEvent,
+  turnId: string,
+): ContextWindowTraceHostContext | undefined {
+  if (!hostCtxByTurn) return undefined;
+  return typeof hostCtxByTurn === 'function' ? hostCtxByTurn(event, turnId) : hostCtxByTurn[turnId];
 }
 
 export function buildContextWindowSnapshot<TMessage extends ModelContextMessageLike>(
@@ -970,7 +1062,7 @@ function toolRefsFromToolResultMessages(
   const refs: SessionToolRef[] = [];
   for (const message of req.messages ?? []) {
     if (message.role !== 'tool') continue;
-    const callId = message.callId;
+    const callId = message.callId ?? message.toolCallId;
     const hit = callId ? index.get(toolIndexKey(turnId, callId)) : undefined;
     refs.push({
       name: message.name ?? hit?.name ?? 'tool_result',

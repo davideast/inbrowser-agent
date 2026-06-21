@@ -14,11 +14,18 @@ import {
   type AgentStrategy,
   type ChatMessage,
   type ModelClient,
+  type TraceEvent,
+  type TurnDetails,
   createAgentSession,
   createDispatch,
   createMetricsCollector,
   createRetrievalStrategy,
 } from '@inbrowser/agent';
+import {
+  type AggregatedTurnMetrics,
+  type ContextWindowTraceHostContext,
+  createTurnMetricsAccumulator,
+} from '@inbrowser/agent/usage';
 import { createGraphToolRegistry } from '../agent/graph-tools';
 import type { AgentStreamHandlers, VisitedCard } from './agent-types';
 
@@ -32,6 +39,14 @@ import type { AgentStreamHandlers, VisitedCard } from './agent-types';
  * throwing (error), which is exactly what the durable producer contract wants.
  */
 export type DurableEvent =
+  | { kind: 'turn_started'; turnId: string }
+  | { kind: 'trace'; event: TraceEvent; hostContext?: ContextWindowTraceHostContext }
+  | {
+      kind: 'turn_usage';
+      turnId: string;
+      metrics: AggregatedTurnMetrics;
+      details: TurnDetails;
+    }
   | { kind: 'token'; text: string }
   | { kind: 'tool'; name: string; detail: string }
   | { kind: 'visited'; card: VisitedCard };
@@ -40,6 +55,7 @@ export type DurableEvent =
 export interface AgentRunOpts {
   strategy?: AgentStrategy;
   systemPrompt?: string;
+  hostContext?: ContextWindowTraceHostContext;
 }
 
 export const SYSTEM_PROMPT =
@@ -95,6 +111,19 @@ export async function* agentEvents(
   // Capable cloud models pass a ReAct strategy + REACT_SYSTEM_PROMPT.
   const strategy = opts.strategy ?? createRetrievalStrategy();
   const systemPrompt = opts.systemPrompt ?? SYSTEM_PROMPT;
+  const pendingTraceEvents: TraceEvent[] = [];
+  const turnMetrics = createTurnMetricsAccumulator();
+
+  function* drainTraceEvents(): Iterable<DurableEvent> {
+    while (pendingTraceEvents.length > 0) {
+      const event = pendingTraceEvents.shift()!;
+      yield {
+        kind: 'trace',
+        event,
+        ...(opts.hostContext ? { hostContext: opts.hostContext } : {}),
+      };
+    }
+  }
 
   const session = createAgentSession({
     strategy,
@@ -105,14 +134,22 @@ export async function* agentEvents(
     systemPromptBuilder: () => systemPrompt,
     metrics: createMetricsCollector(),
     history: hist,
+    tracer: {
+      emit(event) {
+        pendingTraceEvents.push(event);
+      },
+    },
   });
 
   const toolNames = new Map<string, string>();
   const seen = new Set<string>();
 
   for await (const ev of session.submit(question, signal)) {
+    yield* drainTraceEvents();
     if (ev.kind === 'text') {
       if (ev.chunk) yield { kind: 'token', text: ev.chunk };
+    } else if (ev.kind === 'turn_started') {
+      yield { kind: 'turn_started', turnId: ev.turnId };
     } else if (ev.kind === 'tool_started') {
       toolNames.set(ev.callId, ev.name);
       yield { kind: 'tool', name: ev.name, detail: readArg(ev.args) };
@@ -129,14 +166,20 @@ export async function* agentEvents(
           yield { kind: 'visited', card };
         }
       }
+    } else if (ev.kind === 'turn_completed') {
+      const metrics = turnMetrics.add(ev.metrics);
+      yield { kind: 'turn_usage', turnId: ev.turnId, metrics, details: ev.details };
     } else if (ev.kind === 'error') {
       // Surface as a thrown error so the durable producer finishes 'error'; the
       // inline wrapper catches it and calls `onError` (same as before).
       throw new Error(ev.message);
     } else if (ev.kind === 'completed') {
+      yield* drainTraceEvents();
       return;
     }
+    yield* drainTraceEvents();
   }
+  yield* drainTraceEvents();
 }
 
 /**
@@ -169,7 +212,10 @@ export async function runLocalAgent(
 /** Dispatch one `DurableEvent` to the stream handlers. Shared by the inline
  *  wrapper and the durable subscription mapping, so both produce identical UX. */
 export function dispatchDurableEvent(ev: DurableEvent, handlers: AgentStreamHandlers): void {
-  if (ev.kind === 'token') handlers.onToken?.(ev.text);
+  if (ev.kind === 'turn_started') handlers.onTurnStarted?.(ev.turnId);
+  else if (ev.kind === 'trace') handlers.onTrace?.(ev.event, ev.hostContext);
+  else if (ev.kind === 'turn_usage') handlers.onUsage?.(ev.turnId, ev.metrics, ev.details);
+  else if (ev.kind === 'token') handlers.onToken?.(ev.text);
   else if (ev.kind === 'tool') handlers.onTool?.(ev.name, ev.detail);
   else if (ev.kind === 'visited') handlers.onVisited?.(ev.card);
 }

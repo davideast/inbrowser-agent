@@ -94,6 +94,10 @@ export const PRESET_META: Record<OnDevicePreset, PresetMeta> = {
   },
 };
 
+export function onDeviceContextWindow(preset: OnDevicePreset): number {
+  return PRESETS[preset].capabilities.contextWindow;
+}
+
 /** Is the WebGPU backend available? (Just presence — not a feature probe.) */
 export function hasWebGPU(): boolean {
   return typeof navigator !== 'undefined' && 'gpu' in navigator && Boolean(navigator.gpu);

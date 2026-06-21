@@ -1,3 +1,7 @@
+import type { TurnDetails } from '@inbrowser/agent';
+import type { TraceEvent } from '@inbrowser/agent';
+import type { AggregatedTurnMetrics, ContextWindowTraceHostContext } from '@inbrowser/agent/usage';
+
 /**
  * Client-safe shared types for the agent stream. Pure types, no runtime
  * imports, so both the server agent and the browser UI can import them.
@@ -25,6 +29,8 @@ export interface AgentStep {
   detail: string;
 }
 
+export type AgentTurnMetrics = AggregatedTurnMetrics;
+
 /** Normalized events the agent streams to the browser as SSE. */
 export type DocsAgentEvent =
   | { type: 'token'; text: string }
@@ -40,6 +46,9 @@ export type DocsAgentEvent =
  * server stream client.
  */
 export interface AgentStreamHandlers {
+  onTurnStarted?(turnId: string): void;
+  onTrace?(event: TraceEvent, hostContext?: ContextWindowTraceHostContext): void;
+  onUsage?(turnId: string, metrics: AgentTurnMetrics, details: TurnDetails): void;
   onToken?(text: string): void;
   onTool?(name: string, detail: string): void;
   onVisited?(card: VisitedCard): void;
