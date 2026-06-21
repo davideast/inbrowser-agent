@@ -21,6 +21,12 @@ export { createEngine, definePreset } from './engine.js';
 export { createEngineModelClient } from './engine-client.js';
 export { parseToolCalls, type ToolCallParseOpts } from './parse-tool-calls.js';
 export { splitThinking, type ThinkingSplitOpts } from './think.js';
+export {
+  emptyModelUsage,
+  normalizeModelUsage,
+  sumModelUsage,
+  type ModelUsageInput,
+} from './usage.js';
 // In-worker transport: host an `Engine` inside a Web Worker and connect a
 // matching `Engine` stub on the main thread.
 export {

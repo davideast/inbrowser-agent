@@ -1,5 +1,6 @@
 import type { ModelClient, ModelEvent, ModelMessage, ModelRequest, ToolSpec } from '../contract.js';
 import { readSseDataLines } from '../sse.js';
+import { normalizeModelUsage } from '../usage.js';
 import type { CloudProviderConfig } from './types.js';
 /**
  * Shared OpenAI-compatible chat-completions core.
@@ -176,6 +177,8 @@ export function makeOaiClient(p: OaiClientParams): ModelClient {
 
       let promptTokens = 0;
       let completionTokens = 0;
+      let cachedTokens: number | undefined;
+      let reasoningTokens: number | undefined;
       const pending = new Map<number, PendingToolCall>();
 
       try {
@@ -202,6 +205,13 @@ export function makeOaiClient(p: OaiClientParams): ModelClient {
             usage?: {
               prompt_tokens?: number;
               completion_tokens?: number;
+              prompt_tokens_details?: {
+                cached_tokens?: number;
+              };
+              completion_tokens_details?: {
+                reasoning_tokens?: number;
+              };
+              reasoning_tokens?: number;
             };
           };
           const delta = e.choices?.[0]?.delta;
@@ -223,6 +233,14 @@ export function makeOaiClient(p: OaiClientParams): ModelClient {
           if (e.usage) {
             promptTokens = e.usage.prompt_tokens ?? promptTokens;
             completionTokens = e.usage.completion_tokens ?? completionTokens;
+            if (typeof e.usage.prompt_tokens_details?.cached_tokens === 'number') {
+              cachedTokens = e.usage.prompt_tokens_details.cached_tokens;
+            }
+            if (typeof e.usage.completion_tokens_details?.reasoning_tokens === 'number') {
+              reasoningTokens = e.usage.completion_tokens_details.reasoning_tokens;
+            } else if (typeof e.usage.reasoning_tokens === 'number') {
+              reasoningTokens = e.usage.reasoning_tokens;
+            }
           }
         }
       } catch (e) {
@@ -252,10 +270,12 @@ export function makeOaiClient(p: OaiClientParams): ModelClient {
 
       yield {
         kind: 'usage',
-        usage: {
+        usage: normalizeModelUsage({
           promptTokens,
           outputTokens: completionTokens,
-        },
+          ...(typeof cachedTokens === 'number' ? { cachedTokens } : {}),
+          ...(typeof reasoningTokens === 'number' ? { reasoningTokens } : {}),
+        }),
       };
     },
   };

@@ -112,7 +112,13 @@ export interface LlmResponseTrace {
   }[];
   /** Provider-reported usage; absent on error / streaming-cancel /
    *  for providers that don't surface usage. */
-  usage?: { promptTokens: number; outputTokens: number; cachedTokens?: number };
+  usage?: {
+    promptTokens: number;
+    outputTokens: number;
+    cachedTokens?: number;
+    reasoningTokens?: number;
+    costUsd?: number;
+  };
 }
 
 /**
