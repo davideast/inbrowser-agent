@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test';
+import type { TraceEvent } from '../src/index.js';
 import {
   type ModelContextMessageLike,
+  appendContextWindowTraceEvent,
   buildContextWindowSnapshot,
   compactHistoryForModel,
+  contextWindowTraceEventsToTraces,
   createTurnMetricsAccumulator,
   estimateRequestInputComposition,
   requestInputCompositionTotal,
@@ -137,6 +140,105 @@ describe('@inbrowser/agent/usage context snapshots', () => {
       freshInputTokens: 75,
       visibleOutputTokens: 30,
       costUsd: 0.01,
+    });
+  });
+
+  test('normalizes trace events into turn-scoped request and response rows', () => {
+    const events: TraceEvent[] = [
+      {
+        kind: 'llm_request',
+        data: {
+          requestId: 'turn-1#0',
+          turnId: 'turn-1',
+          iteration: 0,
+          ts: 1,
+          systemPrompt: 'sys',
+          messages: [{ role: 'user', text: 'prompt' }],
+          tools: [],
+          llm: { id: 'fake', supportsTools: true },
+        },
+      },
+      {
+        kind: 'llm_response',
+        data: {
+          requestId: 'turn-1#0',
+          ts: 2,
+          text: 'answer',
+          thinking: '',
+          toolCalls: [],
+          usage: { promptTokens: 10, outputTokens: 4, cachedTokens: 2 },
+        },
+      },
+    ];
+
+    const traces = contextWindowTraceEventsToTraces(events, {
+      'turn-1': { providerId: 'fake', providerLabel: 'Fake', modelLabel: 'model' },
+    });
+
+    expect(traces['turn-1']?.requests).toHaveLength(1);
+    expect(traces['turn-1']?.responses).toHaveLength(1);
+    expect(traces['turn-1']?.hostCtx?.providerLabel).toBe('Fake');
+
+    const replayed = appendContextWindowTraceEvent(traces, events[0]!);
+    expect(replayed['turn-1']?.requests).toHaveLength(1);
+  });
+
+  test('request timeline recognizes agent trace toolCallId fields', () => {
+    const snapshot = buildContextWindowSnapshot({
+      systemPrompt: 'sys',
+      currentPrompt: '',
+      messages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          text: '',
+          turnId: 'turn-1',
+          toolCalls: [{ id: 'call-read', name: 'get_doc', argsJson: '{}' }],
+          metrics: { tokensIn: 20, tokensOut: 5, tokensCached: 0, tokensReasoning: 0, costUsd: 0 },
+        } as ModelContextMessageLike & {
+          turnId: string;
+          metrics: {
+            tokensIn: number;
+            tokensOut: number;
+            tokensCached: number;
+            tokensReasoning: number;
+            costUsd: number;
+          };
+        },
+      ],
+      tools: [],
+      estimateTokens,
+      tracesByTurn: {
+        'turn-1': {
+          turnId: 'turn-1',
+          requests: [
+            {
+              requestId: 'turn-1#1',
+              turnId: 'turn-1',
+              iteration: 1,
+              systemPrompt: 'sys',
+              messages: [
+                { role: 'assistant', text: '', toolCalls: [{ id: 'call-read', name: 'get_doc' }] },
+                {
+                  role: 'tool',
+                  toolCallId: 'call-read',
+                  name: 'get_doc',
+                  resultJson: '{"ok":true}',
+                },
+                { role: 'user', text: 'again' },
+              ],
+              tools: [],
+            },
+          ],
+          responses: [{ requestId: 'turn-1#1', text: 'done', thinking: '', toolCalls: [] }],
+        },
+      },
+    });
+
+    expect(snapshot.sessionUsage?.requestRows[0]?.resentToolResults[0]).toMatchObject({
+      name: 'get_doc',
+      callId: 'call-read',
+      messageId: 'a1',
     });
   });
 });

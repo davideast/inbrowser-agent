@@ -16,6 +16,7 @@
  * `createOnDeviceModelClient` / transformers, so the worker bundle stays lean.
  */
 import { createReactLoopStrategy } from '@inbrowser/agent';
+import type { ContextWindowTraceHostContext } from '@inbrowser/agent/usage';
 import {
   type ModelClient,
   geminiModelClient,
@@ -51,6 +52,7 @@ export interface AgentJobSpec {
   model: string;
   apiKey?: string;
   baseUrl?: string;
+  hostContext?: ContextWindowTraceHostContext;
   question: string;
   history: { role: 'user' | 'assistant'; text: string }[];
 }
@@ -92,7 +94,10 @@ export function buildProducer(spec: JobSpec): Producer<DurableEvent> {
       return async function* agent(ctx) {
         if (!wantsTools) {
           // llama: retrieval-only (the default strategy/prompt of `agentEvents`).
-          yield* agentEvents(client, spec.question, spec.history, { signal: ctx.signal });
+          yield* agentEvents(client, spec.question, spec.history, {
+            signal: ctx.signal,
+            hostContext: withStrategy(spec.hostContext, 'retrieval', 'provider-default'),
+          });
           return;
         }
         // ReAct first; remember whether anything was produced so a tool-unsupported
@@ -103,6 +108,7 @@ export function buildProducer(spec: JobSpec): Producer<DurableEvent> {
             strategy: createReactLoopStrategy({ maxTurns: 10 }),
             systemPrompt: REACT_SYSTEM_PROMPT,
             signal: ctx.signal,
+            hostContext: withStrategy(spec.hostContext, 'react', 'provider-default'),
           })) {
             produced = true;
             yield ev;
@@ -113,10 +119,21 @@ export function buildProducer(spec: JobSpec): Producer<DurableEvent> {
           if (produced || !isToolUnsupportedError(message)) throw e;
         }
         // Fell through: tool-unsupported before any output → retrieval-only retry.
-        yield* agentEvents(client, spec.question, spec.history, { signal: ctx.signal });
+        yield* agentEvents(client, spec.question, spec.history, {
+          signal: ctx.signal,
+          hostContext: withStrategy(spec.hostContext, 'retrieval', 'fallback'),
+        });
       };
     }
   }
+}
+
+function withStrategy(
+  hostContext: ContextWindowTraceHostContext | undefined,
+  strategy: string,
+  strategySource: string,
+): ContextWindowTraceHostContext | undefined {
+  return hostContext ? { ...hostContext, strategy, strategySource } : undefined;
 }
 
 /** Ollama / llama-server (and some OpenAI-compatible servers) reject a tool-using

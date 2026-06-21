@@ -1,6 +1,7 @@
 import type { LoadProgress } from '@inbrowser/model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentStreamHandlers, VisitedCard } from '../../lib/agent-types';
+import { buildDocsContextWindowSnapshot, traceHostContextForConfig } from '../../lib/agent-usage';
 import { useChatStore } from '../../lib/chat-store';
 import { type JobEvent, runWithLeader, subscribeJob } from '../../lib/durable-jobs';
 import type { AgentJobSpec, AgentProvider } from '../../lib/job-producer';
@@ -17,6 +18,7 @@ import {
 import { getSuggestions } from '../../lib/suggestions';
 import { PackageCards } from '../PackageCards';
 import { SiteHeader } from '../SiteHeader';
+import { AgentUsageDialog, AgentUsageMeterButton } from './AgentUsage';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatThread } from './ChatThread';
 import { Composer } from './Composer';
@@ -41,7 +43,13 @@ function buildAgentJobSpec(
   question: string,
   history: { role: 'user' | 'assistant'; text: string }[],
 ): AgentJobSpec {
-  const base = { kind: 'agent' as const, provider, question, history };
+  const base = {
+    kind: 'agent' as const,
+    provider,
+    question,
+    history,
+    hostContext: traceHostContextForConfig(config),
+  };
   if (provider === 'gemini') {
     return { ...base, model: config.geminiModel, apiKey: config.geminiKey };
   }
@@ -87,6 +95,9 @@ function sourceLabel(config: ModelSourceConfig, backend?: string): string {
  *  function serves both the live send and the resubscribe (each passes its own
  *  position- vs jobId-targeted setters). */
 interface DurableSink {
+  onTurnStarted(turnId: string): void;
+  onTrace: AgentStreamHandlers['onTrace'];
+  onUsage: AgentStreamHandlers['onUsage'];
   onToken(text: string): void;
   onTool(name: string, detail: string): void;
   onVisited(card: VisitedCard): void;
@@ -105,6 +116,9 @@ interface DurableSink {
  */
 function makeDurableHandler(sink: DurableSink): (e: JobEvent<DurableEvent>) => void {
   const handlers: AgentStreamHandlers = {
+    onTurnStarted: sink.onTurnStarted,
+    onTrace: sink.onTrace,
+    onUsage: sink.onUsage,
     onToken: sink.onToken,
     onTool: sink.onTool,
     onVisited: sink.onVisited,
@@ -127,6 +141,7 @@ export function ChatApp() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
   const { config, setSource, setField, oauthError } = useModelSource();
   const [modelStatus, setModelStatus] = useState<ModelStatus>({ phase: 'idle' });
   const [cachedPresets, setCachedPresets] = useState<ReadonlySet<string>>(() => new Set());
@@ -149,6 +164,10 @@ export function ChatApp() {
 
   const messages = store.active?.messages ?? [];
   const hasMessages = messages.length > 0;
+  const contextWindow = useMemo(
+    () => buildDocsContextWindowSnapshot({ messages, currentPrompt: input, config }),
+    [messages, input, config],
+  );
 
   // Empty-state chips: cold-start orientation for a first-time user, else
   // "learn more" suggestions derived from their prior questions across sessions.
@@ -331,6 +350,10 @@ export function ChatApp() {
       store.setAssistantSource(sid, source);
       let liveJobId = '';
       const dispatch = makeDurableHandler({
+        onTurnStarted: (turnId) => store.setAssistantTurnId(sid, turnId),
+        onTrace: (event, hostContext) => store.addAssistantTrace(sid, event, hostContext),
+        onUsage: (turnId, metrics, details) =>
+          store.setAssistantUsage(sid, turnId, metrics, details),
         onToken: (t) => store.appendAssistantText(sid, t),
         onTool: (name, detail) => store.addAssistantStep(sid, { name, detail }),
         onVisited: (card) => store.addAssistantCard(sid, card),
@@ -442,6 +465,10 @@ export function ChatApp() {
         }
       };
       const handlers: AgentStreamHandlers = {
+        onTurnStarted: (turnId) => store.setAssistantTurnId(sid, turnId),
+        onTrace: (event, hostContext) => store.addAssistantTrace(sid, event, hostContext),
+        onUsage: (turnId, metrics, details) =>
+          store.setAssistantUsage(sid, turnId, metrics, details),
         onToken: (t) => {
           stampSource();
           store.appendAssistantText(sid, t);
@@ -467,7 +494,9 @@ export function ChatApp() {
           finalize();
           return;
         }
-        await runLocalAgent(client, text, history, handlers, ctrl.signal, undefined);
+        await runLocalAgent(client, text, history, handlers, ctrl.signal, {
+          hostContext: traceHostContextForConfig(config, 'retrieval', 'provider-default'),
+        });
         finalize();
       } catch (e) {
         if ((e as Error)?.name === 'AbortError') {
@@ -571,6 +600,11 @@ export function ChatApp() {
       };
 
       const dispatch = makeDurableHandler({
+        onTurnStarted: (turnId) => store.setAssistantTurnIdForJob(activeSessionId, jobId, turnId),
+        onTrace: (event, hostContext) =>
+          store.addAssistantTraceForJob(activeSessionId, jobId, event, hostContext),
+        onUsage: (turnId, metrics, details) =>
+          store.setAssistantUsageForJob(activeSessionId, jobId, turnId, metrics, details),
         onToken: (t) => store.appendAssistantTextForJob(activeSessionId, jobId, t),
         onTool: (name, detail) =>
           store.addAssistantStepForJob(activeSessionId, jobId, { name, detail }),
@@ -624,6 +658,9 @@ export function ChatApp() {
     store.appendAssistantTextForJob,
     store.addAssistantStepForJob,
     store.addAssistantCardForJob,
+    store.setAssistantTurnIdForJob,
+    store.addAssistantTraceForJob,
+    store.setAssistantUsageForJob,
     store.setAssistantSeqForJob,
     store.setAssistantJobDoneForJob,
   ]);
@@ -762,6 +799,11 @@ export function ChatApp() {
         onDelete={store.deleteSession}
         onClose={() => setDrawerOpen(false)}
       />
+      <AgentUsageDialog
+        open={usageOpen}
+        snapshot={contextWindow}
+        onClose={() => setUsageOpen(false)}
+      />
 
       {hasMessages ? (
         <>
@@ -790,6 +832,7 @@ export function ChatApp() {
               />
               <div className="mt-2 flex items-center justify-end gap-2">
                 {persistDot}
+                <AgentUsageMeterButton snapshot={contextWindow} onOpen={() => setUsageOpen(true)} />
                 {modelPill}
               </div>
             </div>
@@ -821,6 +864,7 @@ export function ChatApp() {
             />
             <div className="mt-3 flex items-center justify-end gap-3">
               <span className="text-[11px] text-dim-text">{pillHint}</span>
+              <AgentUsageMeterButton snapshot={contextWindow} onOpen={() => setUsageOpen(true)} />
               {modelPill}
             </div>
             <div className="mt-8 flex flex-wrap gap-2">

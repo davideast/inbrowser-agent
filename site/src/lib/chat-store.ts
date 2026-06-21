@@ -1,5 +1,7 @@
+import type { TraceEvent, TurnDetails } from '@inbrowser/agent';
+import type { ContextWindowTraceHostContext } from '@inbrowser/agent/usage';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentStep, VisitedCard } from './agent-types';
+import type { AgentStep, AgentTurnMetrics, VisitedCard } from './agent-types';
 
 /**
  * Client-side chat persistence. Sessions + messages live in localStorage
@@ -24,6 +26,17 @@ export interface ChatTurn {
    *  "on-device · SmolLM2 360M · webgpu". Stamped on the assistant turn so
    *  there's never ambiguity about which path ran. */
   source?: string;
+  /** Agent-runtime turn id. Used to correlate provider request traces and usage
+   *  rows with this visible assistant message. */
+  turnId?: string;
+  /** Whole-turn token/cost metrics, accumulated across all provider requests. */
+  metrics?: AgentTurnMetrics;
+  /** Provider/model details reported by the agent runtime. */
+  details?: TurnDetails;
+  /** Provider-visible request/response trace events for this assistant turn. */
+  traceEvents?: TraceEvent[];
+  /** Host labels captured with the trace, e.g. provider/model/strategy. */
+  traceHostContext?: ContextWindowTraceHostContext;
   /** Durable-jobs id for a CLOUD turn (the agent loop runs in the job worker,
    *  not inline). Persisted so a reload / another tab can RESUBSCRIBE to the
    *  same job and replay its stream from `lastSeq`. Absent on the on-device
@@ -116,6 +129,21 @@ export interface ChatStore {
   addAssistantStep(id: string, step: AgentStep): void;
   /** Stamp the assistant turn with what produced it (created lazily). */
   setAssistantSource(id: string, source: string): void;
+  /** Stamp the assistant turn with the runtime turn id (created lazily). */
+  setAssistantTurnId(id: string, turnId: string): void;
+  /** Add a trace event to the assistant turn (created lazily). */
+  addAssistantTrace(
+    id: string,
+    event: TraceEvent,
+    hostContext?: ContextWindowTraceHostContext,
+  ): void;
+  /** Store accumulated whole-turn usage on the assistant turn (created lazily). */
+  setAssistantUsage(
+    id: string,
+    turnId: string,
+    metrics: AgentTurnMetrics,
+    details: TurnDetails,
+  ): void;
   /** Attach the durable-jobs id to the assistant turn (created lazily), so a
    *  reload / another tab can resubscribe to the same job. Resets the durable
    *  cursor for a fresh job (`lastSeq` cleared = nothing applied, not done). */
@@ -134,6 +162,20 @@ export interface ChatStore {
   appendAssistantTextForJob(id: string, jobId: string, text: string): void;
   addAssistantCardForJob(id: string, jobId: string, card: VisitedCard): void;
   addAssistantStepForJob(id: string, jobId: string, step: AgentStep): void;
+  setAssistantTurnIdForJob(id: string, jobId: string, turnId: string): void;
+  addAssistantTraceForJob(
+    id: string,
+    jobId: string,
+    event: TraceEvent,
+    hostContext?: ContextWindowTraceHostContext,
+  ): void;
+  setAssistantUsageForJob(
+    id: string,
+    jobId: string,
+    turnId: string,
+    metrics: AgentTurnMetrics,
+    details: TurnDetails,
+  ): void;
   setAssistantSeqForJob(id: string, jobId: string, seq: number): void;
   setAssistantJobDoneForJob(id: string, jobId: string): void;
 }
@@ -308,6 +350,31 @@ export function useChatStore(): ChatStore {
     [mutateAssistant],
   );
 
+  const setAssistantTurnId = useCallback(
+    (id: string, turnId: string) => {
+      mutateAssistant(id, (t) => ({ ...t, turnId }));
+    },
+    [mutateAssistant],
+  );
+
+  const addAssistantTrace = useCallback(
+    (id: string, event: TraceEvent, hostContext?: ContextWindowTraceHostContext) => {
+      mutateAssistant(id, (t) => ({
+        ...t,
+        traceEvents: [...(t.traceEvents ?? []), event],
+        ...(hostContext ? { traceHostContext: hostContext } : {}),
+      }));
+    },
+    [mutateAssistant],
+  );
+
+  const setAssistantUsage = useCallback(
+    (id: string, turnId: string, metrics: AgentTurnMetrics, details: TurnDetails) => {
+      mutateAssistant(id, (t) => ({ ...t, turnId, metrics, details }));
+    },
+    [mutateAssistant],
+  );
+
   const setAssistantJob = useCallback(
     (id: string, jobId: string) => {
       // A fresh job → reset the durable cursor. `lastSeq` is the highest applied
@@ -375,6 +442,37 @@ export function useChatStore(): ChatStore {
     [mutateAssistantByJob],
   );
 
+  const setAssistantTurnIdForJob = useCallback(
+    (id: string, jobId: string, turnId: string) => {
+      mutateAssistantByJob(id, jobId, (t) => ({ ...t, turnId }));
+    },
+    [mutateAssistantByJob],
+  );
+
+  const addAssistantTraceForJob = useCallback(
+    (id: string, jobId: string, event: TraceEvent, hostContext?: ContextWindowTraceHostContext) => {
+      mutateAssistantByJob(id, jobId, (t) => ({
+        ...t,
+        traceEvents: [...(t.traceEvents ?? []), event],
+        ...(hostContext ? { traceHostContext: hostContext } : {}),
+      }));
+    },
+    [mutateAssistantByJob],
+  );
+
+  const setAssistantUsageForJob = useCallback(
+    (
+      id: string,
+      jobId: string,
+      turnId: string,
+      metrics: AgentTurnMetrics,
+      details: TurnDetails,
+    ) => {
+      mutateAssistantByJob(id, jobId, (t) => ({ ...t, turnId, metrics, details }));
+    },
+    [mutateAssistantByJob],
+  );
+
   const setAssistantSeqForJob = useCallback(
     (id: string, jobId: string, seq: number) => {
       // `?? -1` so the first event (seq 0) advances from "nothing applied".
@@ -407,6 +505,9 @@ export function useChatStore(): ChatStore {
     addAssistantCard,
     addAssistantStep,
     setAssistantSource,
+    setAssistantTurnId,
+    addAssistantTrace,
+    setAssistantUsage,
     setAssistantJob,
     setAssistantSeq,
     setAssistantJobDone,
@@ -414,6 +515,9 @@ export function useChatStore(): ChatStore {
     appendAssistantTextForJob,
     addAssistantCardForJob,
     addAssistantStepForJob,
+    setAssistantTurnIdForJob,
+    addAssistantTraceForJob,
+    setAssistantUsageForJob,
     setAssistantSeqForJob,
     setAssistantJobDoneForJob,
   };

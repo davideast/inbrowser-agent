@@ -2,6 +2,7 @@ import type { ChatTurn } from '../../lib/chat-store';
 import { AgentActivity } from '../answer/AgentActivity';
 import { MarkdownAnswer } from '../answer/MarkdownAnswer';
 import { SourceCards } from '../answer/SourceCard';
+import { AgentTurnUsageInline } from './AgentUsage';
 
 interface ChatThreadProps {
   messages: ChatTurn[];
@@ -35,6 +36,7 @@ export function ChatThread({ messages, busy, error, stalledJobs, onContinue }: C
               {m.role === 'assistant' && m.source ? (
                 <span className="text-[10px] text-label">{m.source}</span>
               ) : null}
+              {m.role === 'assistant' ? <AgentTurnUsageInline metrics={m.metrics} /> : null}
               {/* Durable-job badge: legible proof a CLOUD turn is backed by a
                   resumable worker job (it survives reload / resumes cross-tab).
                   Spins while this turn is streaming, static once persisted. */}
