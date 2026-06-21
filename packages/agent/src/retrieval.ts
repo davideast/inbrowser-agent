@@ -319,6 +319,10 @@ export function createRetrievalStrategy(opts: RetrievalStrategyOpts = {}): Agent
                     ...(turnUsage.cachedTokens !== undefined
                       ? { cachedTokens: turnUsage.cachedTokens }
                       : {}),
+                    ...(turnUsage.reasoningTokens !== undefined
+                      ? { reasoningTokens: turnUsage.reasoningTokens }
+                      : {}),
+                    ...(turnUsage.costUsd !== undefined ? { costUsd: turnUsage.costUsd } : {}),
                   },
                 }
               : {}),

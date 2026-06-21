@@ -1,5 +1,6 @@
 import type { ModelClient, ModelEvent, ModelMessage, ModelRequest, ToolSpec } from '../contract.js';
 import { readSseDataLines } from '../sse.js';
+import { normalizeModelUsage } from '../usage.js';
 import type { CloudProviderConfig } from './types.js';
 /**
  * OpenRouter provider — talks to /api/v1/chat/completions with
@@ -160,6 +161,8 @@ export function openrouterModelClient(config: OpenRouterConfig): ModelClient {
 
       let promptTokens = 0;
       let completionTokens = 0;
+      let cachedTokens: number | undefined;
+      let reasoningTokens: number | undefined;
       let costUsd: number | undefined;
       const pending = new Map<number, PendingToolCall>();
 
@@ -189,6 +192,13 @@ export function openrouterModelClient(config: OpenRouterConfig): ModelClient {
             usage?: {
               prompt_tokens?: number;
               completion_tokens?: number;
+              prompt_tokens_details?: {
+                cached_tokens?: number;
+              };
+              completion_tokens_details?: {
+                reasoning_tokens?: number;
+              };
+              reasoning_tokens?: number;
               cost?: number;
             };
           };
@@ -215,6 +225,14 @@ export function openrouterModelClient(config: OpenRouterConfig): ModelClient {
           if (e.usage) {
             promptTokens = e.usage.prompt_tokens ?? promptTokens;
             completionTokens = e.usage.completion_tokens ?? completionTokens;
+            if (typeof e.usage.prompt_tokens_details?.cached_tokens === 'number') {
+              cachedTokens = e.usage.prompt_tokens_details.cached_tokens;
+            }
+            if (typeof e.usage.completion_tokens_details?.reasoning_tokens === 'number') {
+              reasoningTokens = e.usage.completion_tokens_details.reasoning_tokens;
+            } else if (typeof e.usage.reasoning_tokens === 'number') {
+              reasoningTokens = e.usage.reasoning_tokens;
+            }
             if (typeof e.usage.cost === 'number') costUsd = e.usage.cost;
           }
         }
@@ -246,11 +264,13 @@ export function openrouterModelClient(config: OpenRouterConfig): ModelClient {
 
       yield {
         kind: 'usage',
-        usage: {
+        usage: normalizeModelUsage({
           promptTokens,
           outputTokens: completionTokens,
+          ...(typeof cachedTokens === 'number' ? { cachedTokens } : {}),
+          ...(typeof reasoningTokens === 'number' ? { reasoningTokens } : {}),
           ...(typeof costUsd === 'number' ? { costUsd } : {}),
-        },
+        }),
       };
     },
   };

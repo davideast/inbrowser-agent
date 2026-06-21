@@ -190,6 +190,10 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
                       ...(turnUsage.cachedTokens !== undefined
                         ? { cachedTokens: turnUsage.cachedTokens }
                         : {}),
+                      ...(turnUsage.reasoningTokens !== undefined
+                        ? { reasoningTokens: turnUsage.reasoningTokens }
+                        : {}),
+                      ...(turnUsage.costUsd !== undefined ? { costUsd: turnUsage.costUsd } : {}),
                     },
                   }
                 : {}),
@@ -308,6 +312,12 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
                         outputTokens: critiqueUsage.outputTokens,
                         ...(critiqueUsage.cachedTokens !== undefined
                           ? { cachedTokens: critiqueUsage.cachedTokens }
+                          : {}),
+                        ...(critiqueUsage.reasoningTokens !== undefined
+                          ? { reasoningTokens: critiqueUsage.reasoningTokens }
+                          : {}),
+                        ...(critiqueUsage.costUsd !== undefined
+                          ? { costUsd: critiqueUsage.costUsd }
                           : {}),
                       },
                     }
