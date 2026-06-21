@@ -43,7 +43,7 @@ export function AgentUsageDialog({ open, snapshot, onClose }: AgentUsageDialogPr
       ariaLabel="Context and token usage"
       className="fixed inset-0 z-50"
       backdropClassName="absolute inset-0 bg-bg/80"
-      panelClassName="absolute bottom-0 left-0 right-0 h-[72dvh] max-h-[82dvh] overflow-hidden border-t border-border-strong bg-bg md:bottom-auto md:left-1/2 md:right-auto md:top-[8vh] md:h-[min(720px,84dvh)] md:w-[720px] md:-translate-x-1/2 md:border md:shadow-2xl"
+      panelClassName="absolute bottom-0 left-0 right-0 h-[72dvh] max-h-[82dvh] overflow-hidden border-t border-border-strong bg-bg md:bottom-auto md:left-1/2 md:right-auto md:top-[8vh] md:h-[min(720px,84dvh)] md:w-[720px] md:max-w-[calc(100dvw-2rem)] md:-translate-x-1/2 md:border md:shadow-2xl"
     >
       <div className="flex h-full min-h-0 flex-col">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
@@ -214,7 +214,10 @@ function Modal({
       open
       aria-label={ariaLabel}
       data-pyric-ui="modal"
-      className={['m-0 max-h-none max-w-none border-0 bg-transparent p-0', className]
+      className={[
+        'm-0 h-[100dvh] w-[100dvw] max-h-none max-w-none overflow-hidden border-0 bg-transparent p-0',
+        className,
+      ]
         .filter(Boolean)
         .join(' ')}
     >
