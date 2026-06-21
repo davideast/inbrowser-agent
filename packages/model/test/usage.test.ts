@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import {
-  emptyModelUsage,
-  normalizeModelUsage,
-  sumModelUsage,
-} from '../src/index.js';
+import { emptyModelUsage, normalizeModelUsage, sumModelUsage } from '../src/index.js';
 
 describe('ModelUsage helpers', () => {
   test('emptyModelUsage returns the canonical zero accounting shape', () => {

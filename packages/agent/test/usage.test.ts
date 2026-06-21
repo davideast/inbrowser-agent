@@ -1,28 +1,31 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  type ModelContextMessageLike,
   buildContextWindowSnapshot,
   compactHistoryForModel,
   createTurnMetricsAccumulator,
   estimateRequestInputComposition,
   requestInputCompositionTotal,
-  type ModelContextMessageLike,
 } from '../src/usage/index.js';
 
 const estimateTokens = (value: string | undefined | null): number => value?.length ?? 0;
 
 describe('@inbrowser/agent/usage request composition', () => {
   test('splits request input into system, history, tool results, draft, and tool schemas', () => {
-    const composition = estimateRequestInputComposition({
-      systemPrompt: 'sys',
-      messages: [
-        { role: 'system', text: 'sys' },
-        { role: 'user', text: 'old' },
-        { role: 'assistant', text: 'ok', toolCalls: [{ name: 'read_file' }] },
-        { role: 'tool', text: 'result', resultJson: '{"ok":true}' },
-        { role: 'user', text: 'now' },
-      ],
-      tools: [{ name: 'read_file', description: 'Read', parameters: { type: 'object' } }],
-    }, { estimateTokens });
+    const composition = estimateRequestInputComposition(
+      {
+        systemPrompt: 'sys',
+        messages: [
+          { role: 'system', text: 'sys' },
+          { role: 'user', text: 'old' },
+          { role: 'assistant', text: 'ok', toolCalls: [{ name: 'read_file' }] },
+          { role: 'tool', text: 'result', resultJson: '{"ok":true}' },
+          { role: 'user', text: 'now' },
+        ],
+        tools: [{ name: 'read_file', description: 'Read', parameters: { type: 'object' } }],
+      },
+      { estimateTokens },
+    );
 
     expect(composition.system).toBe(3);
     expect(composition.history).toBeGreaterThan(0);

@@ -59,7 +59,9 @@ export interface ModelContextMessageLike {
   createdAt?: number;
 }
 
-export interface ModelContextCompactionOptions<TMessage extends ModelContextMessageLike = ModelContextMessageLike> {
+export interface ModelContextCompactionOptions<
+  TMessage extends ModelContextMessageLike = ModelContextMessageLike,
+> {
   force?: boolean;
   thresholdChars?: number;
   keepRecentUserTurns?: number;
@@ -79,7 +81,9 @@ export interface ModelContextCompactionStats {
   messagesCompacted: number;
 }
 
-export interface ModelContextCompactionResult<TMessage extends ModelContextMessageLike = ModelContextMessageLike> {
+export interface ModelContextCompactionResult<
+  TMessage extends ModelContextMessageLike = ModelContextMessageLike,
+> {
   messages: TMessage[];
   stats: ModelContextCompactionStats;
 }
@@ -274,7 +278,9 @@ export type ContextWindowPromptCostEstimator = (input: {
   cachedTokens: number;
 }) => ContextWindowPromptCostEstimate | null;
 
-export interface BuildContextWindowSnapshotOptions<TMessage extends ModelContextMessageLike = ModelContextMessageLike> {
+export interface BuildContextWindowSnapshotOptions<
+  TMessage extends ModelContextMessageLike = ModelContextMessageLike,
+> {
   messages: readonly TMessage[];
   currentPrompt?: string;
   systemPrompt: string;
@@ -311,7 +317,10 @@ export type ContextWindowSessionUsage = SessionTokenUsage;
 export const MODEL_CONTEXT_COMPACTION_THRESHOLD_CHARS = 80_000;
 export const MODEL_CONTEXT_RECENT_USER_TURNS = 2;
 
-const BREAKDOWN_META: Record<ContextWindowBreakdownRow['id'], Omit<ContextWindowBreakdownRow, 'tokens' | 'estimated'>> = {
+const BREAKDOWN_META: Record<
+  ContextWindowBreakdownRow['id'],
+  Omit<ContextWindowBreakdownRow, 'tokens' | 'estimated'>
+> = {
   system: { id: 'system', label: 'System prompt', color: '#a4d4a8' },
   history: { id: 'history', label: 'Conversation', color: '#8bb7ff' },
   'tool-results': { id: 'tool-results', label: 'Tool results', color: '#f0c36a' },
@@ -366,7 +375,6 @@ export function estimateRequestInputComposition(
     } else if (message.role === 'tool') {
       resentToolResults += textTokens + resultTokens;
     } else if (message === currentPromptMessage) {
-      continue;
     } else {
       history += textTokens + toolCallTokens + resultTokens;
     }
@@ -377,7 +385,10 @@ export function estimateRequestInputComposition(
     history,
     resentToolResults,
     currentPrompt,
-    toolSchemas: tokenEstimate(safeStringify(request.tools ?? request.toolDeclarations ?? []), estimateTokens),
+    toolSchemas: tokenEstimate(
+      safeStringify(request.tools ?? request.toolDeclarations ?? []),
+      estimateTokens,
+    ),
   };
 }
 
@@ -503,9 +514,7 @@ export function compactHistoryForModel<TMessage extends ModelContextMessageLike>
     };
   }
 
-  const userIndexes = messages
-    .map((m, i) => (m.role === 'user' ? i : -1))
-    .filter((i) => i >= 0);
+  const userIndexes = messages.map((m, i) => (m.role === 'user' ? i : -1)).filter((i) => i >= 0);
   if (userIndexes.length <= keepRecent) {
     return {
       messages: messages.slice(),
@@ -626,8 +635,8 @@ function rowsFromParts({
   const rows = emptyRows(estimated);
   rows.system.tokens = tokenEstimate(systemPrompt, estimateTokens);
   for (const message of messages) {
-    rows.history.tokens += tokenEstimate(message.text, estimateTokens) +
-      tokenEstimate(message.thinking, estimateTokens);
+    rows.history.tokens +=
+      tokenEstimate(message.text, estimateTokens) + tokenEstimate(message.thinking, estimateTokens);
     rows['tool-results'].tokens += toolCallTokens(message.toolCalls, estimateTokens);
   }
   rows['tool-schemas'].tokens = toolSchemaTokens(tools, estimateTokens);
@@ -635,7 +644,9 @@ function rowsFromParts({
   return rows;
 }
 
-function emptyRows(estimated: boolean): Record<ContextWindowBreakdownRow['id'], ContextWindowBreakdownRow> {
+function emptyRows(
+  estimated: boolean,
+): Record<ContextWindowBreakdownRow['id'], ContextWindowBreakdownRow> {
   return {
     system: { ...BREAKDOWN_META.system, tokens: 0, estimated },
     history: { ...BREAKDOWN_META.history, tokens: 0, estimated },
@@ -720,7 +731,11 @@ function sessionUsageFromOptions<TMessage extends ModelContextMessageLike>(
     opts.tracesByTurn,
     currentContextTokens,
   );
-  const requestRows = sessionRequestRowsFromTraces(opts.tracesByTurn, opts.messages, estimateTokens);
+  const requestRows = sessionRequestRowsFromTraces(
+    opts.tracesByTurn,
+    opts.messages,
+    estimateTokens,
+  );
   if (
     opts.sessionTurns === undefined &&
     opts.sessionTokensTotal === undefined &&
@@ -734,23 +749,17 @@ function sessionUsageFromOptions<TMessage extends ModelContextMessageLike>(
   const derived = sumSessionTurnRows(turnRows);
   const inputTokens = Math.max(0, opts.sessionInputTokens ?? derived.inputTokens);
   const outputTokens = Math.max(0, opts.sessionOutputTokens ?? derived.outputTokens);
-  const tokensTotal = Math.max(
-    0,
-    opts.sessionTokensTotal ?? inputTokens + outputTokens,
-  );
-  const requests = opts.sessionRequests === undefined
-    ? derived.requests
-    : opts.sessionRequests === null
-      ? null
-      : Math.max(0, opts.sessionRequests);
+  const tokensTotal = Math.max(0, opts.sessionTokensTotal ?? inputTokens + outputTokens);
+  const requests =
+    opts.sessionRequests === undefined
+      ? derived.requests
+      : opts.sessionRequests === null
+        ? null
+        : Math.max(0, opts.sessionRequests);
   const workMultiplier =
-    currentContextTokens > 0 && tokensTotal > 0
-      ? tokensTotal / currentContextTokens
-      : undefined;
+    currentContextTokens > 0 && tokensTotal > 0 ? tokensTotal / currentContextTokens : undefined;
   const averageRequestTokens =
-    typeof requests === 'number' && requests > 0
-      ? tokensTotal / requests
-      : undefined;
+    typeof requests === 'number' && requests > 0 ? tokensTotal / requests : undefined;
   const cachedInputTokens = Math.max(0, opts.sessionCachedInputTokens ?? derived.cachedInputTokens);
   const reasoningTokens = Math.max(0, opts.sessionReasoningTokens ?? derived.reasoningTokens);
   const costUsdTotal = opts.sessionCostUsdTotal ?? derived.costUsdTotal;
@@ -796,10 +805,10 @@ function sessionRequestRowsFromTraces(
   const rows: SessionRequestUsage[] = [];
   for (const trace of Object.values(tracesByTurn)) {
     const responsesById = new Map<string, ContextWindowResponseLike>();
-    trace.responses.forEach((response) => {
+    for (const response of trace.responses) {
       if (response.requestId) responsesById.set(response.requestId, response);
-    });
-    trace.requests.forEach((request, index) => {
+    }
+    for (const [index, request] of trace.requests.entries()) {
       const requestId = request.requestId ?? `${trace.turnId}#${request.iteration ?? index}`;
       const response = responsesById.get(requestId) ?? trace.responses[index];
       const composition = estimateRequestInputComposition(request, { estimateTokens });
@@ -822,8 +831,18 @@ function sessionRequestRowsFromTraces(
       const boundedReasoningTokens = Math.min(outputTokens, reasoningTokens);
       const iteration = request.iteration ?? index;
       const toolSchemaNames = toolNamesFromDeclarations(request);
-      const emittedToolCalls = toolRefsFromResponseToolCalls(response, toolIndex, trace.turnId, estimateTokens);
-      const resentToolResults = toolRefsFromToolResultMessages(request, toolIndex, trace.turnId, estimateTokens);
+      const emittedToolCalls = toolRefsFromResponseToolCalls(
+        response,
+        toolIndex,
+        trace.turnId,
+        estimateTokens,
+      );
+      const resentToolResults = toolRefsFromToolResultMessages(
+        request,
+        toolIndex,
+        trace.turnId,
+        estimateTokens,
+      );
       const previousRequest = trace.requests[index - 1];
       const previousComposition = previousRequest
         ? estimateRequestInputComposition(previousRequest, { estimateTokens })
@@ -868,7 +887,7 @@ function sessionRequestRowsFromTraces(
           previousComposition,
         }),
       });
-    });
+    }
   }
   rows.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0) || a.requestId.localeCompare(b.requestId));
   return rows;
@@ -880,7 +899,9 @@ interface ToolCallIndexHit {
   messageId: string;
 }
 
-function buildToolCallIndex(messages: readonly ModelContextMessageLike[]): Map<string, ToolCallIndexHit> {
+function buildToolCallIndex(
+  messages: readonly ModelContextMessageLike[],
+): Map<string, ToolCallIndexHit> {
   const index = new Map<string, ToolCallIndexHit>();
   for (const message of messages) {
     if (message.role !== 'assistant') continue;
@@ -917,9 +938,10 @@ function toolRefsFromResponseToolCalls(
 ): SessionToolRef[] {
   const calls = Array.isArray(response?.toolCalls) ? response.toolCalls : [];
   return calls.map((raw): SessionToolRef => {
-    const call = raw && typeof raw === 'object'
-      ? raw as { callId?: unknown; id?: unknown; name?: unknown; args?: unknown }
-      : {};
+    const call =
+      raw && typeof raw === 'object'
+        ? (raw as { callId?: unknown; id?: unknown; name?: unknown; args?: unknown })
+        : {};
     const callId =
       typeof call.callId === 'string'
         ? call.callId
@@ -927,14 +949,14 @@ function toolRefsFromResponseToolCalls(
           ? call.id
           : undefined;
     const hit = callId ? index.get(toolIndexKey(turnId, callId)) : undefined;
-    const name = typeof call.name === 'string'
-      ? call.name
-      : hit?.name ?? 'tool_call';
+    const name = typeof call.name === 'string' ? call.name : (hit?.name ?? 'tool_call');
     return {
       name,
       ...(callId ? { callId } : {}),
       ...(hit?.messageId ? { messageId: hit.messageId } : {}),
-      tokensEstimated: tokenEstimate(name, estimateTokens) + tokenEstimate(safeStringify(call.args), estimateTokens),
+      tokensEstimated:
+        tokenEstimate(name, estimateTokens) +
+        tokenEstimate(safeStringify(call.args), estimateTokens),
     };
   });
 }
@@ -954,7 +976,9 @@ function toolRefsFromToolResultMessages(
       name: message.name ?? hit?.name ?? 'tool_result',
       ...(callId ? { callId } : {}),
       ...(hit?.messageId ? { messageId: hit.messageId } : {}),
-      tokensEstimated: tokenEstimate(message.text, estimateTokens) + tokenEstimate(message.resultJson, estimateTokens),
+      tokensEstimated:
+        tokenEstimate(message.text, estimateTokens) +
+        tokenEstimate(message.resultJson, estimateTokens),
     });
   }
   return refs;
@@ -984,9 +1008,8 @@ function buildRequestCacheInsight({
     ? Math.min(inputTokens, repeatedInputShapeTokens(composition, previousComposition))
     : 0;
   const hitRate = inputTokens > 0 ? cachedInputTokens / inputTokens : 0;
-  const meetsKnownMinimum = knownMinimumTokens === undefined
-    ? undefined
-    : inputTokens >= knownMinimumTokens;
+  const meetsKnownMinimum =
+    knownMinimumTokens === undefined ? undefined : inputTokens >= knownMinimumTokens;
   return {
     hitRate,
     cachedTokens: cachedInputTokens,
@@ -1017,12 +1040,13 @@ function repeatedInputShapeTokens(
   );
 }
 
-function knownCacheMinimumTokens(
-  providerId?: string,
-  modelLabel?: string,
-): number | undefined {
+function knownCacheMinimumTokens(providerId?: string, modelLabel?: string): number | undefined {
   if (providerId !== 'gemini') return undefined;
-  if (!modelLabel || /(^|\s)(gemini\s*)?3\.5\s+flash/i.test(modelLabel) || /^flash$/i.test(modelLabel)) {
+  if (
+    !modelLabel ||
+    /(^|\s)(gemini\s*)?3\.5\s+flash/i.test(modelLabel) ||
+    /^flash$/i.test(modelLabel)
+  ) {
     return 4096;
   }
   return undefined;
@@ -1089,96 +1113,119 @@ function buildSessionCategoryDetails({
   const freshInputTokens = Math.max(0, inputTokens - Math.min(inputTokens, cachedInputTokens));
   const boundedReasoning = Math.min(outputTokens, reasoningTokens);
   const visibleOutputTokens = Math.max(0, outputTokens - boundedReasoning);
-  const classified = freshInputTokens + Math.min(inputTokens, cachedInputTokens) +
-    visibleOutputTokens + boundedReasoning;
+  const classified =
+    freshInputTokens +
+    Math.min(inputTokens, cachedInputTokens) +
+    visibleOutputTokens +
+    boundedReasoning;
   const remainder = Math.max(0, tokensTotal - classified);
   return {
     'fresh-input': {
       id: 'fresh-input',
       label: 'Fresh input',
       source: requestRows.length > 0 ? 'mixed' : 'unavailable',
-      note: requestRows.length > 0
-        ? 'Provider totals say how much fresh input was billed; the source slices below distribute that total by estimated request composition.'
-        : 'Source-level input composition needs saved provider-visible request traces. This restored session only has high-level token metrics.',
-      rows: requestRows.length > 0
-        ? scaledCompositionRows(sumRequestCompositions(requestRows), freshInputTokens)
-        : [],
+      note:
+        requestRows.length > 0
+          ? 'Provider totals say how much fresh input was billed; the source slices below distribute that total by estimated request composition.'
+          : 'Source-level input composition needs saved provider-visible request traces. This restored session only has high-level token metrics.',
+      rows:
+        requestRows.length > 0
+          ? scaledCompositionRows(sumRequestCompositions(requestRows), freshInputTokens)
+          : [],
     },
     'cached-input': {
       id: 'cached-input',
       label: 'Cached input',
       source: cachedInputTokens > 0 ? 'provider-reported' : 'unavailable',
-      note: cachedInputTokens > 0
-        ? 'Cache-read tokens are provider-reported. They still appear in usage and are usually cheaper when the provider exposes cache pricing.'
-        : 'No provider-reported cached input has appeared in this session yet.',
-      rows: cachedInputTokens > 0
-        ? [{
-            id: 'cache-read',
-            label: 'Cache-read input',
-            tokens: Math.min(inputTokens, cachedInputTokens),
-            color: '#a4d4a8',
-            estimated: false,
-            source: 'provider-reported',
-            description: 'Repeated prompt/context served from provider cache when reported.',
-          }]
-        : [],
+      note:
+        cachedInputTokens > 0
+          ? 'Cache-read tokens are provider-reported. They still appear in usage and are usually cheaper when the provider exposes cache pricing.'
+          : 'No provider-reported cached input has appeared in this session yet.',
+      rows:
+        cachedInputTokens > 0
+          ? [
+              {
+                id: 'cache-read',
+                label: 'Cache-read input',
+                tokens: Math.min(inputTokens, cachedInputTokens),
+                color: '#a4d4a8',
+                estimated: false,
+                source: 'provider-reported',
+                description: 'Repeated prompt/context served from provider cache when reported.',
+              },
+            ]
+          : [],
     },
     'visible-output': {
       id: 'visible-output',
       label: 'Visible output',
       source: visibleOutputTokens > 0 ? 'provider-reported' : 'unavailable',
-      note: visibleOutputTokens > 0
-        ? 'Visible output is provider-reported completion text after hidden reasoning is removed when available.'
-        : 'No visible output tokens have been reported yet.',
-      rows: visibleOutputTokens > 0
-        ? [{
-            id: 'assistant-output',
-            label: 'Assistant-visible output',
-            tokens: visibleOutputTokens,
-            color: '#f0c36a',
-            estimated: false,
-            source: 'provider-reported',
-            description: 'Generated app, rules, code, repairs, tests, and final assistant text before local preview renders.',
-          }]
-        : [],
+      note:
+        visibleOutputTokens > 0
+          ? 'Visible output is provider-reported completion text after hidden reasoning is removed when available.'
+          : 'No visible output tokens have been reported yet.',
+      rows:
+        visibleOutputTokens > 0
+          ? [
+              {
+                id: 'assistant-output',
+                label: 'Assistant-visible output',
+                tokens: visibleOutputTokens,
+                color: '#f0c36a',
+                estimated: false,
+                source: 'provider-reported',
+                description:
+                  'Generated app, rules, code, repairs, tests, and final assistant text before local preview renders.',
+              },
+            ]
+          : [],
     },
     'reasoning-output': {
       id: 'reasoning-output',
       label: 'Reasoning output',
       source: boundedReasoning > 0 ? 'provider-reported' : 'unavailable',
-      note: boundedReasoning > 0
-        ? 'Reasoning output is separated only when provider telemetry exposes it.'
-        : 'No reasoning output was reported for this session.',
-      rows: boundedReasoning > 0
-        ? [{
-            id: 'reasoning',
-            label: 'Hidden reasoning output',
-            tokens: boundedReasoning,
-            color: '#c9a7ff',
-            estimated: false,
-            source: 'provider-reported',
-            description: 'Hidden model reasoning tokens reported separately from visible completion text.',
-          }]
-        : [],
+      note:
+        boundedReasoning > 0
+          ? 'Reasoning output is separated only when provider telemetry exposes it.'
+          : 'No reasoning output was reported for this session.',
+      rows:
+        boundedReasoning > 0
+          ? [
+              {
+                id: 'reasoning',
+                label: 'Hidden reasoning output',
+                tokens: boundedReasoning,
+                color: '#c9a7ff',
+                estimated: false,
+                source: 'provider-reported',
+                description:
+                  'Hidden model reasoning tokens reported separately from visible completion text.',
+              },
+            ]
+          : [],
     },
     'reported-total': {
       id: 'reported-total',
       label: 'Reported total',
       source: remainder > 0 ? 'provider-reported' : 'unavailable',
-      note: remainder > 0
-        ? 'These tokens were included in the provider total but did not fit the available input/output/cache/reasoning split.'
-        : 'No unclassified reported-total tokens remain after the available usage split.',
-      rows: remainder > 0
-        ? [{
-            id: 'reported-total',
-            label: 'Unclassified provider total',
-            tokens: remainder,
-            color: '#8aa0b8',
-            estimated: false,
-            source: 'provider-reported',
-            description: 'Provider total remainder when detailed usage fields are missing.',
-          }]
-        : [],
+      note:
+        remainder > 0
+          ? 'These tokens were included in the provider total but did not fit the available input/output/cache/reasoning split.'
+          : 'No unclassified reported-total tokens remain after the available usage split.',
+      rows:
+        remainder > 0
+          ? [
+              {
+                id: 'reported-total',
+                label: 'Unclassified provider total',
+                tokens: remainder,
+                color: '#8aa0b8',
+                estimated: false,
+                source: 'provider-reported',
+                description: 'Provider total remainder when detailed usage fields are missing.',
+              },
+            ]
+          : [],
     },
   };
 }
@@ -1191,11 +1238,51 @@ function scaledCompositionRows(
   const total = requestInputCompositionTotal(composition);
   if (total <= 0) return [];
   return [
-    compositionRow('system', 'System prompt', composition.system, total, targetTokens, '#a4d4a8', 'Agent instructions and workspace references sent with model requests.'),
-    compositionRow('history', 'Conversation/history', composition.history, total, targetTokens, '#8bb7ff', 'Prior user, assistant, and tool-call context re-sent across requests.'),
-    compositionRow('tool-schemas', 'Tool schemas', composition.toolSchemas, total, targetTokens, '#c9a7ff', 'Function/tool declarations available to the model for these requests.'),
-    compositionRow('resent-tool-results', 'Resent tool results', composition.resentToolResults, total, targetTokens, '#f0c36a', 'Earlier tool results that appeared again in later provider-visible messages.'),
-    compositionRow('current-prompt', 'Current prompt', composition.currentPrompt, total, targetTokens, '#f08a8a', 'The active user prompt portion of each request.'),
+    compositionRow(
+      'system',
+      'System prompt',
+      composition.system,
+      total,
+      targetTokens,
+      '#a4d4a8',
+      'Agent instructions and workspace references sent with model requests.',
+    ),
+    compositionRow(
+      'history',
+      'Conversation/history',
+      composition.history,
+      total,
+      targetTokens,
+      '#8bb7ff',
+      'Prior user, assistant, and tool-call context re-sent across requests.',
+    ),
+    compositionRow(
+      'tool-schemas',
+      'Tool schemas',
+      composition.toolSchemas,
+      total,
+      targetTokens,
+      '#c9a7ff',
+      'Function/tool declarations available to the model for these requests.',
+    ),
+    compositionRow(
+      'resent-tool-results',
+      'Resent tool results',
+      composition.resentToolResults,
+      total,
+      targetTokens,
+      '#f0c36a',
+      'Earlier tool results that appeared again in later provider-visible messages.',
+    ),
+    compositionRow(
+      'current-prompt',
+      'Current prompt',
+      composition.currentPrompt,
+      total,
+      targetTokens,
+      '#f08a8a',
+      'The active user prompt portion of each request.',
+    ),
   ].filter((row) => row.tokens > 0);
 }
 
@@ -1222,19 +1309,22 @@ function compositionRow(
 function sumRequestCompositions(
   requestRows: readonly SessionRequestUsage[],
 ): ContextWindowInputComposition {
-  return requestRows.reduce<ContextWindowInputComposition>((sum, row) => ({
-    system: sum.system + row.composition.system,
-    history: sum.history + row.composition.history,
-    resentToolResults: sum.resentToolResults + row.composition.resentToolResults,
-    currentPrompt: sum.currentPrompt + row.composition.currentPrompt,
-    toolSchemas: sum.toolSchemas + row.composition.toolSchemas,
-  }), {
-    system: 0,
-    history: 0,
-    resentToolResults: 0,
-    currentPrompt: 0,
-    toolSchemas: 0,
-  });
+  return requestRows.reduce<ContextWindowInputComposition>(
+    (sum, row) => ({
+      system: sum.system + row.composition.system,
+      history: sum.history + row.composition.history,
+      resentToolResults: sum.resentToolResults + row.composition.resentToolResults,
+      currentPrompt: sum.currentPrompt + row.composition.currentPrompt,
+      toolSchemas: sum.toolSchemas + row.composition.toolSchemas,
+    }),
+    {
+      system: 0,
+      history: 0,
+      resentToolResults: 0,
+      currentPrompt: 0,
+      toolSchemas: 0,
+    },
+  );
 }
 
 function sessionTurnRowsFromMessages(
@@ -1254,20 +1344,17 @@ function sessionTurnRowsFromMessages(
     );
     const reasoningTokens = Math.min(
       outputTokens,
-      Math.max(0, metrics.tokensReasoning ?? (metrics as { reasoningTokens?: number }).reasoningTokens ?? 0),
+      Math.max(
+        0,
+        metrics.tokensReasoning ?? (metrics as { reasoningTokens?: number }).reasoningTokens ?? 0,
+      ),
     );
-    const tokensTotal = Math.max(
-      0,
-      metrics.tokensTotal ?? inputTokens + outputTokens,
-    );
+    const tokensTotal = Math.max(0, metrics.tokensTotal ?? inputTokens + outputTokens);
     const turnId = (message as { turnId?: unknown }).turnId;
-    const requestCount = typeof turnId === 'string'
-      ? tracesByTurn?.[turnId]?.requests.length ?? null
-      : null;
+    const requestCount =
+      typeof turnId === 'string' ? (tracesByTurn?.[turnId]?.requests.length ?? null) : null;
     const multiplierContribution =
-      currentContextTokens > 0 && tokensTotal > 0
-        ? tokensTotal / currentContextTokens
-        : undefined;
+      currentContextTokens > 0 && tokensTotal > 0 ? tokensTotal / currentContextTokens : undefined;
     rows.push({
       id: message.id,
       label: `Turn ${rows.length + 1}`,
@@ -1403,7 +1490,9 @@ function buildMemoryMessage<TMessage extends ModelContextMessageLike>(
     }
   });
   if (toolLines >= MAX_MEMORY_TOOL_LINES) {
-    lines.push(`Tool: additional older tool calls omitted after ${MAX_MEMORY_TOOL_LINES} compact rows`);
+    lines.push(
+      `Tool: additional older tool calls omitted after ${MAX_MEMORY_TOOL_LINES} compact rows`,
+    );
   }
 
   const text = limitChars(lines.join('\n'), MAX_MEMORY_CHARS);
@@ -1415,9 +1504,7 @@ function buildMemoryMessage<TMessage extends ModelContextMessageLike>(
     text,
     createdAt: first?.createdAt ?? last?.createdAt ?? 0,
   };
-  return opts.createMemoryMessage
-    ? opts.createMemoryMessage(input, older)
-    : input as TMessage;
+  return opts.createMemoryMessage ? opts.createMemoryMessage(input, older) : (input as TMessage);
 }
 
 function groupOlderTurns<TMessage extends ModelContextMessageLike>(
@@ -1458,11 +1545,9 @@ function summarizeToolCall(call: ModelContextToolCallLike): string {
   const result = safeParse(call.resultJson ?? '');
   const path = pathFrom(args) ?? pathFrom(result?.data);
   const summary = call.summary ?? (typeof result?.summary === 'string' ? result.summary : '');
-  return [
-    call.name,
-    path ? `path=${path}` : '',
-    summary ? `summary=${preview(summary, 220)}` : '',
-  ].filter(Boolean).join(' | ');
+  return [call.name, path ? `path=${path}` : '', summary ? `summary=${preview(summary, 220)}` : '']
+    .filter(Boolean)
+    .join(' | ');
 }
 
 function pathFrom(value: unknown): string | null {
@@ -1475,7 +1560,7 @@ function safeParse(json: string): Record<string, unknown> | null {
   if (!json) return null;
   try {
     const parsed = JSON.parse(json);
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null;
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
   } catch {
     return null;
   }
@@ -1553,9 +1638,7 @@ function defaultTokenEstimate(value: string | undefined | null): number {
 }
 
 function nonNegative(value: number | undefined): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? Math.max(0, value)
-    : undefined;
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : undefined;
 }
 
 function zeroAggregatedTurnMetrics(): AggregatedTurnMetrics {

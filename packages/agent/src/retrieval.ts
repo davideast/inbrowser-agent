@@ -322,9 +322,7 @@ export function createRetrievalStrategy(opts: RetrievalStrategyOpts = {}): Agent
                     ...(turnUsage.reasoningTokens !== undefined
                       ? { reasoningTokens: turnUsage.reasoningTokens }
                       : {}),
-                    ...(turnUsage.costUsd !== undefined
-                      ? { costUsd: turnUsage.costUsd }
-                      : {}),
+                    ...(turnUsage.costUsd !== undefined ? { costUsd: turnUsage.costUsd } : {}),
                   },
                 }
               : {}),

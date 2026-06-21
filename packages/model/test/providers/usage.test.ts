@@ -17,8 +17,8 @@ afterEach(() => {
 
 function stubFetch(chunks: unknown[]): void {
   globalThis.fetch = (async () => {
-    const sse = chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('') +
-      'data: [DONE]\n\n';
+    const sse =
+      chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n';
     return new Response(sse, {
       status: 200,
       headers: { 'Content-Type': 'text/event-stream' },

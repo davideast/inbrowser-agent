@@ -193,9 +193,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
                       ...(turnUsage.reasoningTokens !== undefined
                         ? { reasoningTokens: turnUsage.reasoningTokens }
                         : {}),
-                      ...(turnUsage.costUsd !== undefined
-                        ? { costUsd: turnUsage.costUsd }
-                        : {}),
+                      ...(turnUsage.costUsd !== undefined ? { costUsd: turnUsage.costUsd } : {}),
                     },
                   }
                 : {}),

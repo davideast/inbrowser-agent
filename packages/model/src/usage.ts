@@ -59,7 +59,5 @@ export function sumModelUsage(usages: Iterable<ModelUsageInput>): ModelUsage {
 }
 
 function nonNegative(value: number | undefined): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? Math.max(0, value)
-    : undefined;
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : undefined;
 }
