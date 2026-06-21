@@ -21,7 +21,6 @@
     "@inbrowser/agent": "workspace:*",
     "@inbrowser/model": "workspace:*",
     "@inbrowser/resumable": "workspace:*",
-    "@pyric/ui": "0.0.0",
     "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
