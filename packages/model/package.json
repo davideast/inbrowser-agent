@@ -15,6 +15,7 @@
   "files": ["dist", "README.md", "AGENTS.md"],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "bun run build",
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

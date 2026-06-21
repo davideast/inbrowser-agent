@@ -15,12 +15,13 @@
   "files": ["dist", "README.md", "docs"],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "bun run build",
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@inbrowser/model": "workspace:*",
-    "@inbrowser/resumable": "workspace:*"
+    "@inbrowser/model": "workspace:^",
+    "@inbrowser/resumable": "workspace:^"
   },
   "peerDependencies": {
     "astro": "^5.0.0",
