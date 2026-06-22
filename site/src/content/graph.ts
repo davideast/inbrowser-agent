@@ -11,7 +11,7 @@
  * markdown body + typed cross-link edges for the agent.
  */
 
-export type PackageId = 'overview' | 'agent' | 'relay' | 'resumable' | 'model';
+export type PackageId = 'overview' | 'agent' | 'workspace' | 'relay' | 'resumable' | 'model';
 
 export type Category =
   | 'overview'
@@ -39,11 +39,19 @@ export interface DocNode {
   summary: string;
 }
 
-export const PACKAGE_ORDER: PackageId[] = ['overview', 'agent', 'relay', 'resumable', 'model'];
+export const PACKAGE_ORDER: PackageId[] = [
+  'overview',
+  'agent',
+  'workspace',
+  'relay',
+  'resumable',
+  'model',
+];
 
 export const PACKAGE_LABELS: Record<PackageId, string> = {
   overview: 'Overview',
   agent: '@inbrowser/agent',
+  workspace: '@inbrowser/workspace',
   relay: '@inbrowser/relay',
   resumable: '@inbrowser/resumable',
   model: '@inbrowser/model',
@@ -237,6 +245,58 @@ export const NODES: DocNode[] = [
     sourcePath: 'packages/agent/skills/agent-cli.md',
     summary:
       'Step-by-step skill for running sessions, fleets, event-sourced audit/undo, and forward replay through the CLI.',
+  },
+
+  // ── @inbrowser/workspace ──────────────────────────────────────────
+  {
+    id: 'workspace',
+    package: 'workspace',
+    category: 'overview',
+    title: '@inbrowser/workspace',
+    route: '/workspace',
+    sourcePath: 'packages/workspace/README.md',
+    summary:
+      'Browser-native workspace runtime: OPFS/memory files, esbuild preview compilation, jailed browser shell, isomorphic-git, package import maps, and optional agent tool adapters.',
+  },
+  {
+    id: 'workspace/tutorial',
+    package: 'workspace',
+    category: 'tutorial',
+    title: 'Tutorial: Create A Browser Workspace',
+    route: '/workspace/tutorial',
+    sourcePath: 'packages/workspace/docs/tutorial.md',
+    summary:
+      'Create a browser workspace, write a tiny React app into /work, and prepare file, shell, and git services for an app-builder agent.',
+  },
+  {
+    id: 'workspace/how-to/preview-a-react-app',
+    package: 'workspace',
+    category: 'how-to',
+    title: 'How To Preview A React App Without A Dev Server',
+    route: '/workspace/how-to/preview-a-react-app',
+    sourcePath: 'packages/workspace/docs/how-to-preview-a-react-app.md',
+    summary:
+      'Preview a React/TSX app by compiling the workspace entry module and evaluating it with host-provided React modules.',
+  },
+  {
+    id: 'workspace/reference',
+    package: 'workspace',
+    category: 'reference',
+    title: 'API Reference',
+    route: '/workspace/reference',
+    sourcePath: 'packages/workspace/docs/reference.md',
+    summary:
+      'The public surface of @inbrowser/workspace: workspace creation, file systems, preview, shell, git, packages, and agent tools.',
+  },
+  {
+    id: 'workspace/explanation/why-not-browser-node',
+    package: 'workspace',
+    category: 'explanation',
+    title: 'Why This Is Not Browser Node',
+    route: '/workspace/explanation/why-not-browser-node',
+    sourcePath: 'packages/workspace/docs/why-not-browser-node.md',
+    summary:
+      'Why the workspace runtime chooses compile-and-mount preview, host modules, structured shell/git/package services, and explicit limits over a partial browser Node illusion.',
   },
 
   // ── @inbrowser/relay ───────────────────────────────────────────────
@@ -510,7 +570,7 @@ export function buildRouteMap(): Record<string, string> {
     map[entryIdOf(node)] = node.route;
   }
   // Package directories -> their overview route (root READMEs link these).
-  for (const pkg of ['agent', 'relay', 'resumable', 'model'] as const) {
+  for (const pkg of ['agent', 'workspace', 'relay', 'resumable', 'model'] as const) {
     map[`packages/${pkg}`] = `/${pkg}`;
   }
   return map;
