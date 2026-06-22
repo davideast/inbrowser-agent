@@ -117,7 +117,7 @@ const nodes: GraphNode[] = partial.map((n) => {
 
 const out = {
   nodeCount: nodes.length,
-  packages: ['overview', 'agent', 'relay', 'resumable', 'model'].map((pkg) => ({
+  packages: ['overview', 'agent', 'workspace', 'relay', 'resumable', 'model'].map((pkg) => ({
     id: pkg,
     label: PACKAGE_LABELS[pkg as keyof typeof PACKAGE_LABELS],
     routes: nodes.filter((n) => n.package === pkg).map((n) => n.route),

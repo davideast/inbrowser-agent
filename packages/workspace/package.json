@@ -1,0 +1,66 @@
+{
+  "name": "@inbrowser/workspace",
+  "version": "0.1.0",
+  "description": "Browser-native workspace runtime: OPFS/memory files, esbuild preview compilation, jailed browser shell, isomorphic-git, package import maps, and optional agent tool adapters.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./fs": {
+      "types": "./dist/fs/index.d.ts",
+      "import": "./dist/fs/index.js"
+    },
+    "./preview": {
+      "types": "./dist/preview/index.d.ts",
+      "import": "./dist/preview/index.js"
+    },
+    "./preview/react": {
+      "types": "./dist/preview/react.d.ts",
+      "import": "./dist/preview/react.js"
+    },
+    "./shell": {
+      "types": "./dist/shell/index.d.ts",
+      "import": "./dist/shell/index.js"
+    },
+    "./git": {
+      "types": "./dist/git/index.d.ts",
+      "import": "./dist/git/index.js"
+    },
+    "./packages": {
+      "types": "./dist/packages/index.d.ts",
+      "import": "./dist/packages/index.js"
+    },
+    "./agent-tools": {
+      "types": "./dist/agent-tools/index.d.ts",
+      "import": "./dist/agent-tools/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "AGENTS.md", "docs"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "bun run build",
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "esbuild-wasm": "^0.25.0",
+    "isomorphic-git": "^1.38.1",
+    "just-bash": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.7.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davideast/inbrowser-agent.git",
+    "directory": "packages/workspace"
+  },
+  "license": "MIT"
+}
