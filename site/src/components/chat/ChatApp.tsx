@@ -847,7 +847,7 @@ export function ChatApp() {
               </span>
             </div>
             <h1 className="text-[32px] md:text-[40px] leading-[1.1] tracking-[-0.02em] font-normal text-primary mb-4">
-              Resumable, grounded AI in the browser The in-browser AI stack
+              The in-browser AI stack
             </h1>
             <p className="text-secondary text-[14px] leading-[1.75] mb-8 max-w-[54ch]">
               A collection of libraries that simplifies running AI inference in the browser. Great
