@@ -843,16 +843,14 @@ export function ChatApp() {
           <div className="max-w-[760px] mx-auto px-4 md:px-6 pt-[12vh] pb-20">
             <div className="mb-5">
               <span className="text-[11px] font-medium uppercase tracking-widest text-label leading-none">
-                The in-browser AI stack
+                Resumable. Grounded. BYOK. In browser
               </span>
             </div>
             <h1 className="text-[32px] md:text-[40px] leading-[1.1] tracking-[-0.02em] font-normal text-primary mb-4">
-              Resumable, grounded AI in the browser
+              Resumable, grounded AI in the browser The in-browser AI stack
             </h1>
             <p className="text-secondary text-[14px] leading-[1.75] mb-8 max-w-[54ch]">
-              This assistant is built on it: the agent runs the lookup, the relay streams the
-              answer, and resumable keeps it alive if your connection drops. Ask it anything about
-              the packages.
+              A collection of libraries that simplifies running AI inference in the browser. Great for rapid prototyping and just having a good time.
             </p>
             <Composer
               inputRef={composerRef}
