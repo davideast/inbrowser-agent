@@ -850,7 +850,8 @@ export function ChatApp() {
               Resumable, grounded AI in the browser The in-browser AI stack
             </h1>
             <p className="text-secondary text-[14px] leading-[1.75] mb-8 max-w-[54ch]">
-              A collection of libraries that simplifies running AI inference in the browser. Great for rapid prototyping and just having a good time.
+              A collection of libraries that simplifies running AI inference in the browser. 
+              Great for rapid prototyping and just having a good time.
             </p>
             <Composer
               inputRef={composerRef}
