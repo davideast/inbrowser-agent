@@ -9,7 +9,7 @@ package exposes the root runtime plus optional import subpaths.
 | --- | --- |
 | `@inbrowser/agent` | Browser-safe runtime: sessions, strategies, tool registry/dispatch, metrics, storage, LLM contract, events helpers (wrap/replay/codec). No `node:*` imports. |
 | `@inbrowser/agent/node` | Node-only additions: the disk event-log writer and its helpers, the MCP client adapter, fixture loaders. |
-| `@inbrowser/agent/sandbox` | Optional bridge that adds an agent runtime to an `@inbrowser/sandbox` instance. |
+| `@inbrowser/agent/sandbox` | Optional bridge that adapts `@inbrowser/sandbox` tools to the current agent tool contract. |
 | `@inbrowser/agent/cli` | CLI internals (`main`, command handlers, `parseArgs`, `CLI_SPEC`). See [cli.md](./cli.md) for the command surface. |
 
 ---
@@ -686,25 +686,26 @@ related spec builders).
 Optional bridge for hosts that use `@inbrowser/sandbox` as their project
 runtime layer.
 
-### `createAgentSandbox`
+### `createSandboxAgentTools`
 
 ```ts
-function createAgentSandbox(
+function createSandboxAgentTools(
   sandbox: Sandbox,
   options?: { names?: readonly string[] },
-): AgentSandbox;
+): SandboxAgentTools;
 ```
 
-Returns a sandbox-shaped object with an added `agent` runtime:
+Returns the two agent tool pieces required by the current session API:
 
 ```ts
-agentSandbox.agent.toolList;
-agentSandbox.agent.dispatch;
+sandboxTools.toolList;
+sandboxTools.dispatch;
 ```
 
 The tool list and dispatch are built from `sandbox.tools.list` and
 `sandbox.tools.run`. Pass `names` to expose only selected sandbox tools to the
-agent session.
+agent session. This adapter does not mutate a registry or attach agent state to
+the sandbox.
 
 ---
 

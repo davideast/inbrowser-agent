@@ -287,8 +287,8 @@ import * as agentNode from '@inbrowser/agent/node';
 assert.equal(typeof agentNode.openEventLog, 'function');
 console.log('  ✓ agent/node: openEventLog exported');
 
-import * as agentSandbox from '@inbrowser/agent/sandbox';
-assert.equal(typeof agentSandbox.createAgentSandbox, 'function');
+import * as sandboxBridge from '@inbrowser/agent/sandbox';
+assert.equal(typeof sandboxBridge.createSandboxAgentTools, 'function');
 console.log('  ✓ agent/sandbox: sandbox bridge exported');
 
 // === @inbrowser/workspace + @inbrowser/sandbox ===
@@ -316,10 +316,10 @@ await sandbox.checkpoints.restore(checkpoint.id);
 const read = await sandbox.tools.run('read', { path: 'notes.txt' });
 assert.equal(read.ok, true, 'sandbox read should succeed');
 assert.equal(read.data.content, 'one');
-const agentReadySandbox = agentSandbox.createAgentSandbox(sandbox, { names: ['read'] });
-assert.equal(agentReadySandbox.agent.toolList.length, 1);
-assert.equal(agentReadySandbox.agent.toolList[0].name, 'read');
-const dispatchRead = await agentReadySandbox.agent.dispatch.execute(
+const sandboxTools = sandboxBridge.createSandboxAgentTools(sandbox, { names: ['read'] });
+assert.equal(sandboxTools.toolList.length, 1);
+assert.equal(sandboxTools.toolList[0].name, 'read');
+const dispatchRead = await sandboxTools.dispatch.execute(
   { id: 'read-notes', name: 'read', args: { path: 'notes.txt' } },
   { signal: new AbortController().signal },
 );

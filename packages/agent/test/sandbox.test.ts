@@ -1,24 +1,23 @@
 import { describe, expect, test } from 'bun:test';
 import type { Sandbox, SandboxToolResult } from '@inbrowser/sandbox';
-import { createAgentSandbox } from '../src/sandbox/index.js';
+import { createSandboxAgentTools } from '../src/sandbox/index.js';
 
 describe('@inbrowser/agent/sandbox', () => {
-  test('adds an agent runtime to a sandbox-shaped object', () => {
-    const sandbox = createAgentSandbox(createTestSandbox('agent-sandbox-runtime'), {
+  test('creates agent tools from a sandbox', () => {
+    const tools = createSandboxAgentTools(createTestSandbox('agent-sandbox-runtime'), {
       names: ['read', 'write'],
     });
 
-    expect(sandbox.id).toBe('agent-sandbox-runtime');
-    expect(sandbox.agent.toolList.map((handler) => handler.name)).toEqual(['read', 'write']);
-    expect(typeof sandbox.agent.dispatch.execute).toBe('function');
+    expect(tools.toolList.map((handler) => handler.name)).toEqual(['read', 'write']);
+    expect(typeof tools.dispatch.execute).toBe('function');
   });
 
   test('dispatch executes through sandbox.tools.run', async () => {
-    const sandbox = createAgentSandbox(createTestSandbox('agent-sandbox-dispatch'), {
+    const tools = createSandboxAgentTools(createTestSandbox('agent-sandbox-dispatch'), {
       names: ['write'],
     });
 
-    const result = await sandbox.agent.dispatch.execute(
+    const result = await tools.dispatch.execute(
       { id: 'call-1', name: 'write', args: { path: 'notes.txt', content: 'hello' } },
       { signal: new AbortController().signal },
     );
@@ -28,13 +27,13 @@ describe('@inbrowser/agent/sandbox', () => {
   });
 
   test('honors the tool name allowlist', async () => {
-    const sandbox = createAgentSandbox(createTestSandbox('agent-sandbox-allowlist'), {
+    const tools = createSandboxAgentTools(createTestSandbox('agent-sandbox-allowlist'), {
       names: ['read'],
     });
 
-    expect(sandbox.agent.toolList.map((handler) => handler.name)).toEqual(['read']);
+    expect(tools.toolList.map((handler) => handler.name)).toEqual(['read']);
 
-    const result = await sandbox.agent.dispatch.execute(
+    const result = await tools.dispatch.execute(
       { id: 'call-1', name: 'write', args: {} },
       { signal: new AbortController().signal },
     );

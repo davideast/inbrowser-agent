@@ -1,23 +1,19 @@
 import type { Sandbox, SandboxTool, SandboxToolResult } from '@inbrowser/sandbox';
 import type { ToolContext, ToolDispatch, ToolHandler, ToolResult } from '../types/tools.js';
 
-export interface AgentSandboxOptions {
+export interface SandboxAgentToolsOptions {
   names?: readonly string[];
 }
 
-export interface AgentSandbox extends Sandbox {
-  readonly agent: SandboxAgentRuntime;
-}
-
-export interface SandboxAgentRuntime {
+export interface SandboxAgentTools {
   readonly toolList: readonly ToolHandler[];
   readonly dispatch: ToolDispatch;
 }
 
-export function createAgentSandbox(
+export function createSandboxAgentTools(
   sandbox: Sandbox,
-  options: AgentSandboxOptions = {},
-): AgentSandbox {
+  options: SandboxAgentToolsOptions = {},
+): SandboxAgentTools {
   const toolList = createToolHandlers(sandbox, options.names);
   const handlers = new Map(toolList.map((handler) => [handler.name, handler]));
   const dispatch: ToolDispatch = {
@@ -27,13 +23,7 @@ export function createAgentSandbox(
       return handler.execute(call.args, ctx);
     },
   };
-  return {
-    ...sandbox,
-    agent: {
-      toolList,
-      dispatch,
-    },
-  };
+  return { toolList, dispatch };
 }
 
 function createToolHandlers(sandbox: Sandbox, names?: readonly string[]): ToolHandler[] {

@@ -21,27 +21,27 @@ const sandbox = await createWorkspaceSandbox({ workspace });
 The sandbox now has the workspace file system, shell runtime, git service,
 package registry, and any preview service you pass in.
 
-## Add Agent Dispatch To The Sandbox
+## Adapt Sandbox Tools For An Agent Session
 
 Use the agent subpath when the host is already using `@inbrowser/agent`:
 
 ```ts
-import { createAgentSandbox } from '@inbrowser/agent/sandbox';
+import { createSandboxAgentTools } from '@inbrowser/agent/sandbox';
 
-const agentSandbox = createAgentSandbox(sandbox, {
+const sandboxTools = createSandboxAgentTools(sandbox, {
   names: ['read', 'write', 'edit', 'bash'],
 });
 ```
 
-The returned object is still a sandbox. It adds an `agent` runtime with a tool
-list and dispatcher built from the sandbox's installed tools.
+The adapter returns the two pieces required by today's `createAgentSession`
+API. It does not mutate a registry or attach agent state to the sandbox.
 
 ```ts
-agentSandbox.agent.toolList;
-agentSandbox.agent.dispatch;
+sandboxTools.toolList;
+sandboxTools.dispatch;
 ```
 
-## Pass The Sandbox Agent Runtime To A Session
+## Pass The Sandbox Tools To A Session
 
 ```ts
 const controller = new AbortController();
@@ -49,8 +49,8 @@ const controller = new AbortController();
 const session = createAgentSession({
   strategy,
   llm,
-  tools: agentSandbox.agent.dispatch,
-  toolList: agentSandbox.agent.toolList,
+  tools: sandboxTools.dispatch,
+  toolList: sandboxTools.toolList,
   toolContext: () => ({ signal: controller.signal }),
   systemPromptBuilder,
   metrics,
@@ -61,9 +61,9 @@ const session = createAgentSession({
 The available tools include `read`, `write`, `edit`, `ls`, `grep`, `find`,
 `bash`, `git_status`, `package_install`, and `preview_compile`.
 
-The sandbox itself is captured by the agent runtime, so the session's
-`ToolContext` only needs the abort signal unless your app has other tools that
-need extra context.
+The sandbox itself is captured by the adapter, so the session's `ToolContext`
+only needs the abort signal unless your app has other tools that need extra
+context.
 
 ## Subscribe To Sandbox Events
 
