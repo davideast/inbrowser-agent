@@ -691,13 +691,12 @@ runtime layer.
 ```ts
 function createSandboxToolHandlers(options: {
   sandbox: Sandbox;
-  toolset?: SandboxToolset;
+  names?: readonly string[];
 }): ToolHandler[];
 ```
 
-Adapts each `SandboxTool` in a sandbox toolset into an agent `ToolHandler`.
-When `toolset` is absent, the bridge uses `createStandardToolset()` from
-`@inbrowser/sandbox`.
+Adapts installed tools from `sandbox.tools.list` into agent `ToolHandler`
+values. Pass `names` to register only a subset.
 
 ### `registerSandboxTools`
 
@@ -705,7 +704,7 @@ When `toolset` is absent, the bridge uses `createStandardToolset()` from
 function registerSandboxTools(options: {
   registry: ToolRegistry;
   sandbox: Sandbox;
-  toolset?: SandboxToolset;
+  names?: readonly string[];
   replace?: boolean;
 }): ToolRegistry;
 ```

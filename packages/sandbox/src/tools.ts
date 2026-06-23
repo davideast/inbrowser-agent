@@ -1,14 +1,8 @@
 import { assertInsideSandbox, dirname, resolveSandboxPath } from './path.js';
-import type {
-  JsonSchema,
-  Sandbox,
-  SandboxTool,
-  SandboxToolResult,
-  SandboxToolset,
-} from './types.js';
+import type { JsonSchema, Sandbox, SandboxTool, SandboxToolResult, SandboxTools } from './types.js';
 
-export function createStandardToolset(): SandboxToolset {
-  const tools = [
+export function standardSandboxTools(): readonly SandboxTool[] {
+  return [
     readTool(),
     writeTool(),
     editTool(),
@@ -20,15 +14,21 @@ export function createStandardToolset(): SandboxToolset {
     packageInstallTool(),
     previewCompileTool(),
   ];
+}
+
+export function createSandboxTools(
+  sandbox: Sandbox,
+  tools: readonly SandboxTool[] = [],
+): SandboxTools {
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
   return {
-    tools,
+    list: tools,
     get(name) {
       return byName.get(name);
     },
-    async run(name, args, sandbox, options) {
+    async run(name, args, options) {
       const tool = byName.get(name);
-      if (!tool) throw new Error(`Unknown sandbox tool: ${name}`);
+      if (!tool) return { ok: false, summary: `Unknown sandbox tool: ${name}` };
       const controller = new AbortController();
       const signal = options?.signal ?? controller.signal;
       sandbox.emit({ type: 'tool:start', name, args });

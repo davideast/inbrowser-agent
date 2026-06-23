@@ -80,15 +80,13 @@ summaries, or checkpoints without waiting for the assistant's final text.
 ## Add Checkpoints Around Risky Work
 
 ```ts
-import { createCheckpointManager } from '@inbrowser/sandbox';
-
-const checkpoints = createCheckpointManager(sandbox);
-
-const beforeLargeEdit = await checkpoints.create('before redesign');
+const beforeLargeEdit = await sandbox.checkpoints.create('before redesign');
 
 // Later:
-await checkpoints.restore(beforeLargeEdit.id);
+await sandbox.checkpoints.restore(beforeLargeEdit.id);
 ```
 
-Checkpoint restore uses the sandbox file-system snapshot API. It works with the
-memory workspace and OPFS-backed workspace because both implement snapshots.
+Checkpoint restore is a sandbox operation: it uses the sandbox file-system
+snapshot API, mutates that sandbox's files, and emits `checkpoint:restore`.
+It works with the memory workspace and OPFS-backed workspace because both
+implement snapshots.

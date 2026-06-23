@@ -103,7 +103,18 @@ export type SandboxEvent =
       result: SandboxToolResult;
       timestamp: number;
     }
-  | { type: 'checkpoint'; sandboxId: string; checkpoint: SandboxCheckpoint; timestamp: number }
+  | {
+      type: 'checkpoint:create';
+      sandboxId: string;
+      checkpoint: SandboxCheckpoint;
+      timestamp: number;
+    }
+  | {
+      type: 'checkpoint:restore';
+      sandboxId: string;
+      checkpoint: SandboxCheckpoint;
+      timestamp: number;
+    }
   | { type: 'error'; sandboxId: string; message: string; cause?: unknown; timestamp: number }
   | { type: 'destroyed'; sandboxId: string; timestamp: number };
 
@@ -140,6 +151,8 @@ export interface Sandbox {
   readonly cwd: string;
   readonly fs: SandboxFileSystem;
   readonly runtime: SandboxRuntime;
+  readonly tools: SandboxTools;
+  readonly checkpoints: SandboxCheckpoints;
   readonly capabilities: RuntimeCapabilities;
   readonly services: SandboxServices;
   on(callback: (event: SandboxEvent) => void): () => void;
@@ -154,6 +167,7 @@ export interface CreateSandboxOptions {
   runtime: SandboxRuntime;
   capabilities?: Partial<RuntimeCapabilities>;
   services?: SandboxServices;
+  tools?: readonly SandboxTool[];
 }
 
 export interface SandboxToolResult<D = unknown> {
@@ -170,15 +184,10 @@ export interface SandboxTool<A = unknown, D = unknown> {
   execute(args: A, ctx: { sandbox: Sandbox; signal: AbortSignal }): Promise<SandboxToolResult<D>>;
 }
 
-export interface SandboxToolset {
-  readonly tools: readonly SandboxTool[];
+export interface SandboxTools {
+  readonly list: readonly SandboxTool[];
   get(name: string): SandboxTool | undefined;
-  run(
-    name: string,
-    args: unknown,
-    sandbox: Sandbox,
-    options?: { signal?: AbortSignal },
-  ): Promise<SandboxToolResult>;
+  run(name: string, args: unknown, options?: { signal?: AbortSignal }): Promise<SandboxToolResult>;
 }
 
 export interface SandboxCheckpoint {
@@ -188,7 +197,7 @@ export interface SandboxCheckpoint {
   createdAt: number;
 }
 
-export interface CheckpointManager {
+export interface SandboxCheckpoints {
   create(label?: string): Promise<SandboxCheckpoint>;
   restore(id: string): Promise<void>;
   list(): SandboxCheckpoint[];

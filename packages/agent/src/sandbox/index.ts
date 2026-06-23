@@ -1,10 +1,9 @@
-import type { Sandbox, SandboxTool, SandboxToolResult, SandboxToolset } from '@inbrowser/sandbox';
-import { createStandardToolset } from '@inbrowser/sandbox';
+import type { Sandbox, SandboxTool, SandboxToolResult } from '@inbrowser/sandbox';
 import type { ToolContext, ToolHandler, ToolRegistry, ToolResult } from '../types/tools.js';
 
 export interface SandboxToolHandlerOptions {
   sandbox: Sandbox;
-  toolset?: SandboxToolset;
+  names?: readonly string[];
 }
 
 export interface RegisterSandboxToolsOptions extends SandboxToolHandlerOptions {
@@ -13,8 +12,10 @@ export interface RegisterSandboxToolsOptions extends SandboxToolHandlerOptions {
 }
 
 export function createSandboxToolHandlers(options: SandboxToolHandlerOptions): ToolHandler[] {
-  const toolset = options.toolset ?? createStandardToolset();
-  return toolset.tools.map((tool) => createSandboxToolHandler(tool, options.sandbox, toolset));
+  const names = options.names ? new Set(options.names) : null;
+  return options.sandbox.tools.list
+    .filter((tool) => !names || names.has(tool.name))
+    .map((tool) => createSandboxToolHandler(tool, options.sandbox));
 }
 
 export function registerSandboxTools(options: RegisterSandboxToolsOptions): ToolRegistry {
@@ -26,11 +27,7 @@ export function registerSandboxTools(options: RegisterSandboxToolsOptions): Tool
   return options.registry;
 }
 
-function createSandboxToolHandler(
-  tool: SandboxTool,
-  sandbox: Sandbox,
-  toolset: SandboxToolset,
-): ToolHandler {
+function createSandboxToolHandler(tool: SandboxTool, sandbox: Sandbox): ToolHandler {
   return {
     name: tool.name,
     description: tool.description,
@@ -39,7 +36,7 @@ function createSandboxToolHandler(
     parallelSafe: tool.pure === true,
     async execute(args: unknown, ctx: ToolContext): Promise<ToolResult> {
       const signal = ctx.signal;
-      const result = await toolset.run(tool.name, args, sandbox, { signal });
+      const result = await sandbox.tools.run(tool.name, args, { signal });
       return toToolResult(result);
     },
   };

@@ -34,6 +34,8 @@ function createSandbox(options: CreateSandboxOptions): Sandbox;
 | `cwd` | Default working directory. |
 | `fs` | Sandbox file system. |
 | `runtime` | Evented command runner. |
+| `tools` | Bound sandbox tool registry and runner. |
+| `checkpoints` | Bound checkpoint create/restore API. |
 | `capabilities` | Runtime capability flags. |
 | `services` | Optional git, preview, and package services. |
 | `on(callback)` | Subscribes to sandbox events. Returns an unsubscribe function. |
@@ -50,19 +52,23 @@ Adapts a `BrowserWorkspace` from `@inbrowser/workspace` into a sandbox. The
 adapter creates a workspace shell, git service, package service, and optional
 preview service, then passes them to `createSandbox`.
 
-## `createStandardToolset`
+## `standardSandboxTools`
 
 ```ts
-function createStandardToolset(): SandboxToolset;
+function standardSandboxTools(): readonly SandboxTool[];
 ```
 
-`SandboxToolset`:
+Returns the standard sandbox tool definitions. `createWorkspaceSandbox` installs
+these tools by default. Low-level `createSandbox` callers can pass them with
+`tools: standardSandboxTools()`.
+
+`sandbox.tools`:
 
 | Member | Description |
 | --- | --- |
-| `tools` | Array of `SandboxTool` definitions. |
+| `list` | Array of installed `SandboxTool` definitions. |
 | `get(name)` | Returns a tool by name. |
-| `run(name, args, sandbox, options?)` | Executes a tool and emits `tool:start`, `tool:finish`, and `error` events. |
+| `run(name, args, options?)` | Executes a tool against this sandbox and emits `tool:start`, `tool:finish`, and `error` events. |
 
 Standard tools:
 
@@ -79,18 +85,12 @@ Standard tools:
 | `package_install` | Resolve and record a browser-compatible package. |
 | `preview_compile` | Compile the preview entry through the preview service. |
 
-## `createCheckpointManager`
-
-```ts
-function createCheckpointManager(sandbox: Sandbox): CheckpointManager;
-```
-
-`CheckpointManager`:
+## `sandbox.checkpoints`
 
 | Method | Description |
 | --- | --- |
-| `create(label?)` | Snapshots `sandbox.cwd`, stores it in memory, emits `checkpoint`, and returns the checkpoint. |
-| `restore(id)` | Restores a stored checkpoint with `clearRoot: true`. |
+| `create(label?)` | Snapshots `sandbox.cwd`, stores it in memory, emits `checkpoint:create`, and returns the checkpoint. |
+| `restore(id)` | Restores a stored checkpoint with `clearRoot: true` and emits `checkpoint:restore`. |
 | `list()` | Returns checkpoints in creation order. |
 | `get(id)` | Returns one checkpoint by id. |
 
@@ -114,7 +114,8 @@ host already has a command runner and only needs to adapt it into a sandbox.
 | `run:finish` | A command completed. |
 | `tool:start` | A sandbox tool started. |
 | `tool:finish` | A sandbox tool completed. |
-| `checkpoint` | A checkpoint was created. |
+| `checkpoint:create` | A checkpoint was created. |
+| `checkpoint:restore` | A checkpoint was restored. |
 | `error` | A runtime or tool error occurred. |
 | `destroyed` | The sandbox was destroyed. |
 
@@ -127,16 +128,17 @@ All events include `sandboxId` and `timestamp`.
 ```ts
 function createSandboxToolHandlers(options: {
   sandbox: Sandbox;
-  toolset?: SandboxToolset;
+  names?: readonly string[];
 }): ToolHandler[];
 
 function registerSandboxTools(options: {
   registry: ToolRegistry;
   sandbox: Sandbox;
-  toolset?: SandboxToolset;
+  names?: readonly string[];
   replace?: boolean;
 }): ToolRegistry;
 ```
 
-The bridge captures the sandbox in each handler closure and forwards tool calls
-through the sandbox toolset. Pure sandbox tools are marked `parallelSafe`.
+The bridge reads installed tools from `sandbox.tools.list` and forwards tool
+calls through `sandbox.tools.run`. Pass `names` to register only selected tools.
+Pure sandbox tools are marked `parallelSafe`.

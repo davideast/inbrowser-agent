@@ -4,7 +4,14 @@ import type {
   WorkspaceFileSystem,
 } from '@inbrowser/workspace';
 import { createSandbox } from './core.js';
-import type { RuntimeCapabilities, Sandbox, SandboxFileSystem, SandboxRuntime } from './types.js';
+import { standardSandboxTools } from './tools.js';
+import type {
+  RuntimeCapabilities,
+  Sandbox,
+  SandboxFileSystem,
+  SandboxRuntime,
+  SandboxTool,
+} from './types.js';
 
 export interface CreateWorkspaceSandboxOptions {
   workspace: BrowserWorkspace;
@@ -12,6 +19,7 @@ export interface CreateWorkspaceSandboxOptions {
   cwd?: string;
   capabilities?: Partial<RuntimeCapabilities>;
   preview?: Omit<ReactPreviewRuntimeOptions, 'fs'>;
+  tools?: readonly SandboxTool[];
 }
 
 export async function createWorkspaceSandbox(
@@ -49,5 +57,6 @@ export async function createWorkspaceSandbox(
       packages: workspace.packages,
       ...(preview ? { preview } : {}),
     },
+    tools: options.tools ?? standardSandboxTools(),
   });
 }

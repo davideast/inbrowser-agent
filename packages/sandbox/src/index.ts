@@ -1,16 +1,15 @@
 export { createSandbox, createRuntimeAdapter } from './core.js';
-export { createCheckpointManager } from './checkpoints.js';
-export { createStandardToolset } from './tools.js';
+export { standardSandboxTools } from './tools.js';
 export { createWorkspaceSandbox } from './workspace.js';
 export type { CreateWorkspaceSandboxOptions } from './workspace.js';
 
 export type {
-  CheckpointManager,
   CreateSandboxOptions,
   JsonSchema,
   RuntimeCapabilities,
   Sandbox,
   SandboxCheckpoint,
+  SandboxCheckpoints,
   SandboxDirent,
   SandboxEvent,
   SandboxFileEvent,
@@ -28,5 +27,5 @@ export type {
   SandboxStats,
   SandboxTool,
   SandboxToolResult,
-  SandboxToolset,
+  SandboxTools,
 } from './types.js';

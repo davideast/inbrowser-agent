@@ -1,3 +1,5 @@
+import { createSandboxCheckpoints } from './checkpoints.js';
+import { createSandboxTools } from './tools.js';
 import type {
   CreateSandboxOptions,
   RuntimeCapabilities,
@@ -25,15 +27,25 @@ export function createSandbox(options: CreateSandboxOptions): Sandbox {
   const listeners = new Set<(event: SandboxEvent) => void>();
   const capabilities: RuntimeCapabilities = { ...DEFAULT_CAPABILITIES, ...options.capabilities };
   let destroyed = false;
+  const attached: {
+    tools?: Sandbox['tools'];
+    checkpoints?: Sandbox['checkpoints'];
+  } = {};
 
   const sandbox: Sandbox = {
     id,
     cwd,
     fs: options.fs,
     runtime: createEventedRuntime(cwd, options.runtime, emit),
+    get tools() {
+      return attached.tools as Sandbox['tools'];
+    },
+    get checkpoints() {
+      return attached.checkpoints as Sandbox['checkpoints'];
+    },
     capabilities,
     services: options.services ?? {},
-    on(callback) {
+    on(callback: (event: SandboxEvent) => void) {
       listeners.add(callback);
       return () => listeners.delete(callback);
     },
@@ -45,6 +57,9 @@ export function createSandbox(options: CreateSandboxOptions): Sandbox {
       listeners.clear();
     },
   };
+
+  attached.tools = createSandboxTools(sandbox, options.tools ?? []);
+  attached.checkpoints = createSandboxCheckpoints(sandbox, emit);
 
   const unwatch = options.fs.watch?.((event) => {
     emit({ type: 'file', event });

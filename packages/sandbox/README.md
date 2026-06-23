@@ -7,13 +7,18 @@ events, checkpoints, and agent-callable tools.
 
 ```ts
 import { createBrowserWorkspace } from '@inbrowser/workspace';
-import { createWorkspaceSandbox, createStandardToolset } from '@inbrowser/sandbox';
+import { createWorkspaceSandbox } from '@inbrowser/sandbox';
 
 const workspace = await createBrowserWorkspace({ id: 'local', storage: 'memory' });
 const sandbox = await createWorkspaceSandbox({ workspace });
-const tools = createStandardToolset();
 
-await tools.run('write', { path: 'src/App.tsx', content: 'export default function App() {}' }, sandbox);
+await sandbox.tools.run('write', {
+  path: 'src/App.tsx',
+  content: 'export default function App() {}',
+});
+
+const beforeEdit = await sandbox.checkpoints.create('before edit');
+await sandbox.checkpoints.restore(beforeEdit.id);
 ```
 
 Use `@inbrowser/workspace` for browser project runtime primitives. Use this package
@@ -21,8 +26,8 @@ when a host needs a common tool, checkpoint, event, or runtime adapter layer.
 
 ## What It Owns
 
-- A `Sandbox` contract with a file system, runtime, optional services, and a
-  chronological event stream.
+- A `Sandbox` contract with a file system, runtime, bound tools, checkpoints,
+  optional services, and a chronological event stream.
 - Standard tools for file reads/writes/edits, search, shell commands, git
   status, package install, and preview compilation.
 - Checkpoint creation and restore over any sandbox file system that supports
