@@ -1,30 +1,46 @@
 import type { Sandbox, SandboxTool, SandboxToolResult } from '@inbrowser/sandbox';
-import type { ToolContext, ToolHandler, ToolRegistry, ToolResult } from '../types/tools.js';
+import type { ToolContext, ToolDispatch, ToolHandler, ToolResult } from '../types/tools.js';
 
-export interface SandboxToolHandlerOptions {
-  sandbox: Sandbox;
+export interface AgentSandboxOptions {
   names?: readonly string[];
 }
 
-export interface RegisterSandboxToolsOptions extends SandboxToolHandlerOptions {
-  registry: ToolRegistry;
-  replace?: boolean;
+export interface AgentSandbox extends Sandbox {
+  readonly agent: SandboxAgentRuntime;
 }
 
-export function createSandboxToolHandlers(options: SandboxToolHandlerOptions): ToolHandler[] {
-  const names = options.names ? new Set(options.names) : null;
-  return options.sandbox.tools.list
-    .filter((tool) => !names || names.has(tool.name))
-    .map((tool) => createSandboxToolHandler(tool, options.sandbox));
+export interface SandboxAgentRuntime {
+  readonly toolList: readonly ToolHandler[];
+  readonly dispatch: ToolDispatch;
 }
 
-export function registerSandboxTools(options: RegisterSandboxToolsOptions): ToolRegistry {
-  const handlers = createSandboxToolHandlers(options);
-  for (const handler of handlers) {
-    if (options.replace) options.registry.replace(handler);
-    else options.registry.register(handler);
-  }
-  return options.registry;
+export function createAgentSandbox(
+  sandbox: Sandbox,
+  options: AgentSandboxOptions = {},
+): AgentSandbox {
+  const toolList = createToolHandlers(sandbox, options.names);
+  const handlers = new Map(toolList.map((handler) => [handler.name, handler]));
+  const dispatch: ToolDispatch = {
+    async execute(call, ctx) {
+      const handler = handlers.get(call.name);
+      if (!handler) return { ok: false, summary: `Unknown tool: ${call.name}` };
+      return handler.execute(call.args, ctx);
+    },
+  };
+  return {
+    ...sandbox,
+    agent: {
+      toolList,
+      dispatch,
+    },
+  };
+}
+
+function createToolHandlers(sandbox: Sandbox, names?: readonly string[]): ToolHandler[] {
+  const allowed = names ? new Set(names) : null;
+  return sandbox.tools.list
+    .filter((tool) => !allowed || allowed.has(tool.name))
+    .map((tool) => createSandboxToolHandler(tool, sandbox));
 }
 
 function createSandboxToolHandler(tool: SandboxTool, sandbox: Sandbox): ToolHandler {

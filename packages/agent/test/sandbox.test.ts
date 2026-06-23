@@ -1,57 +1,46 @@
 import { describe, expect, test } from 'bun:test';
-import type { Sandbox } from '@inbrowser/sandbox';
-import { createSandboxToolHandlers, registerSandboxTools } from '../src/sandbox/index.js';
-import { createToolRegistry } from '../src/tools.js';
+import type { Sandbox, SandboxToolResult } from '@inbrowser/sandbox';
+import { createAgentSandbox } from '../src/sandbox/index.js';
 
 describe('@inbrowser/agent/sandbox', () => {
-  test('creates handlers from installed sandbox tools', async () => {
-    const sandbox = await createTestSandbox('agent-sandbox-handlers');
+  test('adds an agent runtime to a sandbox-shaped object', () => {
+    const sandbox = createAgentSandbox(createTestSandbox('agent-sandbox-runtime'), {
+      names: ['read', 'write'],
+    });
 
-    const handlers = createSandboxToolHandlers({ sandbox, names: ['read', 'write'] });
-
-    expect(handlers.map((handler) => handler.name)).toEqual(['read', 'write']);
+    expect(sandbox.id).toBe('agent-sandbox-runtime');
+    expect(sandbox.agent.toolList.map((handler) => handler.name)).toEqual(['read', 'write']);
+    expect(typeof sandbox.agent.dispatch.execute).toBe('function');
   });
 
-  test('registered handlers execute through sandbox.tools.run', async () => {
-    const sandbox = createTestSandbox('agent-sandbox-execute');
-    const registry = createToolRegistry();
-    registerSandboxTools({ registry, sandbox, names: ['write'] });
+  test('dispatch executes through sandbox.tools.run', async () => {
+    const sandbox = createAgentSandbox(createTestSandbox('agent-sandbox-dispatch'), {
+      names: ['write'],
+    });
 
-    const [handler] = registry.list();
-    const result = await handler.execute(
-      { path: 'notes.txt', content: 'hello' },
+    const result = await sandbox.agent.dispatch.execute(
+      { id: 'call-1', name: 'write', args: { path: 'notes.txt', content: 'hello' } },
       { signal: new AbortController().signal },
     );
 
     expect(result.ok).toBe(true);
-    expect(sandbox.tools.get('write')).toBeDefined();
+    expect(result.summary).toBe('ran write');
   });
 
-  test('supports allowlisted registration', async () => {
-    const sandbox = await createTestSandbox('agent-sandbox-allowlist');
-    const registry = createToolRegistry();
-    registerSandboxTools({ registry, sandbox, names: ['read'] });
+  test('honors the tool name allowlist', async () => {
+    const sandbox = createAgentSandbox(createTestSandbox('agent-sandbox-allowlist'), {
+      names: ['read'],
+    });
 
-    expect(registry.has('read')).toBe(true);
-    expect(registry.has('write')).toBe(false);
-  });
+    expect(sandbox.agent.toolList.map((handler) => handler.name)).toEqual(['read']);
 
-  test('supports replacement registration', async () => {
-    const sandbox = await createTestSandbox('agent-sandbox-replace');
-    const registry = createToolRegistry();
-    const replacement = {
-      name: 'read',
-      description: 'replacement',
-      parameters: {},
-      async execute() {
-        return { ok: true, summary: 'replacement' };
-      },
-    };
-    registry.register(replacement);
+    const result = await sandbox.agent.dispatch.execute(
+      { id: 'call-1', name: 'write', args: {} },
+      { signal: new AbortController().signal },
+    );
 
-    registerSandboxTools({ registry, sandbox, names: ['read'], replace: true });
-
-    expect(registry.list()[0]?.description).not.toBe('replacement');
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('Unknown tool');
   });
 });
 
@@ -61,7 +50,7 @@ function createTestSandbox(id: string): Sandbox {
     description: 'Read a test file.',
     parameters: {},
     pure: true,
-    async execute() {
+    async execute(): Promise<SandboxToolResult> {
       return { ok: true, summary: 'read' };
     },
   };
@@ -69,7 +58,7 @@ function createTestSandbox(id: string): Sandbox {
     name: 'write',
     description: 'Write a test file.',
     parameters: {},
-    async execute() {
+    async execute(): Promise<SandboxToolResult> {
       return { ok: true, summary: 'write' };
     },
   };

@@ -21,28 +21,27 @@ const sandbox = await createWorkspaceSandbox({ workspace });
 The sandbox now has the workspace file system, shell runtime, git service,
 package registry, and any preview service you pass in.
 
-## Register Sandbox Tools
+## Add Agent Dispatch To The Sandbox
 
 Use the agent subpath when the host is already using `@inbrowser/agent`:
 
 ```ts
-import { createDispatch, createToolRegistry } from '@inbrowser/agent';
-import { registerSandboxTools } from '@inbrowser/agent/sandbox';
+import { createAgentSandbox } from '@inbrowser/agent/sandbox';
 
-const registry = createToolRegistry();
-
-registerSandboxTools({
-  registry,
-  sandbox,
+const agentSandbox = createAgentSandbox(sandbox, {
+  names: ['read', 'write', 'edit', 'bash'],
 });
-
-const dispatch = createDispatch(registry);
 ```
 
-The registered tools include `read`, `write`, `edit`, `ls`, `grep`, `find`,
-`bash`, `git_status`, `package_install`, and `preview_compile`.
+The returned object is still a sandbox. It adds an `agent` runtime with a tool
+list and dispatcher built from the sandbox's installed tools.
 
-## Pass The Tools To A Session
+```ts
+agentSandbox.agent.toolList;
+agentSandbox.agent.dispatch;
+```
+
+## Pass The Sandbox Agent Runtime To A Session
 
 ```ts
 const controller = new AbortController();
@@ -50,8 +49,8 @@ const controller = new AbortController();
 const session = createAgentSession({
   strategy,
   llm,
-  tools: dispatch,
-  toolList: registry.list(),
+  tools: agentSandbox.agent.dispatch,
+  toolList: agentSandbox.agent.toolList,
   toolContext: () => ({ signal: controller.signal }),
   systemPromptBuilder,
   metrics,
@@ -59,9 +58,12 @@ const session = createAgentSession({
 });
 ```
 
-The sandbox itself is captured by the registered tool handlers, so the
-session's `ToolContext` only needs the abort signal unless your app has other
-tools that need extra context.
+The available tools include `read`, `write`, `edit`, `ls`, `grep`, `find`,
+`bash`, `git_status`, `package_install`, and `preview_compile`.
+
+The sandbox itself is captured by the agent runtime, so the session's
+`ToolContext` only needs the abort signal unless your app has other tools that
+need extra context.
 
 ## Subscribe To Sandbox Events
 

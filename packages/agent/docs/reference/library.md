@@ -9,7 +9,7 @@ package exposes the root runtime plus optional import subpaths.
 | --- | --- |
 | `@inbrowser/agent` | Browser-safe runtime: sessions, strategies, tool registry/dispatch, metrics, storage, LLM contract, events helpers (wrap/replay/codec). No `node:*` imports. |
 | `@inbrowser/agent/node` | Node-only additions: the disk event-log writer and its helpers, the MCP client adapter, fixture loaders. |
-| `@inbrowser/agent/sandbox` | Optional bridge from `@inbrowser/sandbox` toolsets into agent `ToolHandler` values. |
+| `@inbrowser/agent/sandbox` | Optional bridge that adds an agent runtime to an `@inbrowser/sandbox` instance. |
 | `@inbrowser/agent/cli` | CLI internals (`main`, command handlers, `parseArgs`, `CLI_SPEC`). See [cli.md](./cli.md) for the command surface. |
 
 ---
@@ -686,32 +686,25 @@ related spec builders).
 Optional bridge for hosts that use `@inbrowser/sandbox` as their project
 runtime layer.
 
-### `createSandboxToolHandlers`
+### `createAgentSandbox`
 
 ```ts
-function createSandboxToolHandlers(options: {
-  sandbox: Sandbox;
-  names?: readonly string[];
-}): ToolHandler[];
+function createAgentSandbox(
+  sandbox: Sandbox,
+  options?: { names?: readonly string[] },
+): AgentSandbox;
 ```
 
-Adapts installed tools from `sandbox.tools.list` into agent `ToolHandler`
-values. Pass `names` to register only a subset.
-
-### `registerSandboxTools`
+Returns a sandbox-shaped object with an added `agent` runtime:
 
 ```ts
-function registerSandboxTools(options: {
-  registry: ToolRegistry;
-  sandbox: Sandbox;
-  names?: readonly string[];
-  replace?: boolean;
-}): ToolRegistry;
+agentSandbox.agent.toolList;
+agentSandbox.agent.dispatch;
 ```
 
-Registers sandbox-backed tool handlers into an existing registry. With
-`replace: true`, existing handlers with the same names are replaced; otherwise
-registration follows normal `ToolRegistry.register` duplicate-name behaviour.
+The tool list and dispatch are built from `sandbox.tools.list` and
+`sandbox.tools.run`. Pass `names` to expose only selected sandbox tools to the
+agent session.
 
 ---
 

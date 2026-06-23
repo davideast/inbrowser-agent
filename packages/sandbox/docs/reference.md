@@ -7,7 +7,7 @@ This page describes the public surface of `@inbrowser/sandbox`.
 | Import path | Exports |
 | --- | --- |
 | `@inbrowser/sandbox` | Sandbox contracts, workspace adapter, standard tools, runtime adapter, checkpoints, and path helpers |
-| `@inbrowser/agent/sandbox` | Agent bridge that turns sandbox tools into `ToolHandler` values |
+| `@inbrowser/agent/sandbox` | Agent bridge that adds `agent.toolList` and `agent.dispatch` to a sandbox-shaped object |
 
 ## `createSandbox`
 
@@ -126,19 +126,12 @@ All events include `sandboxId` and `timestamp`.
 `@inbrowser/agent/sandbox` exports:
 
 ```ts
-function createSandboxToolHandlers(options: {
+function createAgentSandbox(
   sandbox: Sandbox;
-  names?: readonly string[];
-}): ToolHandler[];
-
-function registerSandboxTools(options: {
-  registry: ToolRegistry;
-  sandbox: Sandbox;
-  names?: readonly string[];
-  replace?: boolean;
-}): ToolRegistry;
+  options?: { names?: readonly string[] };
+): AgentSandbox;
 ```
 
-The bridge reads installed tools from `sandbox.tools.list` and forwards tool
-calls through `sandbox.tools.run`. Pass `names` to register only selected tools.
-Pure sandbox tools are marked `parallelSafe`.
+The bridge returns a sandbox-shaped object with `agent.toolList` and
+`agent.dispatch` built from the sandbox's installed tools. Pass `names` to
+expose only selected tools. Pure sandbox tools are marked `parallelSafe`.
