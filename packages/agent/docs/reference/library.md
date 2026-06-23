@@ -1,7 +1,7 @@
 # Library Reference
 
 This page describes the public library surface of `@inbrowser/agent`. The
-package exposes three import subpaths.
+package exposes the root runtime plus optional import subpaths.
 
 ## Exports
 
@@ -9,6 +9,7 @@ package exposes three import subpaths.
 | --- | --- |
 | `@inbrowser/agent` | Browser-safe runtime: sessions, strategies, tool registry/dispatch, metrics, storage, LLM contract, events helpers (wrap/replay/codec). No `node:*` imports. |
 | `@inbrowser/agent/node` | Node-only additions: the disk event-log writer and its helpers, the MCP client adapter, fixture loaders. |
+| `@inbrowser/agent/sandbox` | Optional bridge from `@inbrowser/sandbox` toolsets into agent `ToolHandler` values. |
 | `@inbrowser/agent/cli` | CLI internals (`main`, command handlers, `parseArgs`, `CLI_SPEC`). See [cli.md](./cli.md) for the command surface. |
 
 ---
@@ -677,6 +678,41 @@ Value exports beyond those documented above include: `EMPTY_WORKSPACE`,
 `analyzeTruthfulness`, and the eval harness functions (`runFixture`,
 `runFixtures`, `collectMetrics`, `compareMetrics`, `createSpecRegistry`, and
 related spec builders).
+
+---
+
+# `@inbrowser/agent/sandbox`
+
+Optional bridge for hosts that use `@inbrowser/sandbox` as their project
+runtime layer.
+
+### `createSandboxToolHandlers`
+
+```ts
+function createSandboxToolHandlers(options: {
+  sandbox: Sandbox;
+  toolset?: SandboxToolset;
+}): ToolHandler[];
+```
+
+Adapts each `SandboxTool` in a sandbox toolset into an agent `ToolHandler`.
+When `toolset` is absent, the bridge uses `createStandardToolset()` from
+`@inbrowser/sandbox`.
+
+### `registerSandboxTools`
+
+```ts
+function registerSandboxTools(options: {
+  registry: ToolRegistry;
+  sandbox: Sandbox;
+  toolset?: SandboxToolset;
+  replace?: boolean;
+}): ToolRegistry;
+```
+
+Registers sandbox-backed tool handlers into an existing registry. With
+`replace: true`, existing handlers with the same names are replaced; otherwise
+registration follows normal `ToolRegistry.register` duplicate-name behaviour.
 
 ---
 

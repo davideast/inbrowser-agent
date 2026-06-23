@@ -60,7 +60,7 @@ async function hybridDocHits(query: string, limit: number): Promise<SearchHit[]>
 const list_packages: ToolHandler<Record<string, never>, unknown> = {
   name: 'list_packages',
   description:
-    'List the documented packages (overview, agent, workspace, relay, resumable, model) with a one-line summary of each. Use this to orient before drilling in.',
+    'List the documented packages (overview, agent, workspace, sandbox, relay, resumable, model) with a one-line summary of each. Use this to orient before drilling in.',
   pure: true,
   parallelSafe: true,
   parameters: { type: 'object', properties: {}, additionalProperties: false },
@@ -77,7 +77,7 @@ const list_packages: ToolHandler<Record<string, never>, unknown> = {
 const list_docs: ToolHandler<{ package: string }, unknown> = {
   name: 'list_docs',
   description:
-    'List the doc pages in a package. `package` is one of: overview, agent, workspace, relay, resumable, model.',
+    'List the doc pages in a package. `package` is one of: overview, agent, workspace, sandbox, relay, resumable, model.',
   pure: true,
   parallelSafe: true,
   parameters: {

@@ -1,0 +1,38 @@
+# @inbrowser/sandbox
+
+Runtime-agnostic sandbox orchestration for the inbrowser stack. It sits above
+`@inbrowser/workspace` and below `@inbrowser/agent`: workspaces provide files,
+shell, git, package, and preview services; sandboxes turn those services into
+events, checkpoints, and agent-callable tools.
+
+```ts
+import { createBrowserWorkspace } from '@inbrowser/workspace';
+import { createWorkspaceSandbox, createStandardToolset } from '@inbrowser/sandbox';
+
+const workspace = await createBrowserWorkspace({ id: 'local', storage: 'memory' });
+const sandbox = await createWorkspaceSandbox({ workspace });
+const tools = createStandardToolset();
+
+await tools.run('write', { path: 'src/App.tsx', content: 'export default function App() {}' }, sandbox);
+```
+
+Use `@inbrowser/workspace` for browser project runtime primitives. Use this package
+when a host needs a common tool, checkpoint, event, or runtime adapter layer.
+
+## What It Owns
+
+- A `Sandbox` contract with a file system, runtime, optional services, and a
+  chronological event stream.
+- Standard tools for file reads/writes/edits, search, shell commands, git
+  status, package install, and preview compilation.
+- Checkpoint creation and restore over any sandbox file system that supports
+  snapshots.
+- A `createWorkspaceSandbox` adapter for `@inbrowser/workspace`.
+
+## What It Does Not Own
+
+- Agent loop policy. Use `@inbrowser/agent` and its `@inbrowser/agent/sandbox`
+  bridge to expose sandbox tools to an agent session.
+- Browser workspace primitives. Keep files, shell, git, preview, and package
+  registries in `@inbrowser/workspace`.
+- UI. Render the event stream however your product needs.

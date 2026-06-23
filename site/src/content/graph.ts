@@ -11,7 +11,14 @@
  * markdown body + typed cross-link edges for the agent.
  */
 
-export type PackageId = 'overview' | 'agent' | 'workspace' | 'relay' | 'resumable' | 'model';
+export type PackageId =
+  | 'overview'
+  | 'agent'
+  | 'workspace'
+  | 'sandbox'
+  | 'relay'
+  | 'resumable'
+  | 'model';
 
 export type Category =
   | 'overview'
@@ -43,6 +50,7 @@ export const PACKAGE_ORDER: PackageId[] = [
   'overview',
   'agent',
   'workspace',
+  'sandbox',
   'relay',
   'resumable',
   'model',
@@ -52,6 +60,7 @@ export const PACKAGE_LABELS: Record<PackageId, string> = {
   overview: 'Overview',
   agent: '@inbrowser/agent',
   workspace: '@inbrowser/workspace',
+  sandbox: '@inbrowser/sandbox',
   relay: '@inbrowser/relay',
   resumable: '@inbrowser/resumable',
   model: '@inbrowser/model',
@@ -297,6 +306,57 @@ export const NODES: DocNode[] = [
     sourcePath: 'packages/workspace/docs/why-not-browser-node.md',
     summary:
       'Why the workspace runtime chooses compile-and-mount preview, host modules, structured shell/git/package services, and explicit limits over a partial browser Node illusion.',
+  },
+
+  // ── @inbrowser/sandbox ────────────────────────────────────────────
+  {
+    id: 'sandbox',
+    package: 'sandbox',
+    category: 'overview',
+    title: '@inbrowser/sandbox',
+    route: '/sandbox',
+    sourcePath: 'packages/sandbox/README.md',
+    summary:
+      'Sandbox orchestration above @inbrowser/workspace: runtime events, standard agent tools, checkpoints, and a workspace adapter for browser-native app builders.',
+  },
+  {
+    id: 'sandbox/explanation/overview',
+    package: 'sandbox',
+    category: 'explanation',
+    title: 'Sandbox Architecture Overview',
+    route: '/sandbox/explanation/overview',
+    sourcePath: 'packages/sandbox/docs/overview.md',
+    summary:
+      'How @inbrowser/sandbox absorbs Piebox-shaped orchestration into the inbrowser package suite while keeping runtime substrate, workspace services, and agent loops separate.',
+  },
+  {
+    id: 'sandbox/how-to/wire-an-agent',
+    package: 'sandbox',
+    category: 'how-to',
+    title: 'How To Wire A Sandbox Into An Agent',
+    route: '/sandbox/how-to/wire-an-agent',
+    sourcePath: 'packages/sandbox/docs/how-to-wire-an-agent.md',
+    summary:
+      'Expose browser workspace tools to an @inbrowser/agent session with @inbrowser/sandbox and the @inbrowser/agent/sandbox bridge.',
+  },
+  {
+    id: 'sandbox/reference',
+    package: 'sandbox',
+    category: 'reference',
+    title: 'API Reference',
+    route: '/sandbox/reference',
+    sourcePath: 'packages/sandbox/docs/reference.md',
+    summary:
+      'The public surface of @inbrowser/sandbox: sandbox contracts, workspace adapter, standard tools, checkpoints, events, and the agent bridge.',
+  },
+  {
+    id: 'sandbox/agent-context',
+    package: 'sandbox',
+    category: 'agent-context',
+    title: 'AGENTS.md — @inbrowser/sandbox',
+    route: '/sandbox/agent-context',
+    sourcePath: 'packages/sandbox/AGENTS.md',
+    summary: 'Package invariants for sandbox tools, events, checkpoints, and workspace adapters.',
   },
 
   // ── @inbrowser/relay ───────────────────────────────────────────────
@@ -570,7 +630,7 @@ export function buildRouteMap(): Record<string, string> {
     map[entryIdOf(node)] = node.route;
   }
   // Package directories -> their overview route (root READMEs link these).
-  for (const pkg of ['agent', 'workspace', 'relay', 'resumable', 'model'] as const) {
+  for (const pkg of ['agent', 'workspace', 'sandbox', 'relay', 'resumable', 'model'] as const) {
     map[`packages/${pkg}`] = `/${pkg}`;
   }
   return map;
