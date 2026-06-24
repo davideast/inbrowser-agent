@@ -19,6 +19,10 @@
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
     },
+    "./sandbox": {
+      "types": "./dist/sandbox/index.d.ts",
+      "import": "./dist/sandbox/index.js"
+    },
     "./usage": {
       "types": "./dist/usage/index.d.ts",
       "import": "./dist/usage/index.js"
@@ -36,6 +40,7 @@
   },
   "dependencies": {
     "@inbrowser/model": "workspace:^",
+    "@inbrowser/sandbox": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@opentui/core": "^0.1.0",
     "@opentui/react": "^0.1.0",

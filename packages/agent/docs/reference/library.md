@@ -1,7 +1,7 @@
 # Library Reference
 
 This page describes the public library surface of `@inbrowser/agent`. The
-package exposes three import subpaths.
+package exposes the root runtime plus optional import subpaths.
 
 ## Exports
 
@@ -9,6 +9,7 @@ package exposes three import subpaths.
 | --- | --- |
 | `@inbrowser/agent` | Browser-safe runtime: sessions, strategies, tool registry/dispatch, metrics, storage, LLM contract, events helpers (wrap/replay/codec). No `node:*` imports. |
 | `@inbrowser/agent/node` | Node-only additions: the disk event-log writer and its helpers, the MCP client adapter, fixture loaders. |
+| `@inbrowser/agent/sandbox` | Optional bridge that adapts `@inbrowser/sandbox` tools to the current agent tool contract. |
 | `@inbrowser/agent/cli` | CLI internals (`main`, command handlers, `parseArgs`, `CLI_SPEC`). See [cli.md](./cli.md) for the command surface. |
 
 ---
@@ -677,6 +678,34 @@ Value exports beyond those documented above include: `EMPTY_WORKSPACE`,
 `analyzeTruthfulness`, and the eval harness functions (`runFixture`,
 `runFixtures`, `collectMetrics`, `compareMetrics`, `createSpecRegistry`, and
 related spec builders).
+
+---
+
+# `@inbrowser/agent/sandbox`
+
+Optional bridge for hosts that use `@inbrowser/sandbox` as their project
+runtime layer.
+
+### `createSandboxAgentTools`
+
+```ts
+function createSandboxAgentTools(
+  sandbox: Sandbox,
+  options?: { names?: readonly string[] },
+): SandboxAgentTools;
+```
+
+Returns the two agent tool pieces required by the current session API:
+
+```ts
+sandboxTools.toolList;
+sandboxTools.dispatch;
+```
+
+The tool list and dispatch are built from `sandbox.tools.list` and
+`sandbox.tools.run`. Pass `names` to expose only selected sandbox tools to the
+agent session. This adapter does not mutate a registry or attach agent state to
+the sandbox.
 
 ---
 

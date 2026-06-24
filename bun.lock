@@ -59,6 +59,7 @@
       },
       "dependencies": {
         "@inbrowser/model": "workspace:^",
+        "@inbrowser/sandbox": "workspace:^",
         "@modelcontextprotocol/sdk": "^1.0.0",
         "@opentui/core": "^0.1.0",
         "@opentui/react": "^0.1.0",
@@ -114,6 +115,17 @@
       "devDependencies": {
         "@types/bun": "latest",
         "fake-indexeddb": "^6.0.0",
+        "typescript": "^5.7.0",
+      },
+    },
+    "packages/sandbox": {
+      "name": "@inbrowser/sandbox",
+      "version": "0.1.0",
+      "dependencies": {
+        "@inbrowser/workspace": "workspace:^",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
         "typescript": "^5.7.0",
       },
     },
@@ -423,6 +435,8 @@
     "@inbrowser/relay": ["@inbrowser/relay@workspace:packages/relay"],
 
     "@inbrowser/resumable": ["@inbrowser/resumable@workspace:packages/resumable"],
+
+    "@inbrowser/sandbox": ["@inbrowser/sandbox@workspace:packages/sandbox"],
 
     "@inbrowser/site": ["@inbrowser/site@workspace:site"],
 

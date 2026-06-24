@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Pack-and-import smoke test for `@inbrowser/{resumable,relay,agent,model}`.
+ * Pack-and-import smoke test for the published `@inbrowser/*` packages.
  *
  * Per the extraction plan's Phase 3 (extended to cover model when the
  * package landed), this script:
@@ -9,7 +9,7 @@
  *   3. asserts tarball contents (no `src/`, no `tsconfig.json`, no tests;
  *      yes `dist/`, README, the agent's `bin/` + `skills/`, model's
  *      `adapters/` and `worker.js`, etc.)
- *   4. installs all four tarballs into a fresh scratch dir
+ *   4. installs all tarballs into a fresh scratch dir
  *   5. runs a `test.mjs` that imports a real entry from each package
  *      (root + sub-exports), verifying the published exports resolve
  *      and emit the expected values
@@ -32,7 +32,13 @@ const PACK_OUT = mkdtempSync(join(tmpdir(), 'inbrowser-pack-'));
 const SCRATCH = mkdtempSync(join(tmpdir(), 'inbrowser-smoke-'));
 
 interface PackSpec {
-  name: '@inbrowser/resumable' | '@inbrowser/relay' | '@inbrowser/agent' | '@inbrowser/model';
+  name:
+    | '@inbrowser/resumable'
+    | '@inbrowser/relay'
+    | '@inbrowser/workspace'
+    | '@inbrowser/sandbox'
+    | '@inbrowser/agent'
+    | '@inbrowser/model';
   dir: string;
   /** Must appear in tarball. */
   expectFiles: string[];
@@ -77,6 +83,37 @@ const SPECS: PackSpec[] = [
     ],
   },
   {
+    name: '@inbrowser/workspace',
+    dir: 'packages/workspace',
+    expectFiles: [
+      'package/dist/index.js',
+      'package/dist/index.d.ts',
+      'package/dist/fs/index.js',
+      'package/dist/preview/index.js',
+      'package/dist/preview/react.js',
+      'package/dist/shell/index.js',
+      'package/dist/git/index.js',
+      'package/dist/packages/index.js',
+      'package/README.md',
+      'package/AGENTS.md',
+    ],
+    forbidFiles: [/^package\/src\//, /^package\/test\//, /tsconfig\.json$/],
+  },
+  {
+    name: '@inbrowser/sandbox',
+    dir: 'packages/sandbox',
+    expectFiles: [
+      'package/dist/index.js',
+      'package/dist/index.d.ts',
+      'package/README.md',
+      'package/AGENTS.md',
+      'package/docs/overview.md',
+      'package/docs/how-to-wire-an-agent.md',
+      'package/docs/reference.md',
+    ],
+    forbidFiles: [/^package\/src\//, /^package\/test\//, /tsconfig\.json$/],
+  },
+  {
     name: '@inbrowser/agent',
     dir: 'packages/agent',
     expectFiles: [
@@ -84,6 +121,7 @@ const SPECS: PackSpec[] = [
       'package/dist/index.d.ts',
       'package/dist/cli/index.js',
       'package/dist/node.js',
+      'package/dist/sandbox/index.js',
       'package/bin/agent.ts',
       'package/README.md',
       'package/AGENTS.md',
@@ -172,7 +210,7 @@ async function verifyTarball(spec: PackSpec, tarball: string): Promise<void> {
 async function scratchInstall(tarballs: string[]): Promise<void> {
   step('scratch install');
   await $`npm init -y`.cwd(SCRATCH).quiet();
-  // npm needs the tarballs by path; pass all three at once so peer
+  // npm needs the tarballs by path; pass all packages at once so peer
   // resolution sees them together.
   await $`npm install --silent --no-audit --no-fund ${tarballs}`.cwd(SCRATCH);
   ok(`installed ${tarballs.length} packages into ${SCRATCH}`);
@@ -248,6 +286,45 @@ console.log('  ✓ agent/cli: main exported');
 import * as agentNode from '@inbrowser/agent/node';
 assert.equal(typeof agentNode.openEventLog, 'function');
 console.log('  ✓ agent/node: openEventLog exported');
+
+import * as sandboxBridge from '@inbrowser/agent/sandbox';
+assert.equal(typeof sandboxBridge.createSandboxAgentTools, 'function');
+console.log('  ✓ agent/sandbox: sandbox bridge exported');
+
+// === @inbrowser/workspace + @inbrowser/sandbox ===
+import { createBrowserWorkspace } from '@inbrowser/workspace';
+import {
+  createRuntimeAdapter,
+  createSandbox,
+  createWorkspaceSandbox,
+  standardSandboxTools,
+} from '@inbrowser/sandbox';
+assert.equal(typeof createBrowserWorkspace, 'function');
+assert.equal(typeof createWorkspaceSandbox, 'function');
+assert.equal(typeof standardSandboxTools, 'function');
+assert.equal(typeof createSandbox, 'function');
+assert.equal(typeof createRuntimeAdapter, 'function');
+
+const workspace = await createBrowserWorkspace({ id: 'smoke-pack', storage: 'memory' });
+const sandbox = await createWorkspaceSandbox({ workspace });
+assert.ok(sandbox.tools.get('write'), 'sandbox should install standard write tool');
+const write = await sandbox.tools.run('write', { path: 'notes.txt', content: 'one' });
+assert.equal(write.ok, true, 'sandbox write should succeed');
+const checkpoint = await sandbox.checkpoints.create('before edit');
+await sandbox.tools.run('write', { path: 'notes.txt', content: 'two' });
+await sandbox.checkpoints.restore(checkpoint.id);
+const read = await sandbox.tools.run('read', { path: 'notes.txt' });
+assert.equal(read.ok, true, 'sandbox read should succeed');
+assert.equal(read.data.content, 'one');
+const sandboxTools = sandboxBridge.createSandboxAgentTools(sandbox, { names: ['read'] });
+assert.equal(sandboxTools.toolList.length, 1);
+assert.equal(sandboxTools.toolList[0].name, 'read');
+const dispatchRead = await sandboxTools.dispatch.execute(
+  { id: 'read-notes', name: 'read', args: { path: 'notes.txt' } },
+  { signal: new AbortController().signal },
+);
+assert.equal(dispatchRead.ok, true);
+console.log('  ✓ workspace+sandbox: memory workspace, tools, checkpoints, and agent bridge work');
 
 // === @inbrowser/model ===
 // Import shape only — createEngine() needs @huggingface/transformers

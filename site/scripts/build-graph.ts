@@ -15,6 +15,7 @@ import {
   CATEGORY_LABELS,
   NODES,
   PACKAGE_LABELS,
+  PACKAGE_ORDER,
   breadcrumbFor,
   buildRouteMap,
   entryIdOf,
@@ -117,9 +118,9 @@ const nodes: GraphNode[] = partial.map((n) => {
 
 const out = {
   nodeCount: nodes.length,
-  packages: ['overview', 'agent', 'workspace', 'relay', 'resumable', 'model'].map((pkg) => ({
+  packages: PACKAGE_ORDER.map((pkg) => ({
     id: pkg,
-    label: PACKAGE_LABELS[pkg as keyof typeof PACKAGE_LABELS],
+    label: PACKAGE_LABELS[pkg],
     routes: nodes.filter((n) => n.package === pkg).map((n) => n.route),
   })),
   nodes,
