@@ -33,12 +33,12 @@ const sandboxTools = createSandboxAgentTools(sandbox, {
 });
 ```
 
-The adapter returns the two pieces required by today's `createAgentSession`
-API. It does not mutate a registry or attach agent state to the sandbox.
+The adapter returns an `AgentTools` object. It does not mutate a registry or
+attach agent state to the sandbox.
 
 ```ts
-sandboxTools.toolList;
-sandboxTools.dispatch;
+sandboxTools.list();
+sandboxTools.execute(call, context);
 ```
 
 ## Pass The Sandbox Tools To A Session
@@ -49,8 +49,7 @@ const controller = new AbortController();
 const session = createAgentSession({
   strategy,
   llm,
-  tools: sandboxTools.dispatch,
-  toolList: sandboxTools.toolList,
+  tools: sandboxTools,
   toolContext: () => ({ signal: controller.signal }),
   systemPromptBuilder,
   metrics,

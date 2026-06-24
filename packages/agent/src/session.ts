@@ -10,7 +10,7 @@ import type { ChatMessage } from './types/chat.js';
 import type { RuntimeState } from './types/runtime.js';
 import type { AgentSession, AgentSessionConfig, SessionEvent } from './types/session.js';
 import type { StrategyEvent } from './types/strategy.js';
-import type { ToolResult } from './types/tools.js';
+import type { AgentTools, ToolDispatch, ToolHandler, ToolResult } from './types/tools.js';
 import type { Workspace } from './types/workspace.js';
 
 let sessionCounter = 0;
@@ -23,6 +23,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
   let runtime: RuntimeState = initialRuntime();
   let history: ChatMessage[] = [...config.history];
   let currentAbort: AbortController | null = null;
+  const tools = resolveSessionTools(config);
 
   const session: AgentSession = {
     id,
@@ -85,8 +86,8 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
         workspace,
         runtime,
         llm: config.llm,
-        tools: config.tools,
-        toolList: config.toolList,
+        tools: tools.dispatch,
+        toolList: tools.toolList,
         toolContext: config.toolContext,
         systemPrompt,
         ...(config.tracer ? { tracer: config.tracer } : {}),
@@ -149,6 +150,26 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
   }
 
   return session;
+}
+
+function resolveSessionTools(config: AgentSessionConfig): {
+  dispatch: ToolDispatch;
+  toolList: ToolHandler[];
+} {
+  if (isAgentTools(config.tools)) {
+    return {
+      dispatch: { execute: (call, ctx) => config.tools.execute(call, ctx) },
+      toolList: [...config.tools.list()],
+    };
+  }
+  return {
+    dispatch: config.tools,
+    toolList: [...(config.toolList ?? [])],
+  };
+}
+
+function isAgentTools(tools: AgentSessionConfig['tools']): tools is AgentTools {
+  return typeof (tools as AgentTools).list === 'function';
 }
 
 function initialWorkspace(): Workspace {

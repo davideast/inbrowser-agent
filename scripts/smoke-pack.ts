@@ -272,8 +272,14 @@ assert.equal(typeof createExpressHandlers, 'function', 'relay: createExpressHand
 console.log('  ✓ relay: astro + express adapters on root barrel');
 
 // === @inbrowser/agent ===
-import { createAgentSession, createToolRegistry, createReactLoopStrategy } from '@inbrowser/agent';
+import {
+  createAgentSession,
+  createAgentTools,
+  createReactLoopStrategy,
+  createToolRegistry,
+} from '@inbrowser/agent';
 assert.equal(typeof createAgentSession, 'function');
+assert.equal(typeof createAgentTools, 'function');
 assert.equal(typeof createToolRegistry, 'function');
 assert.equal(typeof createReactLoopStrategy, 'function');
 console.log('  ✓ agent: createAgentSession + tool registry + strategy exported');
@@ -317,9 +323,9 @@ const read = await sandbox.tools.run('read', { path: 'notes.txt' });
 assert.equal(read.ok, true, 'sandbox read should succeed');
 assert.equal(read.data.content, 'one');
 const sandboxTools = sandboxBridge.createSandboxAgentTools(sandbox, { names: ['read'] });
-assert.equal(sandboxTools.toolList.length, 1);
-assert.equal(sandboxTools.toolList[0].name, 'read');
-const dispatchRead = await sandboxTools.dispatch.execute(
+assert.equal(sandboxTools.list().length, 1);
+assert.equal(sandboxTools.list()[0].name, 'read');
+const dispatchRead = await sandboxTools.execute(
   { id: 'read-notes', name: 'read', args: { path: 'notes.txt' } },
   { signal: new AbortController().signal },
 );

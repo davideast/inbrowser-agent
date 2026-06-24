@@ -3,8 +3,8 @@
 `@inbrowser/model` is the model layer for the stack. It owns the shared
 `ModelClient` contract (from `@inbrowser/model`) that both `@inbrowser/relay`
 (transport) and `@inbrowser/agent` (runtime) consume, the cloud providers that
-implement it (Gemini, OpenRouter, Anthropic, Ollama, Claude-CLI, Claude-Code),
-and the on-device LLM engine. The engine loads ONNX models in the browser
+implement it (Gemini, OpenRouter, Requesty, Anthropic, Ollama, Claude-CLI,
+Claude-Code), and the on-device LLM engine. The engine loads ONNX models in the browser
 through `@huggingface/transformers` (ONNX Runtime Web over WebGPU or WASM) and
 exposes them behind a narrow `Engine` surface that streams `EngineEvent`s; a
 worker transport lets the same engine run off the main thread without any

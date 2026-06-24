@@ -29,8 +29,9 @@ received offset.
 The model contract (`ModelClient`, `ModelEvent`, `ModelRequest`, `ModelMessage`,
 `ToolSpec`, `ModelUsage`) lives in `@inbrowser/model/contract`. The relay
 re-exports those names for the registration site, and the cloud provider
-factories (`geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`,
-`ollamaModelClient`, `claudeCliModelClient`, `claudeCodeModelClient`) live in
+factories (`geminiModelClient`, `openrouterModelClient`, `requestyModelClient`,
+`anthropicModelClient`, `ollamaModelClient`, `claudeCliModelClient`,
+`claudeCodeModelClient`) live in
 `@inbrowser/model/providers/*`.
 
 ## Quick Start

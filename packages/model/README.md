@@ -11,9 +11,10 @@ Two halves, one package:
 - **The contract + cloud providers.** `@inbrowser/model`
   defines `ModelClient` / `ModelRequest` / `ModelEvent`. The cloud
   providers (`geminiModelClient`, `openrouterModelClient`,
-  `anthropicModelClient`, `openaiCompatModelClient`, `ollamaModelClient`,
-  `llamaServerModelClient`, `claudeCliModelClient`, `claudeCodeModelClient`)
-  are factories that each return a `ModelClient`. `withRetry` decorates one.
+  `requestyModelClient`, `anthropicModelClient`, `openaiCompatModelClient`,
+  `ollamaModelClient`, `llamaServerModelClient`, `claudeCliModelClient`,
+  `claudeCodeModelClient`) are factories that each return a `ModelClient`.
+  `withRetry` decorates one.
 - **The on-device engine.** `createEngine` loads ONNX models in the
   browser via `@huggingface/transformers` + ONNX Runtime Web (WebGPU /
   WASM) and exposes them behind a narrow `Engine` surface that streams
@@ -132,7 +133,7 @@ Everything is imported from the package root `@inbrowser/model`.
 | Export | What it gives you |
 |---|---|
 | `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` | The shared contract (type-only) |
-| `geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`, `openaiCompatModelClient`, `ollamaModelClient`, `llamaServerModelClient`, `claudeCliModelClient`, `claudeCodeModelClient` | Cloud + local provider factories; each returns a `ModelClient` |
+| `geminiModelClient`, `openrouterModelClient`, `requestyModelClient`, `anthropicModelClient`, `openaiCompatModelClient`, `ollamaModelClient`, `llamaServerModelClient`, `claudeCliModelClient`, `claudeCodeModelClient` | Cloud + local provider factories; each returns a `ModelClient` |
 | `OpenAiCompatConfig`, `OllamaConfig`, `LlamaServerConfig` | Config shapes for the OpenAI-compatible factory and its local presets |
 | `withRetry(client, opts?)` | Decorator that retries transient upstream errors while nothing has streamed |
 | `CloudProviderConfig`, `ModelClientFactory` | Shared provider config + the factory type the relay routes on |

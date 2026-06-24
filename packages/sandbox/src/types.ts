@@ -113,6 +113,13 @@ export type SandboxEvent =
       type: 'checkpoint:restore';
       sandboxId: string;
       checkpoint: SandboxCheckpoint;
+      mode: SandboxCheckpointRestoreMode;
+      timestamp: number;
+    }
+  | {
+      type: 'checkpoint:prune';
+      sandboxId: string;
+      checkpoints: SandboxCheckpoint[];
       timestamp: number;
     }
   | { type: 'error'; sandboxId: string; message: string; cause?: unknown; timestamp: number }
@@ -195,11 +202,59 @@ export interface SandboxCheckpoint {
   label?: string;
   snapshot: SandboxSnapshot;
   createdAt: number;
+  parentId?: string;
+  turnId?: string;
+  messageId?: string;
+  toolCallId?: string;
+  reason?: SandboxCheckpointReason;
+  summary?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type SandboxCheckpointReason =
+  | 'manual'
+  | 'before-turn'
+  | 'before-tool'
+  | 'after-turn'
+  | 'restore';
+
+export type SandboxCheckpointRestoreMode = 'replace-current';
+
+export interface CreateSandboxCheckpointOptions {
+  label?: string;
+  parentId?: string;
+  turnId?: string;
+  messageId?: string;
+  toolCallId?: string;
+  reason?: SandboxCheckpointReason;
+  summary?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SandboxCheckpointFilter {
+  turnId?: string;
+  messageId?: string;
+  toolCallId?: string;
+  reason?: SandboxCheckpointReason;
+}
+
+export interface SandboxCheckpointRestoreOptions {
+  recordEvent?: boolean;
+  mode?: SandboxCheckpointRestoreMode;
+}
+
+export interface SandboxCheckpointPruneOptions {
+  reason?: SandboxCheckpointReason;
+  keepLatest?: number;
+  before?: number;
 }
 
 export interface SandboxCheckpoints {
-  create(label?: string): Promise<SandboxCheckpoint>;
-  restore(id: string): Promise<void>;
-  list(): SandboxCheckpoint[];
+  create(input?: string | CreateSandboxCheckpointOptions): Promise<SandboxCheckpoint>;
+  restore(id: string, options?: SandboxCheckpointRestoreOptions): Promise<void>;
+  list(filter?: SandboxCheckpointFilter): SandboxCheckpoint[];
+  history(filter?: SandboxCheckpointFilter): SandboxCheckpoint[];
+  latest(filter?: SandboxCheckpointFilter): SandboxCheckpoint | undefined;
   get(id: string): SandboxCheckpoint | undefined;
+  prune(options: SandboxCheckpointPruneOptions): SandboxCheckpoint[];
 }

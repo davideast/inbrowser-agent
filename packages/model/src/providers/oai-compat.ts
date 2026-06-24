@@ -7,15 +7,16 @@ import type { CloudProviderConfig } from './types.js';
  *
  * Every server that speaks the OpenAI `POST /v1/chat/completions` wire
  * shape — Ollama, llama.cpp's `llama-server`, vLLM, LM Studio, LocalAI,
- * TGI, … — streams the same SSE deltas and reports the same `usage`
- * fields. This module holds that one implementation:
+ * TGI, API gateways, … — streams the same SSE deltas and reports the
+ * same core `usage` fields. This module holds that one implementation:
  *
  *   - `toOaiMessages` / `toOaiTools` — translate the unified contract's
  *     messages + nested `ToolSpec` into the OAI wire shape.
  *   - `makeOaiClient` — the streaming engine: builds the request body,
  *     fetches, parses SSE, accumulates tool-calls by index, and emits
- *     `text` / `tool_call` / `usage` / `error` events. It takes
- *     fully-resolved params so each server is just a set of defaults.
+ *     `text` / `thinking` / `tool_call` / `usage` / `error` events. It
+ *     takes fully-resolved params so each server or gateway is just a set
+ *     of defaults.
  *   - `openaiCompatModelClient` — the public, generic factory. Point it
  *     at any OAI-compatible server via `baseUrl` (or a full `endpoint`).
  *
@@ -99,6 +100,22 @@ interface PendingToolCall {
   emitted: boolean;
 }
 
+export interface OaiGatewayAttribution {
+  referer?: string;
+  title?: string;
+}
+
+export type OaiReasoningMode = 'openrouter-compatible';
+
+export function oaiGatewayAttributionHeaders(
+  attribution?: OaiGatewayAttribution,
+): Record<string, string> {
+  return {
+    ...(attribution?.referer ? { 'HTTP-Referer': attribution.referer } : {}),
+    ...(attribution?.title ? { 'X-Title': attribution.title } : {}),
+  };
+}
+
 /**
  * Trim trailing slashes off a base URL, falling back to `fallback` when
  * the value is empty or not an http(s) URL. Shared by the presets, whose
@@ -126,6 +143,12 @@ export interface OaiClientParams {
   connectHint?: (base: string) => string;
   /** Construction-time temperature default; a per-request value always wins. */
   temperatureDefault?: number;
+  /** Request final gateway usage/cost telemetry with `usage: { include: true }`. */
+  includeUsage?: boolean;
+  /** Gateway-specific reasoning request shape. */
+  reasoningMode?: OaiReasoningMode;
+  /** Delta fields that carry streamed reasoning/thought text. */
+  thinkingDeltaFields?: readonly string[];
 }
 
 /** Build a `ModelClient` from fully-resolved OAI params. */
@@ -141,9 +164,11 @@ export function makeOaiClient(p: OaiClientParams): ModelClient {
         model: p.model,
         messages: toOaiMessages(req.messages),
         stream: true,
+        ...(p.includeUsage ? { usage: { include: true } } : {}),
         ...(typeof temperature === 'number' ? { temperature } : {}),
         ...(typeof req.topP === 'number' ? { top_p: req.topP } : {}),
         ...(typeof req.topK === 'number' ? { top_k: req.topK } : {}),
+        ...buildReasoningRequest(p.reasoningMode, req),
         ...(req.tools.length > 0
           ? { tools: toOaiTools(req.tools), tool_choice: 'auto' as const }
           : {}),
@@ -179,6 +204,7 @@ export function makeOaiClient(p: OaiClientParams): ModelClient {
       let completionTokens = 0;
       let cachedTokens: number | undefined;
       let reasoningTokens: number | undefined;
+      let costUsd: number | undefined;
       const pending = new Map<number, PendingToolCall>();
 
       try {
@@ -195,6 +221,7 @@ export function makeOaiClient(p: OaiClientParams): ModelClient {
             choices?: {
               delta?: {
                 content?: string;
+                [key: string]: unknown;
                 tool_calls?: {
                   index: number;
                   id?: string;
@@ -212,11 +239,16 @@ export function makeOaiClient(p: OaiClientParams): ModelClient {
                 reasoning_tokens?: number;
               };
               reasoning_tokens?: number;
+              cost?: number;
             };
           };
           const delta = e.choices?.[0]?.delta;
           if (delta?.content) {
             yield { kind: 'text', text: delta.content };
+          }
+          const thinking = findThinkingDelta(delta, p.thinkingDeltaFields);
+          if (thinking) {
+            yield { kind: 'thinking', text: thinking };
           }
           if (delta?.tool_calls) {
             for (const d of delta.tool_calls) {
@@ -241,6 +273,7 @@ export function makeOaiClient(p: OaiClientParams): ModelClient {
             } else if (typeof e.usage.reasoning_tokens === 'number') {
               reasoningTokens = e.usage.reasoning_tokens;
             }
+            if (typeof e.usage.cost === 'number') costUsd = e.usage.cost;
           }
         }
       } catch (e) {
@@ -275,10 +308,37 @@ export function makeOaiClient(p: OaiClientParams): ModelClient {
           outputTokens: completionTokens,
           ...(typeof cachedTokens === 'number' ? { cachedTokens } : {}),
           ...(typeof reasoningTokens === 'number' ? { reasoningTokens } : {}),
+          ...(typeof costUsd === 'number' ? { costUsd } : {}),
         }),
       };
     },
   };
+}
+
+function buildReasoningRequest(
+  mode: OaiReasoningMode | undefined,
+  req: ModelRequest,
+): Record<string, unknown> {
+  if (mode !== 'openrouter-compatible') return {};
+  const effort = req.reasoningEffort ?? 'off';
+  return effort === 'off'
+    ? { reasoning: { enabled: false } }
+    : {
+        reasoning: { effort, summary: 'auto' },
+        include_reasoning: true,
+      };
+}
+
+function findThinkingDelta(
+  delta: { [key: string]: unknown } | undefined,
+  fields: readonly string[] | undefined,
+): string | undefined {
+  if (!delta || !fields) return undefined;
+  for (const field of fields) {
+    const value = delta[field];
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return undefined;
 }
 
 const DEFAULT_BASE_URL = 'http://localhost:8080';

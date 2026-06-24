@@ -155,6 +155,7 @@ The shared `ModelClient` contract that relay and agent both consume, a set of cl
 |---------|--------|-------|
 | `geminiModelClient(config)` | `GeminiConfig` | Google AI Studio / Vertex |
 | `openrouterModelClient(config)` | `OpenRouterConfig` | Unified API, many models |
+| `requestyModelClient(config)` | `RequestyConfig` | OpenAI-compatible gateway, many models |
 | `anthropicModelClient(config)` | `AnthropicConfig` | Anthropic Claude |
 | `openaiCompatModelClient(config)` | `OpenAiCompatConfig` | Any OpenAI-compatible server |
 | `ollamaModelClient(config)` | `OllamaConfig` | Local Ollama server |
@@ -389,4 +390,3 @@ Pre-1.0. Versions are coordinated manually:
 | `@inbrowser/agent` | 0.3.0 |
 
 Breaking changes are expected until 1.0.
-

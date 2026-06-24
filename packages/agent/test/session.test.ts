@@ -11,6 +11,7 @@ import {
   type ToolContext,
   type ToolHandler,
   createAgentSession,
+  createAgentTools,
   createDispatch,
   createMetricsCollector,
   createReactLoopStrategy,
@@ -198,6 +199,45 @@ describe('createAgentSession', () => {
       history: [],
     });
     await collect(session.submit('hi', new AbortController().signal));
+    expect(seenToolCount).toBe(1);
+  });
+
+  test('accepts a cohesive AgentTools object without a separate toolList', async () => {
+    const registry = createToolRegistry();
+    registry.register({
+      name: 'readThing',
+      description: 'read thing',
+      parameters: { type: 'object' },
+      async execute() {
+        return { ok: true, summary: 'read' };
+      },
+    });
+
+    let seenToolCount = -1;
+    const spyLlm: ModelClient = {
+      id: 'spy',
+      supportsTools: true,
+      chat(req) {
+        seenToolCount = req.tools.length;
+        return (async function* () {
+          yield { kind: 'text', text: 'ok' } as ModelEvent;
+          yield { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } } as ModelEvent;
+        })();
+      },
+    };
+
+    const session = createAgentSession({
+      strategy: createReactLoopStrategy(),
+      llm: spyLlm,
+      tools: createAgentTools(registry),
+      toolContext: fakeCtx,
+      systemPromptBuilder: () => 's',
+      metrics: createMetricsCollector(),
+      history: [],
+    });
+
+    await collect(session.submit('hi', new AbortController().signal));
+
     expect(seenToolCount).toBe(1);
   });
 

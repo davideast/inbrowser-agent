@@ -63,6 +63,7 @@ export type {
 
 export type {
   ToolHandler,
+  AgentTools,
   ToolContext,
   ToolResult,
   ToolCall,
@@ -73,7 +74,13 @@ export type {
   LintWarning,
   StitchClient,
 } from './types/tools.js';
-export { createToolRegistry, createDispatch, isParallelSafe, isPure } from './tools.js';
+export {
+  createToolRegistry,
+  createDispatch,
+  createAgentTools,
+  isParallelSafe,
+  isPure,
+} from './tools.js';
 
 export type {
   MemoKeyComponent,

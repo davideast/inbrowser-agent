@@ -13,6 +13,7 @@
 
 import type { Capabilities } from './types/capabilities.js';
 import type {
+  AgentTools,
   ToolCall,
   ToolContext,
   ToolDispatch,
@@ -119,6 +120,18 @@ export function createDispatch(registry: ToolRegistry): ToolDispatch {
           summary: `Tool ${call.name} threw: ${e instanceof Error ? e.message : String(e)}`,
         };
       }
+    },
+  };
+}
+
+export function createAgentTools(registry: ToolRegistry): AgentTools {
+  const dispatch = createDispatch(registry);
+  return {
+    list() {
+      return registry.list();
+    },
+    execute(call, ctx) {
+      return dispatch.execute(call, ctx);
     },
   };
 }

@@ -13,7 +13,7 @@ import type { ModelClient } from './llm.js';
 import type { MetricsCollector } from './metrics.js';
 import type { RuntimeState } from './runtime.js';
 import type { AgentStrategy } from './strategy.js';
-import type { ToolContext, ToolDispatch, ToolHandler, ToolResult } from './tools.js';
+import type { AgentTools, ToolContext, ToolDispatch, ToolHandler, ToolResult } from './tools.js';
 import type { Tracer } from './trace.js';
 import type { Workspace } from './workspace.js';
 
@@ -21,12 +21,12 @@ export interface AgentSessionConfig {
   /** Pluggable inference algorithm. See `./strategy.ts`. */
   strategy: AgentStrategy;
   llm: ModelClient;
-  tools: ToolDispatch;
-  /** Tool declarations the LLM should see this turn. Caller filters by
-   *  capabilities before construction. Empty list disables function
-   *  calling and the LLM is driven via plain-chat — typically a host
-   *  bug rather than an intended state. */
-  toolList: ToolHandler[];
+  /** Cohesive tool runtime. Prefer `AgentTools`; `ToolDispatch` remains
+   *  supported with `toolList` for existing hosts. */
+  tools: AgentTools | ToolDispatch;
+  /** Legacy companion to `ToolDispatch`. Ignored when `tools` is an
+   *  `AgentTools` object. */
+  toolList?: ToolHandler[];
   /** Factory producing a fresh `ToolContext` for each tool exec — lets the
    *  session thread its current workspace/runtime through without
    *  closing over stale references. */

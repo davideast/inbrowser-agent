@@ -8,8 +8,8 @@ describe('@inbrowser/agent/sandbox', () => {
       names: ['read', 'write'],
     });
 
-    expect(tools.toolList.map((handler) => handler.name)).toEqual(['read', 'write']);
-    expect(typeof tools.dispatch.execute).toBe('function');
+    expect(tools.list().map((handler) => handler.name)).toEqual(['read', 'write']);
+    expect(typeof tools.execute).toBe('function');
   });
 
   test('dispatch executes through sandbox.tools.run', async () => {
@@ -17,7 +17,7 @@ describe('@inbrowser/agent/sandbox', () => {
       names: ['write'],
     });
 
-    const result = await tools.dispatch.execute(
+    const result = await tools.execute(
       { id: 'call-1', name: 'write', args: { path: 'notes.txt', content: 'hello' } },
       { signal: new AbortController().signal },
     );
@@ -31,9 +31,9 @@ describe('@inbrowser/agent/sandbox', () => {
       names: ['read'],
     });
 
-    expect(tools.toolList.map((handler) => handler.name)).toEqual(['read']);
+    expect(tools.list().map((handler) => handler.name)).toEqual(['read']);
 
-    const result = await tools.dispatch.execute(
+    const result = await tools.execute(
       { id: 'call-1', name: 'write', args: {} },
       { signal: new AbortController().signal },
     );
