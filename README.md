@@ -45,7 +45,7 @@ for await (const ev of client.chat({
 }
 ```
 
-The weights download once via Transformers.js and run on WebGPU (WASM fallback when there's no GPU). `createEngineModelClient` wraps the engine as a `ModelClient` — the same interface every cloud provider implements, so swapping it for `geminiModelClient({ apiKey, model })` (or `openrouterModelClient`, `ollamaModelClient`, …) changes that one line and nothing else.
+The weights download once via Transformers.js and run on WebGPU (WASM fallback when there's no GPU). `createEngineModelClient` wraps the engine as a `ModelClient` — the same interface every cloud provider implements, so swapping it for `geminiModelClient({ apiKey, model })` (or `openrouterModelClient`, `requestyModelClient`, `ollamaModelClient`, …) changes that one line and nothing else.
 
 ## OpenRouter OAuth for BYOK
 
