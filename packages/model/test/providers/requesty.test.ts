@@ -61,10 +61,30 @@ describe('requesty provider', () => {
     expect(captured).toHaveLength(1);
     expect(captured[0].url).toBe('https://router.requesty.ai/v1/chat/completions');
     expect(captured[0].headers.Authorization).toBe('Bearer sk-test');
+    expect(captured[0].headers['HTTP-Referer']).toBeUndefined();
+    expect(captured[0].headers['X-Title']).toBeUndefined();
     expect(captured[0].body.model).toBe('openai/gpt-4o-mini');
     expect(captured[0].body.stream).toBe(true);
     // Cost telemetry is requested in the final usage chunk.
     expect(captured[0].body.usage).toEqual({ include: true });
+  });
+
+  test('sends optional app attribution headers', async () => {
+    const captured: CapturedRequest[] = [];
+    stubFetch([{ choices: [{ delta: { content: 'hello' } }] }], captured);
+
+    const client = requestyModelClient({
+      apiKey: 'sk-test',
+      model: 'openai/gpt-4o-mini',
+      appAttribution: {
+        referer: 'https://inbrowser.dev',
+        title: 'inbrowser',
+      },
+    });
+    await collect(client.chat(REQ, new AbortController().signal));
+
+    expect(captured[0].headers['HTTP-Referer']).toBe('https://inbrowser.dev');
+    expect(captured[0].headers['X-Title']).toBe('inbrowser');
   });
 
   test('streams text and emits a tool call', async () => {

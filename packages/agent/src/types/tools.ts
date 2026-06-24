@@ -155,3 +155,8 @@ export interface ToolRegistry {
 export interface ToolDispatch {
   execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult>;
 }
+
+export interface AgentTools {
+  list(): readonly ToolHandler[];
+  execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult>;
+}

@@ -695,14 +695,14 @@ function createSandboxAgentTools(
 ): SandboxAgentTools;
 ```
 
-Returns the two agent tool pieces required by the current session API:
+Returns an `AgentTools` object:
 
 ```ts
-sandboxTools.toolList;
-sandboxTools.dispatch;
+sandboxTools.list();
+sandboxTools.execute(call, context);
 ```
 
-The tool list and dispatch are built from `sandbox.tools.list` and
+The tool list and execution path are built from `sandbox.tools.list` and
 `sandbox.tools.run`. Pass `names` to expose only selected sandbox tools to the
 agent session. This adapter does not mutate a registry or attach agent state to
 the sandbox.

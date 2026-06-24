@@ -192,6 +192,7 @@ Each is a factory that returns a `ModelClient`; the cloud ones match
 | --- | --- | --- |
 | Gemini | `geminiModelClient` | Uses the Generative Language REST streaming endpoint. Includes retry handling for selected transient Gemini failures. |
 | OpenRouter | `openrouterModelClient` | Uses OpenRouter chat completions SSE, reasoning deltas, tools, and usage cost when reported. |
+| Requesty | `requestyModelClient` | Uses Requesty's OpenAI-compatible gateway SSE, reasoning deltas, tools, and usage cost when reported. |
 | Anthropic | `anthropicModelClient` | Uses Anthropic native Messages streaming. Tool use is intentionally compact. |
 | Ollama | `ollamaModelClient` | Talks to a local Ollama server. The request `apiKey` carries the base URL rather than a secret; or pass `baseUrl` via a wrapping factory. |
 | Claude (CLI) | `claudeCliModelClient` | Subscription auth. Spawns the `claude` binary in print mode (`claude -p`) and reads its streaming-JSON output. Accepts `ClaudeCliOptions` (`claudePath`, `timeoutMs`). Node-only; rejects caller-defined tools. |

@@ -6,6 +6,7 @@ import { toOaiTools as llamaServerTools } from '../../src/providers/llama-server
 import { toOaiTools as oaiCompatTools } from '../../src/providers/oai-compat';
 import { toOaiTools as ollamaTools } from '../../src/providers/ollama';
 import { toOaiTools as openrouterTools } from '../../src/providers/openrouter';
+import { toOaiTools as requestyTools } from '../../src/providers/requesty';
 
 // The unified ModelClient contract carries tools in the nested OAI `ToolSpec`
 // shape ({ type:'function', function:{ name, description, parameters } }). Each
@@ -48,6 +49,10 @@ describe('provider tool-wire encoding (nested ToolSpec)', () => {
     expect(openrouterTools(TOOLS)).toEqual(OAI_EXPECTED);
   });
 
+  it('requesty: nested OAI tools', () => {
+    expect(requestyTools(TOOLS)).toEqual(OAI_EXPECTED);
+  });
+
   it('ollama: nested OAI tools', () => {
     expect(ollamaTools(TOOLS)).toEqual(OAI_EXPECTED);
   });
@@ -58,6 +63,8 @@ describe('provider tool-wire encoding (nested ToolSpec)', () => {
     // All OAI presets re-export the one shared encoder.
     expect(llamaServerTools).toBe(oaiCompatTools);
     expect(ollamaTools).toBe(oaiCompatTools);
+    expect(openrouterTools).toBe(oaiCompatTools);
+    expect(requestyTools).toBe(oaiCompatTools);
   });
 
   it('anthropic: name/description/input_schema (undefined when empty)', () => {

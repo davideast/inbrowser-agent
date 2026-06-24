@@ -7,7 +7,7 @@ The model layer. Two halves:
 1. **Contract + cloud providers.** `src/contract.ts` defines the one
    `ModelClient` contract the whole stack shares (relay + agent both
    consume it). `src/providers/*` are the cloud providers (Gemini,
-   OpenRouter, Anthropic, Ollama, Claude-CLI, Claude-Code), each a
+   OpenRouter, Requesty, Anthropic, Ollama, Claude-CLI, Claude-Code), each a
    factory returning a `ModelClient`. `src/with-retry.ts` decorates one.
 2. **On-device engine.** Wraps `@huggingface/transformers` behind a
    narrow `Engine` surface (`src/engine.ts`) that streams `EngineEvent`.

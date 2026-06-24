@@ -17,7 +17,11 @@ await sandbox.tools.run('write', {
   content: 'export default function App() {}',
 });
 
-const beforeEdit = await sandbox.checkpoints.create('before edit');
+const beforeEdit = await sandbox.checkpoints.create({
+  label: 'before edit',
+  reason: 'before-tool',
+  toolCallId: 'tool-write-app',
+});
 await sandbox.checkpoints.restore(beforeEdit.id);
 ```
 
@@ -30,8 +34,8 @@ when a host needs a common tool, checkpoint, event, or runtime adapter layer.
   optional services, and a chronological event stream.
 - Standard tools for file reads/writes/edits, search, shell commands, git
   status, package install, and preview compilation.
-- Checkpoint creation and restore over any sandbox file system that supports
-  snapshots.
+- Checkpoint creation, restore, history queries, and pruning over any sandbox
+  file system that supports snapshots.
 - A `createWorkspaceSandbox` adapter for `@inbrowser/workspace`.
 
 ## What It Does Not Own

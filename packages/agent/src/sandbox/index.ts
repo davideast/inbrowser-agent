@@ -1,14 +1,11 @@
 import type { Sandbox, SandboxTool, SandboxToolResult } from '@inbrowser/sandbox';
-import type { ToolContext, ToolDispatch, ToolHandler, ToolResult } from '../types/tools.js';
+import type { AgentTools, ToolContext, ToolHandler, ToolResult } from '../types/tools.js';
 
 export interface SandboxAgentToolsOptions {
   names?: readonly string[];
 }
 
-export interface SandboxAgentTools {
-  readonly toolList: readonly ToolHandler[];
-  readonly dispatch: ToolDispatch;
-}
+export interface SandboxAgentTools extends AgentTools {}
 
 export function createSandboxAgentTools(
   sandbox: Sandbox,
@@ -16,14 +13,16 @@ export function createSandboxAgentTools(
 ): SandboxAgentTools {
   const toolList = createToolHandlers(sandbox, options.names);
   const handlers = new Map(toolList.map((handler) => [handler.name, handler]));
-  const dispatch: ToolDispatch = {
+  return {
+    list() {
+      return toolList;
+    },
     async execute(call, ctx) {
       const handler = handlers.get(call.name);
       if (!handler) return { ok: false, summary: `Unknown tool: ${call.name}` };
       return handler.execute(call.args, ctx);
     },
   };
-  return { toolList, dispatch };
 }
 
 function createToolHandlers(sandbox: Sandbox, names?: readonly string[]): ToolHandler[] {

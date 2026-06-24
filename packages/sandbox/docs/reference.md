@@ -7,7 +7,7 @@ This page describes the public surface of `@inbrowser/sandbox`.
 | Import path | Exports |
 | --- | --- |
 | `@inbrowser/sandbox` | Sandbox contracts, workspace adapter, standard tools, runtime adapter, checkpoints, and path helpers |
-| `@inbrowser/agent/sandbox` | Agent bridge that adapts sandbox tools to `toolList` and `dispatch` |
+| `@inbrowser/agent/sandbox` | Agent bridge that adapts sandbox tools to `AgentTools` |
 
 ## `createSandbox`
 
@@ -89,10 +89,54 @@ Standard tools:
 
 | Method | Description |
 | --- | --- |
-| `create(label?)` | Snapshots `sandbox.cwd`, stores it in memory, emits `checkpoint:create`, and returns the checkpoint. |
-| `restore(id)` | Restores a stored checkpoint with `clearRoot: true` and emits `checkpoint:restore`. |
-| `list()` | Returns checkpoints in creation order. |
+| `create(labelOrOptions?)` | Snapshots `sandbox.cwd`, stores it in memory, emits `checkpoint:create`, and returns the checkpoint. |
+| `restore(id, options?)` | Restores a stored checkpoint with `clearRoot: true`. Emits `checkpoint:restore` unless `recordEvent: false` is passed. |
+| `list(filter?)` | Returns checkpoints in creation order, optionally filtered by turn/message/tool/reason. |
+| `history(filter?)` | Alias for timeline-oriented checkpoint listing. |
+| `latest(filter?)` | Returns the newest checkpoint matching an optional filter. |
 | `get(id)` | Returns one checkpoint by id. |
+| `prune(options)` | Removes matching checkpoints and emits `checkpoint:prune` when anything was removed. |
+
+`create` accepts either a label string or metadata:
+
+```ts
+const checkpoint = await sandbox.checkpoints.create({
+  label: 'before write',
+  turnId: 'turn-1',
+  toolCallId: 'tool-1',
+  reason: 'before-tool',
+  summary: 'Before editing src/App.tsx',
+  metadata: { file: 'src/App.tsx' },
+});
+```
+
+Checkpoint records include `id`, `createdAt`, `snapshot`, and optional
+`label`, `parentId`, `turnId`, `messageId`, `toolCallId`, `reason`, `summary`,
+and `metadata`.
+
+Reasons are:
+
+```ts
+'manual' | 'before-turn' | 'before-tool' | 'after-turn' | 'restore'
+```
+
+Restore options:
+
+```ts
+await sandbox.checkpoints.restore(checkpoint.id, {
+  mode: 'replace-current',
+  recordEvent: true,
+});
+```
+
+Pruning keeps automatic checkpoint history bounded:
+
+```ts
+sandbox.checkpoints.prune({
+  reason: 'before-tool',
+  keepLatest: 20,
+});
+```
 
 ## `createRuntimeAdapter`
 
@@ -116,6 +160,7 @@ host already has a command runner and only needs to adapt it into a sandbox.
 | `tool:finish` | A sandbox tool completed. |
 | `checkpoint:create` | A checkpoint was created. |
 | `checkpoint:restore` | A checkpoint was restored. |
+| `checkpoint:prune` | One or more checkpoints were removed. |
 | `error` | A runtime or tool error occurred. |
 | `destroyed` | The sandbox was destroyed. |
 
@@ -132,6 +177,6 @@ function createSandboxAgentTools(
 ): SandboxAgentTools;
 ```
 
-The bridge returns `toolList` and `dispatch` built from the sandbox's installed
+The bridge returns an `AgentTools` object built from the sandbox's installed
 tools. Pass `names` to expose only selected tools. Pure sandbox tools are marked
 `parallelSafe`.
