@@ -6,7 +6,8 @@ read-only tools as safe to run in parallel.
 
 A tool is a `ToolHandler`: a name, a description, a JSON Schema for its
 arguments, and an `execute` that returns a `ToolResult`. The `ToolRegistry`
-holds the catalog; a `ToolDispatch` runs the named handler against a context.
+holds the catalog; an `AgentTools` object exposes both the list the model sees
+and the executor that runs selected tool calls.
 For the full `ToolHandler`, `ToolContext`, and `ToolResult` field tables, see
 the [tools reference](../reference/library.md).
 
@@ -123,28 +124,44 @@ and `fork()` for a copy-on-write per-session catalog. If a tool should only
 appear for certain hosts, gate it with an `available(caps)` hook on the handler -
 `list({ capabilities })` drops handlers whose `available` returns false.
 
-## Dispatch a tool
+## Create an agent tool runtime
 
-Create a dispatch over the registry and execute a call. The dispatch looks the
-handler up by name and invokes it with your context:
+Create an `AgentTools` object over the registry and execute a call. The runtime
+looks the handler up by name and invokes it with your context:
 
 ```ts
-import { createDispatch } from '@inbrowser/agent';
+import { createAgentTools } from '@inbrowser/agent';
 
-const dispatch = createDispatch(registry);
+const tools = createAgentTools(registry);
 
-const result = await dispatch.execute(
+tools.list(); // ToolHandler[] shown to the model
+
+const result = await tools.execute(
   { id: 'call-1', name: 'renameDoc', args: { from: 'a', to: 'b' } },
   { signal: new AbortController().signal },
 );
 ```
 
-The dispatch holds a live reference to the registry, so later `register` /
+The tool runtime holds a live reference to the registry, so later `register` /
 `unregister` calls are visible on the next `execute`. A handler that throws
 becomes `{ ok: false, summary: "Tool renameDoc threw: ..." }` rather than
 propagating, so your loop does not need a try/catch around every call. An
 unknown name returns `{ ok: false, summary: "Unknown tool: ..." }`.
 
-To wire the dispatch into a session, pass it as `tools`. For the complete field
-tables and the `available` / capability shapes, see the
+To wire the runtime into a session, pass it as `tools`:
+
+```ts
+const session = createAgentSession({
+  strategy,
+  llm,
+  tools,
+  toolContext: () => ({ signal }),
+  systemPromptBuilder,
+});
+```
+
+The older `tools` plus `toolList` session shape still works for compatibility,
+but new code should prefer a single `AgentTools` value so discovery and execution
+cannot drift apart. For the complete field tables and the `available` /
+capability shapes, see the
 [tools reference](../reference/library.md).
