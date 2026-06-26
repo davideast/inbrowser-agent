@@ -340,6 +340,26 @@ export const NODES: DocNode[] = [
       'Expose browser workspace tools to an @inbrowser/agent session with @inbrowser/sandbox and the @inbrowser/agent/sandbox bridge.',
   },
   {
+    id: 'sandbox/how-to/manage-checkpoint-history',
+    package: 'sandbox',
+    category: 'how-to',
+    title: 'How To Manage Checkpoint History',
+    route: '/sandbox/how-to/manage-checkpoint-history',
+    sourcePath: 'packages/sandbox/docs/how-to-manage-checkpoint-history.md',
+    summary:
+      'Create, restore, query, and prune sandbox checkpoints with turn, message, and tool-call metadata for agent-session restore flows.',
+  },
+  {
+    id: 'sandbox/explanation/sandbox-agent-tools',
+    package: 'sandbox',
+    category: 'explanation',
+    title: 'Why Sandbox Tools And Agent Tools Are Separate',
+    route: '/sandbox/explanation/sandbox-agent-tools',
+    sourcePath: 'packages/sandbox/docs/why-sandbox-and-agent-tools-are-separate.md',
+    summary:
+      'Why sandbox side effects stay on the sandbox, agent policy stays in @inbrowser/agent, and createSandboxAgentTools adapts between them.',
+  },
+  {
     id: 'sandbox/reference',
     package: 'sandbox',
     category: 'reference',
@@ -583,6 +603,16 @@ export const NODES: DocNode[] = [
     sourcePath: 'packages/model/docs/reference/adapters-and-worker.md',
     summary:
       'The @inbrowser/model/worker subpath that hosts an Engine in a Web Worker behind the same Engine surface, plus why the removed relay/agent adapters await the planned createEngineModelClient wrapper.',
+  },
+  {
+    id: 'model/reference/gateway-providers',
+    package: 'model',
+    category: 'reference',
+    title: 'Gateway Provider Reference',
+    route: '/model/reference/gateway-providers',
+    sourcePath: 'packages/model/docs/reference/gateway-providers.md',
+    summary:
+      'OpenRouter and Requesty configuration, attribution headers, reasoning controls, usage telemetry, and shared OpenAI tool encoding.',
   },
   {
     id: 'model/explanation/design',

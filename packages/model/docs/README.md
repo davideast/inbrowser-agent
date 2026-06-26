@@ -10,10 +10,10 @@ exposes them behind a narrow `Engine` surface that streams `EngineEvent`s; a
 worker transport lets the same engine run off the main thread without any
 consumer noticing.
 
-The engine is not yet a `ModelClient`: today you drive it directly via its
-`EngineEvent` stream, and a `createEngineModelClient` wrapper that plugs the
-engine into the relay/agent is planned but not built. The docs below say so where
-it matters.
+The engine can also be wrapped as a `ModelClient` with
+`createEngineModelClient`. Drive the `EngineEvent` stream directly when you need
+engine-specific details; use the wrapper when you want to hand the engine to the
+relay or agent through the shared model contract.
 
 These docs cover the on-device engine in depth. For the cloud-provider factories
 and the `withRetry` decorator, the package
@@ -47,6 +47,7 @@ The facts: configuration shapes, event variants, exports.
 - [Engine](reference/engine.md)
 - [Presets](reference/presets.md)
 - [Worker](reference/adapters-and-worker.md)
+- [Gateway providers](reference/gateway-providers.md)
 
 ## Explanation
 

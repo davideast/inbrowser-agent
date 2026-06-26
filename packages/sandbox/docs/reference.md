@@ -9,6 +9,12 @@ This page describes the public surface of `@inbrowser/sandbox`.
 | `@inbrowser/sandbox` | Sandbox contracts, workspace adapter, standard tools, runtime adapter, checkpoints, and path helpers |
 | `@inbrowser/agent/sandbox` | Agent bridge that adapts sandbox tools to `AgentTools` |
 
+Related guides:
+
+- [How to wire a sandbox into an agent](./how-to-wire-an-agent.md)
+- [How to manage checkpoint history](./how-to-manage-checkpoint-history.md)
+- [Why sandbox tools and agent tools are separate](./why-sandbox-and-agent-tools-are-separate.md)
+
 ## `createSandbox`
 
 ```ts

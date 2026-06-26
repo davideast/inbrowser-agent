@@ -81,7 +81,12 @@ summaries, or checkpoints without waiting for the assistant's final text.
 ## Add Checkpoints Around Risky Work
 
 ```ts
-const beforeLargeEdit = await sandbox.checkpoints.create('before redesign');
+const beforeLargeEdit = await sandbox.checkpoints.create({
+  label: 'before redesign',
+  reason: 'before-tool',
+  turnId: 'turn-7',
+  toolCallId: 'call-edit-app',
+});
 
 // Later:
 await sandbox.checkpoints.restore(beforeLargeEdit.id);
@@ -91,3 +96,6 @@ Checkpoint restore is a sandbox operation: it uses the sandbox file-system
 snapshot API, mutates that sandbox's files, and emits `checkpoint:restore`.
 It works with the memory workspace and OPFS-backed workspace because both
 implement snapshots.
+
+For longer sessions, add turn or tool metadata and prune automatic checkpoints.
+See [How to manage checkpoint history](./how-to-manage-checkpoint-history.md).

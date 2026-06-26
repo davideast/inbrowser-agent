@@ -65,3 +65,14 @@ finishes, tool starts and finishes, checkpoints, errors, and destroy lifecycle.
 Hosts should treat those events as the source for timelines, inspectors, and
 logs. Avoid scraping terminal text when a structured event or service result is
 available.
+
+## Agent Boundary
+
+The sandbox is not an agent session. It can be driven by a UI, a terminal, a
+test, or an agent. When an agent needs sandbox tools, use
+`createSandboxAgentTools(sandbox)` from `@inbrowser/agent/sandbox`; that adapter
+returns the agent-owned `AgentTools` shape without putting agent policy on the
+sandbox itself.
+
+See [Why sandbox tools and agent tools are separate](./why-sandbox-and-agent-tools-are-separate.md)
+for the design rationale.

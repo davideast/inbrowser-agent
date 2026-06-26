@@ -28,6 +28,17 @@ await sandbox.checkpoints.restore(beforeEdit.id);
 Use `@inbrowser/workspace` for browser project runtime primitives. Use this package
 when a host needs a common tool, checkpoint, event, or runtime adapter layer.
 
+## Documentation
+
+- [Sandbox overview](./docs/overview.md) explains why this layer exists.
+- [How to wire a sandbox into an agent](./docs/how-to-wire-an-agent.md) shows the
+  `createSandboxAgentTools` path.
+- [How to manage checkpoint history](./docs/how-to-manage-checkpoint-history.md)
+  shows turn, message, and tool-call metadata for restore flows.
+- [Why sandbox tools and agent tools are separate](./docs/why-sandbox-and-agent-tools-are-separate.md)
+  explains the boundary between sandbox side effects and agent policy.
+- [API reference](./docs/reference.md) lists the public surface.
+
 ## What It Owns
 
 - A `Sandbox` contract with a file system, runtime, bound tools, checkpoints,
