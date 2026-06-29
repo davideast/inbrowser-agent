@@ -11,7 +11,8 @@ This page describes the public surface of `@inbrowser/workspace`.
 | `@inbrowser/workspace/preview` | generic esbuild workspace compilation primitives |
 | `@inbrowser/workspace/preview/react` | React-specific preview runtime helpers |
 | `@inbrowser/workspace/shell` | `just-bash` workspace shell |
-| `@inbrowser/workspace/git` | `isomorphic-git` workspace service |
+| `@inbrowser/workspace/snapshots` | persisted workspace snapshot manager |
+| `@inbrowser/workspace/git` | browser-native workspace git service |
 | `@inbrowser/workspace/packages` | browser package registry and CDN resolver |
 | `@inbrowser/workspace/agent-tools` | optional structural agent-tool factories |
 
@@ -41,6 +42,7 @@ function createBrowserWorkspace(options: BrowserWorkspaceOptions): Promise<Brows
 | `storageStatus` | `'best-effort'` for OPFS or `'memory'` for in-memory storage. |
 | `fs` | Workspace file system. |
 | `packages` | Browser package registry. |
+| `snapshots` | Persisted local restore points for the workspace working tree. |
 | `createReactPreview(options)` | Lazily creates a React preview runtime. |
 | `createShell(options?)` | Lazily creates a jailed shell. |
 | `createGit(options?)` | Lazily creates a git service. |
@@ -116,6 +118,26 @@ function createWorkspaceShell(options: CreateWorkspaceShellOptions): WorkspaceSh
 
 The shell is not a Node process. It does not guarantee `npm`, Vite servers, or
 native binaries.
+
+## Snapshots
+
+```ts
+const beforeEdit = await workspace.snapshots.create({ label: 'before edit' });
+await workspace.snapshots.restore(beforeEdit.id);
+```
+
+`WorkspaceSnapshotManager`:
+
+| Method | Description |
+| --- | --- |
+| `create(options?)` | Persists a restore point for the workspace working tree. |
+| `list()` | Returns persisted snapshot records without file payloads. |
+| `get(id)` | Returns one snapshot record, or `null` if it is missing. |
+| `restore(id)` | Replaces the current working tree with the snapshot contents. |
+
+Snapshots are local restore points for working files. They are useful for undo,
+agent checkpoints, and before/after previews. They are not commit history.
+Restore preserves `.git` so explicit Git history survives working-tree rollback.
 
 ## Git
 

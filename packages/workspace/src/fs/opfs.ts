@@ -62,6 +62,7 @@ export function createOPFSFileSystem(options: OPFSFileSystemOptions = {}): Works
     if (!values) return [];
     const entries: ReaddirDirent[] = [];
     for await (const handle of values) {
+      if (isTransientOPFSEntry(handle.name)) continue;
       const childPath = joinPath(target, handle.name);
       entries.push({
         name: handle.name,
@@ -81,7 +82,7 @@ export function createOPFSFileSystem(options: OPFSFileSystemOptions = {}): Works
     async writeFile(path, data) {
       const file = await getFileHandle(await rootHandle(), path, true);
       const writable = await file.createWritable();
-      await writable.write(data as BlobPart);
+      await writable.write(typeof data === 'string' ? data : toArrayBuffer(data));
       await writable.close();
       emit({ type: 'write', path: normalizePath(path) });
     },
@@ -234,7 +235,7 @@ async function statPath(root: FileSystemDirectoryHandle, path: string): Promise<
     const blob = await file.getFile();
     return makeStats('file', blob.size, blob.lastModified);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT' && !isTypeMismatchError(err)) throw err;
   }
   try {
     await getDirectoryHandle(root, target, false);
@@ -243,6 +244,20 @@ async function statPath(root: FileSystemDirectoryHandle, path: string): Promise<
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') throw err;
     throw err;
   }
+}
+
+function isTypeMismatchError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'TypeMismatchError';
+}
+
+function isTransientOPFSEntry(name: string): boolean {
+  return name.endsWith('.crswap');
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const source = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(source).set(bytes);
+  return source;
 }
 
 function makeStats(type: 'file' | 'directory', size: number, mtimeMs: number): WorkspaceStats {

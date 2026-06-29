@@ -41,6 +41,26 @@ declare module 'esbuild-wasm' {
 declare module 'just-bash' {
   export type FileContent = string | Uint8Array;
   export type BufferEncoding = string;
+  export interface ExecResult {
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+    env?: Record<string, string>;
+    stdoutKind?: 'text' | 'bytes';
+    stdoutEncoding?: 'binary';
+  }
+  export interface CommandContext {
+    cwd: string;
+    env: Record<string, string>;
+    stdin: string;
+  }
+  export interface Command {
+    name: string;
+  }
+  export function defineCommand(
+    name: string,
+    execute: (args: string[], ctx: CommandContext) => Promise<ExecResult>,
+  ): Command;
   export interface FsStat {
     isFile(): boolean;
     isDirectory(): boolean;
@@ -81,54 +101,4 @@ declare module 'just-bash' {
     }>;
     registerCommand(command: unknown): void;
   }
-}
-
-declare module 'isomorphic-git' {
-  export interface CommitObject {
-    message: string;
-    author: {
-      name: string;
-      email: string;
-      timestamp: number;
-    };
-  }
-  export interface LogEntry {
-    oid: string;
-    commit: CommitObject;
-  }
-  export function init(options: {
-    fs: unknown;
-    dir: string;
-    defaultBranch?: string;
-  }): Promise<void>;
-  export function currentBranch(options: { fs: unknown; dir: string; fullname?: boolean }): Promise<
-    string | null
-  >;
-  export function statusMatrix(options: { fs: unknown; dir: string }): Promise<
-    Array<[string, number, number, number]>
-  >;
-  export function remove(options: { fs: unknown; dir: string; filepath: string }): Promise<void>;
-  export function add(options: { fs: unknown; dir: string; filepath: string }): Promise<void>;
-  export function commit(options: {
-    fs: unknown;
-    dir: string;
-    message: string;
-    author: { name: string; email: string };
-  }): Promise<string>;
-  export function branch(options: {
-    fs: unknown;
-    dir: string;
-    ref: string;
-    checkout?: boolean;
-  }): Promise<void>;
-  export function checkout(options: {
-    fs: unknown;
-    dir: string;
-    ref: string;
-    checkout?: boolean;
-    force?: boolean;
-    noCheckout?: boolean;
-  }): Promise<void>;
-  export function log(options: { fs: unknown; dir: string; depth?: number }): Promise<LogEntry[]>;
-  export function listFiles(options: { fs: unknown; dir: string; ref?: string }): Promise<string[]>;
 }
