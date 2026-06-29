@@ -1,0 +1,33 @@
+{
+  "name": "@inbrowser/example-shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./sandbox-scenario": {
+      "types": "./sandbox-scenario.ts",
+      "import": "./sandbox-scenario.ts"
+    },
+    "./workspace-scenario": {
+      "types": "./workspace-scenario.ts",
+      "import": "./workspace-scenario.ts"
+    },
+    "./session-types": {
+      "types": "./session-types.ts",
+      "import": "./session-types.ts"
+    },
+    "./session-shell": {
+      "types": "./session-shell/index.tsx",
+      "import": "./session-shell/index.tsx"
+    }
+  },
+  "dependencies": {
+    "@inbrowser/sandbox": "workspace:*",
+    "@inbrowser/workspace": "workspace:*",
+    "react": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.4",
+    "typescript": "^5.7.0"
+  }
+}

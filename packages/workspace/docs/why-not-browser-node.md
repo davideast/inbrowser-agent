@@ -48,10 +48,11 @@ and easier for UI to render than scraped terminal output.
 
 ## Git Is A Service, Not A Binary
 
-Git runs through `isomorphic-git` over the same workspace file system. That
-makes status rows, commits, branches, and logs typed values. A UI can render
-changes directly, and an agent can reason over results without parsing terminal
-text.
+Git runs as a structured browser workspace service over the same file system.
+It writes local refs, browser-native commit metadata, and Git-shaped objects
+while exposing status rows, commits, branches, and logs as typed values. A UI
+can render changes directly, and an agent can reason over results without
+parsing terminal text.
 
 This does not preclude a terminal view. It means terminal text is not the
 source of truth for git state.

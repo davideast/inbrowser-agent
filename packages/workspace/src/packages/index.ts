@@ -1,7 +1,8 @@
 import type { WorkspaceFileSystem } from '../fs/index.js';
+import { dirname, joinPath } from '../fs/path.js';
 
-const DEFAULT_REGISTRY_PATH = '/.inbrowser/packages/registry.json';
-const DEFAULT_IMPORT_MAP_PATH = '/.inbrowser/packages/import-map.json';
+const DEFAULT_REGISTRY_PATH = '.inbrowser/packages/registry.json';
+const DEFAULT_IMPORT_MAP_PATH = '.inbrowser/packages/import-map.json';
 const DEFAULT_CDN_BASE = 'https://esm.sh';
 
 export interface InstalledPackage {
@@ -40,8 +41,8 @@ export interface CreatePackageRegistryOptions {
 export function createPackageRegistry(
   options: CreatePackageRegistryOptions,
 ): WorkspacePackageRegistry {
-  const registryPath = options.registryPath ?? DEFAULT_REGISTRY_PATH;
-  const importMapPath = options.importMapPath ?? DEFAULT_IMPORT_MAP_PATH;
+  const registryPath = options.registryPath ?? joinPath(options.fs.root, DEFAULT_REGISTRY_PATH);
+  const importMapPath = options.importMapPath ?? joinPath(options.fs.root, DEFAULT_IMPORT_MAP_PATH);
   const resolver = options.resolver ?? createEsmShResolver();
 
   const load = async (): Promise<PackageRegistryState> => {
@@ -109,9 +110,4 @@ function extractVersion(url: string, name: string): string | null {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = url.match(new RegExp(`/(?:v\\d+/)?(${escaped})@([^/?]+)`));
   return match?.[2] ?? null;
-}
-
-function dirname(path: string): string {
-  const idx = path.lastIndexOf('/');
-  return idx <= 0 ? '/' : path.slice(0, idx);
 }

@@ -11,7 +11,7 @@ The package owns infrastructure:
 - React/TSX preview compilation through `esbuild-wasm`
 - host-module aliases so preview code uses the app's React runtime
 - a jailed browser shell over the workspace file system
-- structured local git operations through `isomorphic-git`
+- structured local git operations through browser-native snapshots and Git-shaped objects
 - a browser package registry that writes import maps for preview compilation
 - optional thin agent-tool adapters
 
@@ -49,8 +49,7 @@ const git = await workspace.createGit();
 ```
 
 Preview, shell, and git are loaded lazily. Importing the package root does not
-pull `esbuild-wasm`, `just-bash`, or `isomorphic-git` until the corresponding
-service is requested.
+pull `esbuild-wasm` or `just-bash` until the corresponding service is requested.
 
 ## Documentation
 

@@ -17,4 +17,48 @@ describe('createBrowserWorkspace', () => {
     expect(workspace.createShell).toBeDefined();
     expect(workspace.createReactPreview).toBeDefined();
   });
+
+  test('reports empty git state before a repository is initialized', async () => {
+    const workspace = await createBrowserWorkspace({
+      id: 'git-empty',
+      root: '/work',
+      storage: 'memory',
+    });
+
+    await workspace.fs.promises.writeFile('/work/src/App.tsx', 'export default function App() {}');
+
+    const git = await workspace.createGit();
+
+    expect(await git.currentBranch()).toBeNull();
+    expect(await git.status()).toEqual([]);
+    expect(await git.log({ depth: 4 })).toEqual([]);
+    expect(await git.listFiles()).toEqual([]);
+    await expect(git.stageAll()).resolves.toBeUndefined();
+  });
+
+  test('initializes git and commits workspace files', async () => {
+    const workspace = await createBrowserWorkspace({
+      id: 'git-commit',
+      root: '/work',
+      storage: 'memory',
+    });
+
+    await workspace.fs.promises.writeFile('/work/src/App.tsx', 'export default function App() {}');
+
+    const git = await workspace.createGit();
+    await git.init();
+    expect(await git.currentBranch()).toBe('main');
+
+    await git.stageAll();
+    const oid = await git.commit({
+      message: 'Initial workspace commit',
+      authorName: 'Inbrowser Examples',
+      authorEmail: 'examples@inbrowser.local',
+    });
+
+    expect(oid).toHaveLength(40);
+    expect(await git.status()).toEqual([]);
+    expect(await git.listFiles()).toEqual(['src/App.tsx']);
+    expect((await git.log({ depth: 1 }))[0]?.message.trim()).toBe('Initial workspace commit');
+  });
 });

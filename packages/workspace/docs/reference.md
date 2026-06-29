@@ -11,7 +11,7 @@ This page describes the public surface of `@inbrowser/workspace`.
 | `@inbrowser/workspace/preview` | generic esbuild workspace compilation primitives |
 | `@inbrowser/workspace/preview/react` | React-specific preview runtime helpers |
 | `@inbrowser/workspace/shell` | `just-bash` workspace shell |
-| `@inbrowser/workspace/git` | `isomorphic-git` workspace service |
+| `@inbrowser/workspace/git` | browser-native workspace git service |
 | `@inbrowser/workspace/packages` | browser package registry and CDN resolver |
 | `@inbrowser/workspace/agent-tools` | optional structural agent-tool factories |
 

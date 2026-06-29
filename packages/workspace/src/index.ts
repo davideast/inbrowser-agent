@@ -46,6 +46,7 @@ export async function createBrowserWorkspace(
         realRoot: workspaceRoot(options.id, root),
       })
     : createMemoryFileSystem({ root });
+  await fs.promises.mkdir(root, { recursive: true });
   const storageStatus: WorkspaceStorageStatus = shouldUseOpfs ? 'best-effort' : 'memory';
   const packages = createPackageRegistry({ fs });
 
@@ -126,7 +127,9 @@ export type {
 export type { ReactPreviewRuntime, ReactPreviewRuntimeOptions } from './preview/react.js';
 export type {
   CreateWorkspaceShellOptions,
+  CreateWorkspaceGitCommandOptions,
   ShellExecOptions,
   ShellResult,
   WorkspaceShell,
 } from './shell/index.js';
+export { createWorkspaceGitCommand } from './shell/index.js';

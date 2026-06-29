@@ -64,3 +64,5 @@ export function createWorkspaceShell(options: CreateWorkspaceShellOptions): Work
 }
 
 export { WorkspaceBashFileSystem } from './bash-fs.js';
+export { createWorkspaceGitCommand } from './git.js';
+export type { CreateWorkspaceGitCommandOptions } from './git.js';

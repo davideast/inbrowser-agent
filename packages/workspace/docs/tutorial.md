@@ -95,7 +95,8 @@ const oid = await git.commit({
 console.log(oid);
 ```
 
-Git works through `isomorphic-git` over the same workspace file system.
+Git works through the same workspace file system, with typed status rows,
+commit metadata, refs, and browser-written Git-shaped objects.
 
 You now have the core runtime shape: files, shell, and git all operate on the
 same browser workspace.

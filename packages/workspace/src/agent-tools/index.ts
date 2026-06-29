@@ -95,7 +95,7 @@ export async function createWorkspaceTools(
     },
     {
       name: 'workspace_git_status',
-      description: 'Get browser workspace git status through isomorphic-git.',
+      description: 'Get browser workspace git status rows.',
       parameters: objectSchema({}),
       pure: true,
       async execute() {
