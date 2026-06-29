@@ -79,7 +79,27 @@ console.log(result.stdout);
 The shell is jailed to `/work`. It is a browser shell over the workspace file
 system, not an operating-system shell.
 
-## 5. Create Git State
+## 5. Create A Local Restore Point
+
+```ts
+const beforeEdit = await workspace.snapshots.create({ label: 'before edit' });
+
+await workspace.fs.promises.writeFile(
+  '/work/src/App.tsx',
+  `export default function App() {
+  return <main>Edited locally</main>;
+}
+`,
+);
+
+await workspace.snapshots.restore(beforeEdit.id);
+```
+
+Snapshots are persisted local restore points for the working tree. They are good
+for checkpoints before an agent edits files. They are separate from Git history,
+and restoring one preserves `.git`.
+
+## 6. Create Git State
 
 ```ts
 const git = await workspace.createGit();
@@ -98,5 +118,5 @@ console.log(oid);
 Git works through the same workspace file system, with typed status rows,
 commit metadata, refs, and browser-written Git-shaped objects.
 
-You now have the core runtime shape: files, shell, and git all operate on the
-same browser workspace.
+You now have the core runtime shape: files, shell, snapshots, and git all
+operate on the same browser workspace.

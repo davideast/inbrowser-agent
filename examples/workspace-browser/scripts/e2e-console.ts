@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { type ConsoleMessage, chromium } from 'playwright';
 
 interface Options {
-  action: 'load' | 'commit' | 'snapshot' | 'terminal-git';
+  action: 'load' | 'commit' | 'snapshot' | 'snapshot-persist' | 'terminal-git';
   url: string;
   timeoutMs: number;
   userDataDir: string;
@@ -23,7 +23,7 @@ function parseArgs(): Options {
     return index >= 0 && argv[index + 1] ? (argv[index + 1] as string) : fallback;
   };
   const action = get('--action', 'load');
-  const knownActions = new Set(['load', 'commit', 'snapshot', 'terminal-git']);
+  const knownActions = new Set(['load', 'commit', 'snapshot', 'snapshot-persist', 'terminal-git']);
   return {
     action: knownActions.has(action) ? (action as Options['action']) : 'load',
     url: get('--url', 'http://localhost:5178/'),
@@ -144,6 +144,57 @@ async function main(): Promise<void> {
         });
       }
     }
+    if (options.action === 'snapshot-persist') {
+      await page.getByRole('button', { name: 'Seed workspace' }).first().click();
+      await page.waitForFunction(() => document.body.textContent?.includes('src/App.tsx'), {
+        timeout: options.timeoutMs,
+      });
+      await page.getByRole('button', { name: 'Snapshots' }).click();
+      const beforeCount = await page
+        .locator('.ide-side-pane[aria-label="Snapshots"] .ide-list-row')
+        .count();
+      await page.getByRole('button', { name: 'Create snapshot' }).click();
+      await page.waitForFunction(
+        (count) =>
+          document.querySelectorAll('.ide-side-pane[aria-label="Snapshots"] .ide-list-row')
+            .length > count,
+        beforeCount,
+        { timeout: options.timeoutMs },
+      );
+      const snapshotLabel = await page
+        .locator('.ide-side-pane[aria-label="Snapshots"] .ide-list-row strong')
+        .last()
+        .textContent();
+      if (!snapshotLabel) {
+        issues.push({ kind: 'pageerror', text: 'Snapshot was created without a visible label.' });
+      }
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: options.timeoutMs });
+      await page.waitForSelector('.workspace-ide', { timeout: options.timeoutMs });
+      await page.getByRole('button', { name: 'Snapshots' }).click();
+      await page.waitForFunction(
+        (label) => Boolean(label) && document.body.textContent?.includes(label),
+        snapshotLabel,
+        { timeout: options.timeoutMs },
+      );
+      await page.getByRole('button', { name: 'Edit sample app' }).click();
+      await page.waitForFunction(
+        () => document.body.textContent?.includes('Hello edited workspace'),
+        { timeout: options.timeoutMs },
+      );
+      const restoreButton = page
+        .locator('.ide-side-pane[aria-label="Snapshots"] .ide-list-row')
+        .filter({ hasText: snapshotLabel ?? '' })
+        .getByRole('button', { name: 'Restore' })
+        .first();
+      await restoreButton.click();
+      await page.waitForFunction(
+        () => {
+          const text = document.body.textContent ?? '';
+          return text.includes('Hello workspace') && !text.includes('Hello edited workspace');
+        },
+        { timeout: options.timeoutMs },
+      );
+    }
     if (options.action === 'terminal-git') {
       await page.getByRole('button', { name: 'Seed workspace' }).first().click();
       await page.waitForFunction(() => document.body.textContent?.includes('src/App.tsx'), {
@@ -249,7 +300,7 @@ async function main(): Promise<void> {
               ? await listOpfs('/.inbrowser/workspaces/workspace-browser/work/.git')
               : [],
           opfsWorkspaceEntries:
-            action === 'snapshot'
+            action === 'snapshot' || action === 'snapshot-persist'
               ? await listOpfs('/.inbrowser/workspaces/workspace-browser/work')
               : [],
           hasIde: Boolean(document.querySelector('.workspace-ide')),

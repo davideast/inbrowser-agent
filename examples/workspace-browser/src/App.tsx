@@ -2,7 +2,6 @@ import type { DemoAction, DemoTimelineItem } from '@inbrowser/example-shared/ses
 import {
   type WorkspaceFileRecord,
   type WorkspaceScenario,
-  type WorkspaceSnapshotRecord,
   createWorkspaceScenario,
   createWorkspaceSnapshot,
   editWorkspaceGreeting,
@@ -21,6 +20,7 @@ import type {
   PreviewModuleScope,
   ShellResult,
   WorkspaceShell,
+  WorkspaceSnapshotRecord,
 } from '@inbrowser/workspace';
 import { createWorkspaceGitCommand } from '@inbrowser/workspace';
 import { javascript } from '@codemirror/lang-javascript';

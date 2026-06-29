@@ -9,7 +9,7 @@ import type {
   ReaddirDirent,
   ShellResult,
   WorkspaceFileEvent,
-  WorkspaceSnapshot,
+  WorkspaceSnapshotRecord,
 } from '@inbrowser/workspace';
 import { createBrowserWorkspace } from '@inbrowser/workspace';
 import type { DemoTimelineItem, DemoTimelineStatus } from './session-types.js';
@@ -33,14 +33,6 @@ export interface WorkspaceFileRecord {
   path: string;
   type: 'file' | 'directory';
   content?: string;
-}
-
-export interface WorkspaceSnapshotRecord {
-  id: string;
-  label: string;
-  createdAt: number;
-  entryCount: number;
-  snapshot: WorkspaceSnapshot;
 }
 
 export interface BasicWorkspaceFlowResult {
@@ -83,7 +75,7 @@ export async function createWorkspaceScenario(
     storage: options.storage ?? 'memory',
   });
   const recorder = createWorkspaceEventRecorder();
-  const snapshots: WorkspaceSnapshotRecord[] = [];
+  const snapshots: WorkspaceSnapshotRecord[] = [...(await workspace.snapshots.list())];
   const record = (event: WorkspaceDemoEvent) => {
     const item = recorder.record(event);
     options.onTimelineItem?.(item, event);
@@ -201,15 +193,8 @@ export async function createWorkspaceSnapshot(
   scenario: WorkspaceScenario,
   label: string,
 ): Promise<WorkspaceSnapshotRecord> {
-  const snapshot = await scenario.workspace.fs.snapshot(scenario.workspace.root);
-  const record: WorkspaceSnapshotRecord = {
-    id: `snapshot-${snapshot.createdAt}-${scenario.snapshots.length + 1}`,
-    label,
-    createdAt: snapshot.createdAt,
-    entryCount: snapshot.entries.length,
-    snapshot,
-  };
-  scenario.snapshots.push(record);
+  const record = await scenario.workspace.snapshots.create({ label });
+  await refreshScenarioSnapshots(scenario);
   recordWorkspaceEvent(scenario, {
     type: 'snapshot:create',
     snapshot: record,
@@ -222,14 +207,21 @@ export async function restoreWorkspaceSnapshot(
   scenario: WorkspaceScenario,
   id: string,
 ): Promise<void> {
-  const record = scenario.snapshots.find((snapshot) => snapshot.id === id);
-  if (!record) throw new Error(`Missing workspace snapshot: ${id}`);
-  await scenario.workspace.fs.restore(record.snapshot, { clearRoot: true });
+  const record = await scenario.workspace.snapshots.restore(id);
+  await refreshScenarioSnapshots(scenario);
   recordWorkspaceEvent(scenario, {
     type: 'snapshot:restore',
     snapshot: record,
     timestamp: Date.now(),
   });
+}
+
+async function refreshScenarioSnapshots(scenario: WorkspaceScenario): Promise<void> {
+  scenario.snapshots.splice(
+    0,
+    scenario.snapshots.length,
+    ...(await scenario.workspace.snapshots.list()),
+  );
 }
 
 export async function runWorkspaceShell(

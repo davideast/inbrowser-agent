@@ -27,6 +27,10 @@
       "types": "./dist/shell/index.d.ts",
       "import": "./dist/shell/index.js"
     },
+    "./snapshots": {
+      "types": "./dist/snapshots/index.d.ts",
+      "import": "./dist/snapshots/index.js"
+    },
     "./git": {
       "types": "./dist/git/index.d.ts",
       "import": "./dist/git/index.js"
