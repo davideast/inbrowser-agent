@@ -2,11 +2,13 @@
 
 Put a language model in a web app without running an inference backend. It runs on the user's GPU in the browser tab, or proxies to a cloud model, and the token stream survives reloads and dropped connections
 
-`@inbrowser` is four composable libraries:
+`@inbrowser` is six composable libraries:
 1. `@inbrowser/model` - Run a language model on the user's GPU or through a cloud provider, and switch between them with a one-line change.
 1. `@inbrowser/agent` - Let the model use your tools and take several steps to finish a task, right in the browser.
 1. `@inbrowser/resumable` - Stream a long answer so a reload, a closed tab, or a dropped connection picks up where it left off instead of starting over.
 1. `@inbrowser/relay` - Add a thin server when you'd rather keep API keys off the client or share one run across devices.
+1. `@inbrowser/workspace` - Run files, shell commands, package installs, git, snapshots, and preview compilation in a browser workspace.
+1. `@inbrowser/sandbox` - Bind workspace capabilities into agent-facing tools, events, checkpoints, and artifacts.
 
 
 ## No API Key or BYOK
@@ -338,6 +340,8 @@ bun add @inbrowser/resumable    # resumable streaming-job engine
 bun add @inbrowser/model        # model contract + providers + on-device engine
 bun add @inbrowser/relay        # LLM relay (depends on resumable + model)
 bun add @inbrowser/agent        # agent runtime + CLI
+bun add @inbrowser/workspace    # browser workspace: files, shell, preview, git
+bun add @inbrowser/sandbox      # tools, events, checkpoints, artifacts
 ```
 
 The on-device engine needs Transformers.js as a peer dependency:
@@ -366,6 +370,14 @@ bun --filter '@inbrowser/agent' run test
 
 | Example | What it demonstrates |
 |---------|---------------------|
+| [`examples/model-basic`](examples/model-basic) | Script-only model helpers: thinking splitting, tool-call parsing, usage normalization |
+| [`examples/agent-basic`](examples/agent-basic) | Script-only agent session with a fake model, a real tool registry, ReAct events, and workspace mutation |
+| [`examples/resumable-basic`](examples/resumable-basic) | Script-only resumable job flow: start, subscribe, resume from offset, inspect final snapshot |
+| [`examples/relay-basic`](examples/relay-basic) | Script-only relay flow: fake provider, memory-backed job, SSE stream, reconnect from offset |
+| [`examples/workspace-basic`](examples/workspace-basic) | Script-only workspace flow: files, shell, snapshots, git, and React preview compilation |
+| [`examples/sandbox-basic`](examples/sandbox-basic) | Script-only sandbox flow: standard tools, chronological events, checkpoints, restore |
+| [`examples/workspace-browser`](examples/workspace-browser) | Browser IDE-style workspace demo for files, preview compilation, terminal, packages, git, snapshots, and events |
+| [`examples/sandbox-browser`](examples/sandbox-browser) | Browser sandbox manager for tools, events, checkpoints, files, shell, and preview |
 | [`examples/local-llm-poc`](examples/local-llm-poc) | On-device model in the browser: preset selection, load progress, WebGPU/WASM |
 | [`examples/resumable-hono-youtube-briefcast`](examples/resumable-hono-youtube-briefcast) | Multi-step media workflow using `@inbrowser/resumable`'s durable log on a Hono server |
 
@@ -375,7 +387,9 @@ bun --filter '@inbrowser/agent' run test
 @inbrowser/resumable    no internal deps
 @inbrowser/model        no internal deps
 @inbrowser/relay        depends on resumable + model
-@inbrowser/agent        depends on model (independent of resumable + relay)
+@inbrowser/workspace    no internal deps
+@inbrowser/sandbox      depends on workspace
+@inbrowser/agent        depends on model + sandbox
 ```
 
 ## Status
@@ -384,9 +398,11 @@ Pre-1.0. Versions are coordinated manually:
 
 | Package | Version |
 |---------|---------|
-| `@inbrowser/resumable` | 0.2.0 |
-| `@inbrowser/model` | 0.2.0 |
-| `@inbrowser/relay` | 0.3.0 |
-| `@inbrowser/agent` | 0.3.0 |
+| `@inbrowser/resumable` | 0.3.1 |
+| `@inbrowser/model` | 0.3.0 |
+| `@inbrowser/relay` | 0.3.1 |
+| `@inbrowser/workspace` | 0.1.0 |
+| `@inbrowser/sandbox` | 0.1.0 |
+| `@inbrowser/agent` | 0.4.0 |
 
 Breaking changes are expected until 1.0.
