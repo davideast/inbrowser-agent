@@ -111,7 +111,11 @@ export function createWorkspaceGit(options: CreateWorkspaceGitOptions): Workspac
   }
 
   async function hasInitializedRepo(): Promise<boolean> {
-    return (await hasGitDir()) && (await pathExists(`${gitdir}/config`)) && (await pathExists(`${gitdir}/HEAD`));
+    return (
+      (await hasGitDir()) &&
+      (await pathExists(`${gitdir}/config`)) &&
+      (await pathExists(`${gitdir}/HEAD`))
+    );
   }
 
   async function listWorkdirFiles(): Promise<string[]> {
@@ -268,8 +272,14 @@ export function createWorkspaceGit(options: CreateWorkspaceGitOptions): Workspac
     );
   }
 
-  async function writeGitObject(type: 'blob' | 'commit' | 'tree', content: Uint8Array): Promise<string> {
-    const wrapped = concatBytes(new TextEncoder().encode(`${type} ${content.byteLength}\0`), content);
+  async function writeGitObject(
+    type: 'blob' | 'commit' | 'tree',
+    content: Uint8Array,
+  ): Promise<string> {
+    const wrapped = concatBytes(
+      new TextEncoder().encode(`${type} ${content.byteLength}\0`),
+      content,
+    );
     const oid = await sha1Hex(wrapped);
     const objectDir = `${gitdir}/objects/${oid.slice(0, 2)}`;
     await workspaceFs.mkdir(objectDir, { recursive: true });
@@ -510,9 +520,7 @@ function hexToBytes(hex: string): Uint8Array {
 
 function isNoGit(err: unknown): boolean {
   const code =
-    typeof err === 'object' && err && 'code' in err
-      ? String((err as { code?: unknown }).code)
-      : '';
+    typeof err === 'object' && err && 'code' in err ? String((err as { code?: unknown }).code) : '';
   if (code === 'ENOENT') return true;
 
   const message = err instanceof Error ? err.message : String(err);

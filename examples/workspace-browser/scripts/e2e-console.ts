@@ -61,7 +61,10 @@ async function main(): Promise<void> {
   page.on('console', (message) => {
     const line = consoleText(message);
     logs.push(`${message.type().padEnd(8)} ${line}`);
-    if ((message.type() === 'error' || message.type() === 'warning') && !isIgnorableConsole(message)) {
+    if (
+      (message.type() === 'error' || message.type() === 'warning') &&
+      !isIgnorableConsole(message)
+    ) {
       issues.push({
         kind: 'console',
         text: message.text(),
@@ -87,8 +90,8 @@ async function main(): Promise<void> {
         await page.waitForFunction(
           () => {
             const buttons = Array.from(document.querySelectorAll('button'));
-            const commit = buttons.find((button) =>
-              button.getAttribute('aria-label') === 'Create commit',
+            const commit = buttons.find(
+              (button) => button.getAttribute('aria-label') === 'Create commit',
             );
             const gitPanel = document.querySelector('.ide-side-pane[aria-label="Git"]');
             const history =
@@ -156,8 +159,8 @@ async function main(): Promise<void> {
       await page.getByRole('button', { name: 'Create snapshot' }).click();
       await page.waitForFunction(
         (count) =>
-          document.querySelectorAll('.ide-side-pane[aria-label="Snapshots"] .ide-list-row')
-            .length > count,
+          document.querySelectorAll('.ide-side-pane[aria-label="Snapshots"] .ide-list-row').length >
+          count,
         beforeCount,
         { timeout: options.timeoutMs },
       );
@@ -233,7 +236,9 @@ async function main(): Promise<void> {
             )
               .map((row) => row.textContent ?? '')
               .join('\n');
-            return /\b[0-9a-f]{7}\s+Terminal commit\b/.test(text) && !text.includes('command not found');
+            return (
+              /\b[0-9a-f]{7}\s+Terminal commit\b/.test(text) && !text.includes('command not found')
+            );
           },
           { timeout: options.timeoutMs },
         );
@@ -248,68 +253,65 @@ async function main(): Promise<void> {
     }
     await page.waitForTimeout(1500);
 
-    const snapshot = await page.evaluate(
-      async (action) => {
-        async function listOpfs(pathPrefix: string): Promise<string[]> {
-          const storage = navigator.storage as StorageManager & {
-            getDirectory?: () => Promise<FileSystemDirectoryHandle>;
-          };
-          if (!storage.getDirectory) return [];
-          const root = await storage.getDirectory();
-          const output: string[] = [];
-          async function visit(handle: FileSystemDirectoryHandle, path: string): Promise<void> {
-            const values = (
-              handle as FileSystemDirectoryHandle & {
-                values?: () => AsyncIterable<FileSystemDirectoryHandle | FileSystemFileHandle>;
-              }
-            ).values?.();
-            if (!values) return;
-            for await (const child of values) {
-              const nextPath = `${path}/${child.name}`;
-              if (nextPath.startsWith(pathPrefix)) output.push(`${child.kind}:${nextPath}`);
-              if (child.kind === 'directory') await visit(child, nextPath);
-            }
-          }
-          await visit(root, '');
-          return output.sort();
-        }
-
-        function terminalRowsText(): string {
-          return Array.from(
-            document.querySelectorAll('[data-testid="xterm-terminal"] .xterm-rows > div'),
-          )
-            .map((row) => row.textContent ?? '')
-            .join('\n');
-        }
-
-        return {
-          action,
-          title: document.title,
-          bodyText: document.body.textContent?.slice(0, 1200) ?? '',
-          gitPanelText: document.querySelector('.ide-side-pane[aria-label="Git"]')?.textContent ?? '',
-          snapshotsPanelText:
-            document.querySelector('.ide-side-pane[aria-label="Snapshots"]')?.textContent ?? '',
-          buttons: Array.from(document.querySelectorAll('button')).map((button) => ({
-            label: button.getAttribute('aria-label') ?? button.textContent?.trim() ?? '',
-            text: button.textContent?.trim() ?? '',
-            disabled: button.disabled,
-            title: button.title,
-          })),
-          opfsGitEntries:
-            action === 'commit'
-              ? await listOpfs('/.inbrowser/workspaces/workspace-browser/work/.git')
-              : [],
-          opfsWorkspaceEntries:
-            action === 'snapshot' || action === 'snapshot-persist'
-              ? await listOpfs('/.inbrowser/workspaces/workspace-browser/work')
-              : [],
-          hasIde: Boolean(document.querySelector('.workspace-ide')),
-          hasTerminal: Boolean(document.querySelector('.xterm')),
-          terminalText: terminalRowsText(),
+    const snapshot = await page.evaluate(async (action) => {
+      async function listOpfs(pathPrefix: string): Promise<string[]> {
+        const storage = navigator.storage as StorageManager & {
+          getDirectory?: () => Promise<FileSystemDirectoryHandle>;
         };
-      },
-      options.action,
-    );
+        if (!storage.getDirectory) return [];
+        const root = await storage.getDirectory();
+        const output: string[] = [];
+        async function visit(handle: FileSystemDirectoryHandle, path: string): Promise<void> {
+          const values = (
+            handle as FileSystemDirectoryHandle & {
+              values?: () => AsyncIterable<FileSystemDirectoryHandle | FileSystemFileHandle>;
+            }
+          ).values?.();
+          if (!values) return;
+          for await (const child of values) {
+            const nextPath = `${path}/${child.name}`;
+            if (nextPath.startsWith(pathPrefix)) output.push(`${child.kind}:${nextPath}`);
+            if (child.kind === 'directory') await visit(child, nextPath);
+          }
+        }
+        await visit(root, '');
+        return output.sort();
+      }
+
+      function terminalRowsText(): string {
+        return Array.from(
+          document.querySelectorAll('[data-testid="xterm-terminal"] .xterm-rows > div'),
+        )
+          .map((row) => row.textContent ?? '')
+          .join('\n');
+      }
+
+      return {
+        action,
+        title: document.title,
+        bodyText: document.body.textContent?.slice(0, 1200) ?? '',
+        gitPanelText: document.querySelector('.ide-side-pane[aria-label="Git"]')?.textContent ?? '',
+        snapshotsPanelText:
+          document.querySelector('.ide-side-pane[aria-label="Snapshots"]')?.textContent ?? '',
+        buttons: Array.from(document.querySelectorAll('button')).map((button) => ({
+          label: button.getAttribute('aria-label') ?? button.textContent?.trim() ?? '',
+          text: button.textContent?.trim() ?? '',
+          disabled: button.disabled,
+          title: button.title,
+        })),
+        opfsGitEntries:
+          action === 'commit'
+            ? await listOpfs('/.inbrowser/workspaces/workspace-browser/work/.git')
+            : [],
+        opfsWorkspaceEntries:
+          action === 'snapshot' || action === 'snapshot-persist'
+            ? await listOpfs('/.inbrowser/workspaces/workspace-browser/work')
+            : [],
+        hasIde: Boolean(document.querySelector('.workspace-ide')),
+        hasTerminal: Boolean(document.querySelector('.xterm')),
+        terminalText: terminalRowsText(),
+      };
+    }, options.action);
 
     console.log('workspace-browser e2e snapshot');
     console.log(JSON.stringify(snapshot, null, 2));

@@ -71,9 +71,7 @@ async function status(git: WorkspaceGit, args: readonly string[]): Promise<ExecR
       'Changes:',
       ...rows.map((row) => `  ${row.status}: ${row.filepath}`),
       '',
-    ].join(
-      '\n',
-    ),
+    ].join('\n'),
   );
 }
 

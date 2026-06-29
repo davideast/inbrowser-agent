@@ -247,9 +247,7 @@ async function statPath(root: FileSystemDirectoryHandle, path: string): Promise<
 }
 
 function isTypeMismatchError(err: unknown): boolean {
-  return (
-    err instanceof DOMException && err.name === 'TypeMismatchError'
-  );
+  return err instanceof DOMException && err.name === 'TypeMismatchError';
 }
 
 function isTransientOPFSEntry(name: string): boolean {

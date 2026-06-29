@@ -1,3 +1,6 @@
+import { javascript } from '@codemirror/lang-javascript';
+import { EditorState } from '@codemirror/state';
+import { EditorView, highlightActiveLine, lineNumbers } from '@codemirror/view';
 import type { DemoAction, DemoTimelineItem } from '@inbrowser/example-shared/session-types';
 import {
   type WorkspaceFileRecord,
@@ -23,9 +26,6 @@ import type {
   WorkspaceSnapshotRecord,
 } from '@inbrowser/workspace';
 import { createWorkspaceGitCommand } from '@inbrowser/workspace';
-import { javascript } from '@codemirror/lang-javascript';
-import { EditorState } from '@codemirror/state';
-import { EditorView, highlightActiveLine, lineNumbers } from '@codemirror/view';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTermTerminal } from '@xterm/xterm';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -211,7 +211,7 @@ export function WorkspaceBrowserApp() {
 
   useEffect(() => {
     setEditorValue(selectedFile?.content ?? '');
-  }, [selectedFile?.content, selectedFile?.path]);
+  }, [selectedFile?.content]);
 
   const runAction = useCallback(
     async (
@@ -305,19 +305,14 @@ export function WorkspaceBrowserApp() {
 
   const saveSelectedFile = useCallback(async () => {
     if (!scenario || !selectedFile || !selectedIsDirty) return;
-    await runAction(
-      'save',
-      'operator saved file',
-      selectedFile.path,
-      async (current) => {
-        await current.workspace.fs.promises.writeFile(selectedFile.path, editorValue);
-        setDirtyPaths((paths) => {
-          const next = new Set(paths);
-          next.delete(selectedFile.path);
-          return next;
-        });
-      },
-    );
+    await runAction('save', 'operator saved file', selectedFile.path, async (current) => {
+      await current.workspace.fs.promises.writeFile(selectedFile.path, editorValue);
+      setDirtyPaths((paths) => {
+        const next = new Set(paths);
+        next.delete(selectedFile.path);
+        return next;
+      });
+    });
   }, [editorValue, runAction, scenario, selectedFile, selectedIsDirty]);
 
   const restoreSnapshot = useCallback(
@@ -444,48 +439,35 @@ export function WorkspaceBrowserApp() {
         consequence: 'Git shows the changed files and recent commit history.',
         disabled: !scenario,
         run: () =>
-          runAction(
-            'git',
-            'operator committed workspace',
-            cleanCommitMessage,
-            async (current) => {
-              await ensureSeeded(current);
-              await current.workspace.fs.promises.writeFile(
-                '/work/README.md',
-                `# Workspace browser demo\n\nUpdated ${new Date().toISOString()}.\n`,
-              );
-              const git = await current.workspace.createGit();
-              await git.init();
-              current.record({
-                type: 'git:init',
-                branch: await git.currentBranch(),
-                timestamp: Date.now(),
-              });
-              await git.stageAll();
-              const oid = await git.commit({
-                message: cleanCommitMessage,
-                authorName: 'Inbrowser Examples',
-                authorEmail: 'examples@inbrowser.local',
-              });
-              current.record({
-                type: 'git:commit',
-                oid,
-                message: cleanCommitMessage,
-                timestamp: Date.now(),
-              });
-            },
-          ),
+          runAction('git', 'operator committed workspace', cleanCommitMessage, async (current) => {
+            await ensureSeeded(current);
+            await current.workspace.fs.promises.writeFile(
+              '/work/README.md',
+              `# Workspace browser demo\n\nUpdated ${new Date().toISOString()}.\n`,
+            );
+            const git = await current.workspace.createGit();
+            await git.init();
+            current.record({
+              type: 'git:init',
+              branch: await git.currentBranch(),
+              timestamp: Date.now(),
+            });
+            await git.stageAll();
+            const oid = await git.commit({
+              message: cleanCommitMessage,
+              authorName: 'Inbrowser Examples',
+              authorEmail: 'examples@inbrowser.local',
+            });
+            current.record({
+              type: 'git:commit',
+              oid,
+              message: cleanCommitMessage,
+              timestamp: Date.now(),
+            });
+          }),
       },
     ];
-  }, [
-    busyActionId,
-    commitMessage,
-    compilePreview,
-    ensureSeeded,
-    packageSpec,
-    runAction,
-    scenario,
-  ]);
+  }, [busyActionId, commitMessage, compilePreview, ensureSeeded, packageSpec, runAction, scenario]);
 
   const seedAction = actions.find((action) => action.id === 'seed');
   const editAction = actions.find((action) => action.id === 'edit');
@@ -497,7 +479,10 @@ export function WorkspaceBrowserApp() {
   const sidePanelTitle = ACTIVITIES.find((activity) => activity.id === activeActivity)?.label ?? '';
 
   return (
-    <div className="workspace-ide" style={{ '--side-width': `${sideWidth}px` } as ReactRuntime.CSSProperties}>
+    <div
+      className="workspace-ide"
+      style={{ '--side-width': `${sideWidth}px` } as ReactRuntime.CSSProperties}
+    >
       <TopBar
         status={status}
         seedAction={seedAction}
@@ -765,10 +750,7 @@ function ExplorerPanel({
     () => new Set(['/work', '/work/src']),
   );
   const tree = useMemo(() => buildWorkspaceTree(files), [files]);
-  const rows = useMemo(
-    () => flattenWorkspaceTree(tree, expandedPaths),
-    [expandedPaths, tree],
-  );
+  const rows = useMemo(() => flattenWorkspaceTree(tree, expandedPaths), [expandedPaths, tree]);
 
   if (rows.length === 0) {
     return (
@@ -790,7 +772,6 @@ function ExplorerPanel({
           <button
             key={node.path}
             type="button"
-            role="treeitem"
             aria-expanded={isDirectory ? expanded : undefined}
             className="ide-tree-row"
             data-active={node.path === selectedPath}
@@ -876,7 +857,9 @@ function CodeMirrorEditor({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const valueRef = useRef(value);
   const onChangeRef = useRef(onChange);
+  valueRef.current = value;
   onChangeRef.current = onChange;
 
   useEffect(() => {
@@ -885,7 +868,7 @@ function CodeMirrorEditor({
     const view = new EditorView({
       parent: host,
       state: EditorState.create({
-        doc: value,
+        doc: valueRef.current,
         extensions: [
           lineNumbers(),
           highlightActiveLine(),
@@ -921,10 +904,10 @@ function PreviewPane({ preview }: { preview: PreviewState }) {
   return (
     <div className="ide-preview-pane">
       {preview.status === 'failed' ? (
-        <div className="ide-problems-strip" role="status">
+        <output className="ide-problems-strip">
           <strong>Problem</strong>
           <span>{preview.message}</span>
-        </div>
+        </output>
       ) : null}
       {preview.status === 'idle' ? (
         <div className="ide-workbench-empty">
@@ -933,9 +916,7 @@ function PreviewPane({ preview }: { preview: PreviewState }) {
         </div>
       ) : null}
       {preview.status === 'compiled' ? (
-        <div className="ide-preview-frame">
-          {renderPreviewComponent(preview.component)}
-        </div>
+        <div className="ide-preview-frame">{renderPreviewComponent(preview.component)}</div>
       ) : null}
     </div>
   );
@@ -1228,7 +1209,12 @@ function EventsPanel({ items }: { items: readonly DemoTimelineItem[] }) {
   );
 }
 
-function WorkspaceActionButton({ action, children, className = 'ide-button', label }: WorkspaceActionButtonProps) {
+function WorkspaceActionButton({
+  action,
+  children,
+  className = 'ide-button',
+  label,
+}: WorkspaceActionButtonProps) {
   return (
     <button
       type="button"

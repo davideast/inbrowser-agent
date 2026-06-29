@@ -189,9 +189,7 @@ function safeSnapshotId(id: string): string {
 
 function isMissing(err: unknown): boolean {
   const code =
-    typeof err === 'object' && err && 'code' in err
-      ? String((err as { code?: unknown }).code)
-      : '';
+    typeof err === 'object' && err && 'code' in err ? String((err as { code?: unknown }).code) : '';
   if (code === 'ENOENT') return true;
   const message = err instanceof Error ? err.message : String(err);
   return /ENOENT|No such (?:file|directory|file or directory)/i.test(message);
