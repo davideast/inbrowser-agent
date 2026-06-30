@@ -14,3 +14,4 @@ plans/
 .astro/
 site/dist/
 site/src/generated/
+.release/

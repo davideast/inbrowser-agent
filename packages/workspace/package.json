@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/workspace",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Browser-native workspace runtime: OPFS/memory files, esbuild preview compilation, jailed browser shell, local git snapshots, package import maps, and optional agent tool adapters.",
   "type": "module",
   "main": "./dist/index.js",
@@ -65,5 +65,8 @@
     "url": "git+https://github.com/davideast/inbrowser-agent.git",
     "directory": "packages/workspace"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }

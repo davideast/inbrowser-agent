@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/model",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The model layer for the inbrowser stack: it OWNS the shared ModelClient contract that @inbrowser/relay (transport) and @inbrowser/agent (runtime) both consume, the cloud provider factories (Gemini, OpenRouter, Requesty, Anthropic, Ollama, Claude-CLI, Claude-Code) that each return a ModelClient, a withRetry decorator, and the on-device LLM engine (lazy-loads @huggingface/transformers + ONNX Runtime Web behind a narrow EngineEvent-streaming Engine surface; Gemma 4 + Qwen + SmolLM2 presets; in-worker host/connect helpers). The engine is also a ModelClient via createEngineModelClient. Everything is exported from the package root.",
   "type": "module",
   "main": "./dist/index.js",
@@ -42,5 +42,8 @@
     "url": "git+https://github.com/davideast/inbrowser-agent.git",
     "directory": "packages/model"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }

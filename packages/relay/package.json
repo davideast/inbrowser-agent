@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/relay",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Resumable LLM inference relay. Pre-wires @inbrowser/resumable with the shared @inbrowser/model contract: createRelay routes a providers map of ModelClientFactory (the cloud providers live in @inbrowser/model/providers/*), constructing a ModelClient per request so BYOK + server-managed keys both work. Web-standard handlers, Astro/Express adapters, and a reconnecting browser client.",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,16 +20,20 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@inbrowser/model": "workspace:^",
-    "@inbrowser/resumable": "workspace:^"
+    "@inbrowser/model": "^0.4.0",
+    "@inbrowser/resumable": "^0.4.0"
   },
   "peerDependencies": {
     "astro": "^5.0.0",
     "express": "^4.0.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
-    "astro": { "optional": true },
-    "express": { "optional": true }
+    "astro": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -41,5 +45,8 @@
     "url": "git+https://github.com/davideast/inbrowser-agent.git",
     "directory": "packages/relay"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }
