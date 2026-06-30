@@ -398,11 +398,11 @@ Pre-1.0. Versions are coordinated manually:
 
 | Package | Version |
 |---------|---------|
-| `@inbrowser/resumable` | 0.3.1 |
-| `@inbrowser/model` | 0.3.0 |
-| `@inbrowser/relay` | 0.3.1 |
-| `@inbrowser/workspace` | 0.1.0 |
-| `@inbrowser/sandbox` | 0.1.0 |
+| `@inbrowser/resumable` | 0.4.0 |
+| `@inbrowser/model` | 0.4.0 |
+| `@inbrowser/relay` | 0.4.0 |
+| `@inbrowser/workspace` | 0.4.0 |
+| `@inbrowser/sandbox` | 0.4.0 |
 | `@inbrowser/agent` | 0.4.0 |
 
 Breaking changes are expected until 1.0.

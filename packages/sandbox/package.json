@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/sandbox",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Runtime-agnostic sandbox orchestration for the inbrowser stack: typed tools, runtime adapters, checkpoints, artifacts, and workspace integration.",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,7 +20,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@inbrowser/workspace": "workspace:^"
+    "@inbrowser/workspace": "^0.4.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -31,5 +31,8 @@
     "url": "git+https://github.com/davideast/inbrowser-agent.git",
     "directory": "packages/sandbox"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -39,8 +39,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@inbrowser/model": "workspace:^",
-    "@inbrowser/sandbox": "workspace:^",
+    "@inbrowser/model": "^0.4.0",
+    "@inbrowser/sandbox": "^0.4.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@opentui/core": "^0.1.0",
     "@opentui/react": "^0.1.0",
@@ -56,5 +56,8 @@
     "url": "git+https://github.com/davideast/inbrowser-agent.git",
     "directory": "packages/agent"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }
