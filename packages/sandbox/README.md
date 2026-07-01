@@ -35,6 +35,9 @@ when a host needs a common tool, checkpoint, event, or runtime adapter layer.
   `createSandboxAgentTools` path.
 - [How to manage checkpoint history](./docs/how-to-manage-checkpoint-history.md)
   shows turn, message, and tool-call metadata for restore flows.
+- [Remote container bridge](./docs/remote-container-bridge.md) investigates how
+  Apple `container`, WSL containers, and similar runtimes fit into the sandbox
+  boundary.
 - [Why sandbox tools and agent tools are separate](./docs/why-sandbox-and-agent-tools-are-separate.md)
   explains the boundary between sandbox side effects and agent policy.
 - [API reference](./docs/reference.md) lists the public surface.
@@ -48,6 +51,8 @@ when a host needs a common tool, checkpoint, event, or runtime adapter layer.
 - Checkpoint creation, restore, history queries, and pruning over any sandbox
   file system that supports snapshots.
 - A `createWorkspaceSandbox` adapter for `@inbrowser/workspace`.
+- A remote bridge subpath for adapting WebSocket-backed host/container runtimes
+  into the same sandbox contract.
 
 ## What It Does Not Own
 

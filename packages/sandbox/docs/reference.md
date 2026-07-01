@@ -7,6 +7,7 @@ This page describes the public surface of `@inbrowser/sandbox`.
 | Import path | Exports |
 | --- | --- |
 | `@inbrowser/sandbox` | Sandbox contracts, workspace adapter, standard tools, runtime adapter, checkpoints, and path helpers |
+| `@inbrowser/sandbox/remote` | Remote bridge contracts, `createRemoteSandbox`, generic bridge connection helpers, and WebSocket transport |
 | `@inbrowser/agent/sandbox` | Agent bridge that adapts sandbox tools to `AgentTools` |
 
 Related guides:
@@ -153,6 +154,43 @@ function createRuntimeAdapter(run: SandboxRuntime['run']): SandboxRuntime;
 Wraps a command-run function in the `SandboxRuntime` shape. Use this when a
 host already has a command runner and only needs to adapt it into a sandbox.
 
+## Remote Bridge
+
+`@inbrowser/sandbox/remote` exports the browser-safe bridge surface for running
+a sandbox against a host-side container or VM process.
+
+```ts
+import {
+  createRemoteSandbox,
+  createWebSocketBridgeProvider,
+} from '@inbrowser/sandbox/remote';
+
+const sandbox = await createRemoteSandbox({
+  id: 'local-container-session',
+  transport: createWebSocketBridgeProvider({
+    url: 'ws://127.0.0.1:8790/bridge',
+    token: '<bridge-token-from-/bridge-config>',
+  }),
+});
+```
+
+The bridge separates transport from runtime:
+
+| Type | Purpose |
+| --- | --- |
+| `BridgeTransportProvider` | Connects a browser or host peer and returns a `BridgeConnection`. |
+| `BridgeConnection` | Sends envelopes, issues request/response calls, subscribes to stream envelopes, and closes the peer connection. |
+| `BridgeEnvelope` | Typed protocol envelope with `id`, `sessionId`, `kind`, `type`, `sentAt`, optional `seq`, optional `replyTo`, and payload. |
+| `createRemoteSandbox` | Adapts a `BridgeTransportProvider` into `SandboxFileSystem`, `SandboxRuntime`, and standard sandbox tools. |
+| `createWebSocketBridgeProvider` | First concrete browser transport for local or remote host daemons. |
+
+Remote sandbox requests use `REMOTE_PROTOCOL_TYPES`, including `host.status`,
+`session.create`, `fs.read`, `fs.write`, `fs.list`, `run.start`, `run.cancel`,
+`port.expose`, `checkpoint.create`, and `checkpoint.restore`. Host stream
+envelopes can carry file events, sandbox events, port metadata, and artifact
+metadata. `createRemoteSandbox` re-emits remote artifacts and ports as normal
+`SandboxEvent` values.
+
 ## Events
 
 `SandboxEvent` variants:
@@ -160,6 +198,8 @@ host already has a command runner and only needs to adapt it into a sandbox.
 | Type | Description |
 | --- | --- |
 | `file` | A file-system watch event. |
+| `artifact` | A streamed artifact, such as `run.output` stdout/stderr chunks from a remote runtime. |
+| `port` | Metadata for a remote port exposed by the bridge host. |
 | `run:start` | A command started. |
 | `run:finish` | A command completed. |
 | `tool:start` | A sandbox tool started. |

@@ -69,6 +69,8 @@ export interface SandboxRunResult {
   exitCode: number;
   cwd: string;
   durationMs?: number;
+  stdoutTruncated?: boolean;
+  stderrTruncated?: boolean;
 }
 
 export interface SandboxRuntime {
@@ -85,8 +87,23 @@ export interface RuntimeCapabilities {
   readonly syncFs: boolean;
 }
 
+export interface SandboxArtifact {
+  kind: string;
+  [key: string]: unknown;
+}
+
+export interface SandboxExposedPort {
+  id: string;
+  port: number;
+  url?: string;
+  host?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export type SandboxEvent =
   | { type: 'file'; sandboxId: string; event: SandboxFileEvent; timestamp: number }
+  | { type: 'artifact'; sandboxId: string; artifact: SandboxArtifact; timestamp: number }
+  | { type: 'port'; sandboxId: string; port: SandboxExposedPort; timestamp: number }
   | { type: 'run:start'; sandboxId: string; command: string; cwd: string; timestamp: number }
   | {
       type: 'run:finish';
