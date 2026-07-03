@@ -157,6 +157,29 @@ export {
   tokenEstimate,
 } from './usage/index.js';
 
+// Context management — append-only history levers (context editing +
+// compaction events). See usage/context-management.ts.
+export {
+  editToolResults,
+  isClearedResult,
+  shouldCompact,
+  splitForCompaction,
+  buildCompactionPrompt,
+  mechanicalSummary,
+  applyCompactionMarker,
+  COMPACTION_DEFAULT_RATIO,
+  COMPACTION_DEFAULT_HARD_CAP_TOKENS,
+} from './usage/context-management.js';
+export type {
+  ContextEditOptions,
+  ContextEditStats,
+  ContextEditResult,
+  CompactionPolicy,
+  CompactionDecision,
+  CompactionSplit,
+  CompactionMarker,
+} from './usage/context-management.js';
+
 export type {
   AgentStrategy,
   ReflexionConfig,
