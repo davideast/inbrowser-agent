@@ -8,6 +8,9 @@ The default browser runtime is `@inbrowser/workspace`. Other runtimes, such as
 `@inbrowser/node` or WebContainers, can adapt into the same sandbox contract when
 they can provide a file system and command runner.
 
+For a concrete investigation of remote Linux container runtimes, see
+[Remote Container Bridge](./remote-container-bridge.md).
+
 The package provides:
 
 - a typed `Sandbox` contract

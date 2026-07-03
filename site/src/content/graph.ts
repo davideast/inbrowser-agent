@@ -330,6 +330,16 @@ export const NODES: DocNode[] = [
       'How @inbrowser/sandbox absorbs Piebox-shaped orchestration into the inbrowser package suite while keeping runtime substrate, workspace services, and agent loops separate.',
   },
   {
+    id: 'sandbox/explanation/remote-container-bridge',
+    package: 'sandbox',
+    category: 'explanation',
+    title: 'Remote Container Bridge',
+    route: '/sandbox/explanation/remote-container-bridge',
+    sourcePath: 'packages/sandbox/docs/remote-container-bridge.md',
+    summary:
+      'How Apple container, WSL containers, and similar remote Linux runtimes fit into the sandbox boundary while the browser renders results.',
+  },
+  {
     id: 'sandbox/how-to/wire-an-agent',
     package: 'sandbox',
     category: 'how-to',
