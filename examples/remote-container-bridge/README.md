@@ -4,8 +4,10 @@ This example is the smallest real remote-container demo: open the UI, click
 **Run container**, and watch stdout stream back from a container while the
 process is still running.
 
-It hosts the `@inbrowser/sandbox/remote` protocol over a Bun WebSocket server
-and renders the demo through the shared React/Vite example shell.
+It hosts the `@inbrowser/sandbox/remote` protocol through
+`startRemoteContainerBridge`, auto-selects the Bun host while the demo runs under
+Bun, runs Apple `container` when available, and renders through the shared
+React/Vite example shell.
 
 ```bash
 bun run --cwd examples/remote-container-bridge start
@@ -16,7 +18,7 @@ session, runs the sample command through the configured provider, appends
 streamed `run.output` artifacts to the terminal, and closes the session when the
 command exits. Diagnostics are available in the secondary Details tab.
 
-The Bun bridge host listens on <http://127.0.0.1:8790>; Vite proxies
+The bridge host listens on <http://127.0.0.1:8790>; Vite proxies
 `/bridge-config`, `/status`, `/bridge`, and authenticated forwarded port URLs to
 it.
 
