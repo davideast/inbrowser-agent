@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/agent",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Agent runtime + CLI. Library exports AgentSession, AgentStrategy, ToolRegistry, ModelClient, MetricsCollector, SandboxObserver. Ships an `agent` binary with NDJSON output, --json stdin, --dry-run, schema introspection, and inverse-mode MCP serve. Domain-agnostic — hosts wire their own AgentDefinitions.",
   "type": "module",
   "main": "./dist/index.js",
@@ -39,8 +39,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@inbrowser/model": "^0.4.0",
-    "@inbrowser/sandbox": "^0.4.0",
+    "@inbrowser/model": "^0.4.1",
+    "@inbrowser/sandbox": "^0.4.1",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@opentui/core": "^0.1.0",
     "@opentui/react": "^0.1.0",

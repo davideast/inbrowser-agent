@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/sandbox",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Runtime-agnostic sandbox orchestration for the inbrowser stack: typed tools, runtime adapters, checkpoints, artifacts, and workspace integration.",
   "type": "module",
   "main": "./dist/index.js",
@@ -24,7 +24,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@inbrowser/workspace": "^0.4.0"
+    "@inbrowser/workspace": "^0.4.1"
   },
   "devDependencies": {
     "@types/bun": "latest",
