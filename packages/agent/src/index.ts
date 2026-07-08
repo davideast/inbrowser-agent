@@ -40,6 +40,7 @@ export type {
 
 export type {
   ModelClient,
+  ModelErrorEvent,
   ModelRequest,
   ModelEvent,
   ModelMessage,

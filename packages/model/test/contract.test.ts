@@ -14,7 +14,13 @@ describe('model contract', () => {
       { kind: 'thinking', text: 'hmm' },
       { kind: 'tool_call', id: 'c1', name: 'search', args: { q: 'x' } },
       { kind: 'usage', usage: { promptTokens: 10, outputTokens: 5 } },
-      { kind: 'error', message: 'nope' },
+      {
+        kind: 'error',
+        message: 'nope',
+        code: 'provider.nope',
+        retryable: false,
+        details: { reason: 'test' },
+      },
     ];
     expect(events.map((e) => e.kind)).toEqual(['text', 'thinking', 'tool_call', 'usage', 'error']);
 
@@ -24,6 +30,8 @@ describe('model contract', () => {
     if (tc.kind === 'tool_call') expect(tc.id).toBe('c1'); // `id`, not `callId`
     const u = events[3];
     if (u.kind === 'usage') expect(u.usage.outputTokens).toBe(5); // nested usage; `outputTokens`
+    const err = events[4];
+    if (err.kind === 'error') expect(err.code).toBe('provider.nope');
   });
 
   test('a minimal ModelClient is structurally valid; the turn ends by returning', async () => {

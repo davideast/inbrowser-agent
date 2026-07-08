@@ -60,6 +60,7 @@ export type {
   // The shared model-call contract, re-exported from the relay's import
   // site (sourced from `@inbrowser/model/contract`). There is no
   // relay-local `InferenceEvent` / `ChatMessage` / `ToolDecl` anymore.
+  ModelErrorEvent,
   ModelEvent,
   ModelMessage,
   ModelRequest,

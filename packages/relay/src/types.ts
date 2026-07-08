@@ -33,6 +33,14 @@ export type {
   ToolSpec,
 } from '@inbrowser/model';
 
+export interface ModelErrorEvent {
+  kind: 'error';
+  message: string;
+  code?: string;
+  retryable?: boolean;
+  details?: Record<string, unknown>;
+}
+
 /**
  * The wire shape the relay accepts at `handleStart`. It is the shared
  * `ModelRequest` plus the relay-only transport concerns: `provider` (the

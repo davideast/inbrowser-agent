@@ -20,6 +20,14 @@ export type {
   ReasoningEffort,
 } from '@inbrowser/model';
 
+export interface ModelErrorEvent {
+  kind: 'error';
+  message: string;
+  code?: string;
+  retryable?: boolean;
+  details?: Record<string, unknown>;
+}
+
 export interface LlmConfig {
   apiKey?: string;
   model: string;

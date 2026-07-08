@@ -143,6 +143,7 @@ export type {
 // it; relay + agent consume it). Type-only; importing it pulls no runtime.
 export type {
   ModelClient,
+  ModelErrorEvent,
   ModelEvent,
   ModelMessage,
   ModelRequest,

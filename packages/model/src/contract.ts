@@ -73,12 +73,20 @@ export interface ModelUsage {
  * can therefore rely on exactly one of {a `usage` event, an `error` event} per
  * turn.
  */
+export interface ModelErrorEvent {
+  kind: 'error';
+  message: string;
+  code?: string;
+  retryable?: boolean;
+  details?: Record<string, unknown>;
+}
+
 export type ModelEvent =
   | { kind: 'text'; text: string }
   | { kind: 'thinking'; text: string }
   | { kind: 'tool_call'; id: string; name: string; args: unknown; signature?: string }
   | { kind: 'usage'; usage: ModelUsage }
-  | { kind: 'error'; message: string };
+  | ModelErrorEvent;
 
 /**
  * The one model-call contract. Implemented by the cloud providers and the

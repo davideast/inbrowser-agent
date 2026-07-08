@@ -56,6 +56,67 @@ function toolCalls(events: ModelEvent[]) {
   >[];
 }
 
+function baseReq(overrides: Partial<ModelRequest> = {}): ModelRequest {
+  return {
+    messages: [{ role: 'user', text: 'hi' }],
+    tools: [],
+    toolUseEnabled: false,
+    ...overrides,
+  };
+}
+
+async function geminiBody(model: string, req: ModelRequest): Promise<Record<string, unknown>> {
+  return JSON.parse(await buildGeminiRequest({ apiKey: 'sk-test', model }, req).text()) as Record<
+    string,
+    unknown
+  >;
+}
+
+function generationConfig(body: Record<string, unknown>): Record<string, unknown> {
+  return body.generationConfig as Record<string, unknown>;
+}
+
+describe('buildGeminiRequest — thinking config', () => {
+  it('omits thought summaries when reasoningEffort is omitted', async () => {
+    const body = await geminiBody('gemini-3.5-flash', baseReq());
+    expect(generationConfig(body).thinkingConfig).toBeUndefined();
+  });
+
+  it("omits thought summaries when reasoningEffort is 'off'", async () => {
+    const body = await geminiBody('gemini-3.5-flash', baseReq({ reasoningEffort: 'off' }));
+    expect(generationConfig(body).thinkingConfig).toBeUndefined();
+  });
+
+  it('sets includeThoughts and thinkingLevel for Gemini 3.5 models when requested', async () => {
+    const body = await geminiBody('gemini-3.5-flash', baseReq({ reasoningEffort: 'medium' }));
+    expect(generationConfig(body).thinkingConfig).toEqual({
+      includeThoughts: true,
+      thinkingLevel: 'medium',
+    });
+  });
+
+  it('sets includeThoughts and thinkingLevel for Gemini 3 Flash models when requested', async () => {
+    const body = await geminiBody('gemini-3-flash-preview', baseReq({ reasoningEffort: 'high' }));
+    expect(generationConfig(body).thinkingConfig).toEqual({
+      includeThoughts: true,
+      thinkingLevel: 'high',
+    });
+  });
+
+  it('sets includeThoughts and thinkingBudget for Gemini 2.5 models when requested', async () => {
+    const body = await geminiBody('gemini-2.5-flash', baseReq({ reasoningEffort: 'low' }));
+    expect(generationConfig(body).thinkingConfig).toEqual({
+      includeThoughts: true,
+      thinkingBudget: 1024,
+    });
+  });
+
+  it('requests summaries without model-specific controls for unknown Gemini families', async () => {
+    const body = await geminiBody('gemini-experimental', baseReq({ reasoningEffort: 'high' }));
+    expect(generationConfig(body).thinkingConfig).toEqual({ includeThoughts: true });
+  });
+});
+
 describe('geminiEventsFromResponse — function-call accumulation', () => {
   it('collapses a call re-sent across chunks into one event with complete args', async () => {
     // One logical `bash` call: empty-arg partial, then the complete args
@@ -264,6 +325,28 @@ describe('geminiEventsFromResponse — function-call accumulation', () => {
     const lastText = events.findLastIndex((e) => e.kind === 'text');
     const firstCall = events.findIndex((e) => e.kind === 'tool_call');
     expect(firstCall).toBeGreaterThan(lastText);
+  });
+
+  it('maps thoughtsTokenCount to reasoningTokens in usage', async () => {
+    const events = await collect(
+      geminiEventsFromResponse(
+        makeSseResponse([
+          chunk([{ text: 'answer' }], 'STOP'),
+          {
+            usageMetadata: {
+              promptTokenCount: 10,
+              candidatesTokenCount: 5,
+              thoughtsTokenCount: 3,
+            },
+          },
+        ]),
+      ),
+    );
+
+    expect(events.find((e) => e.kind === 'usage')).toEqual({
+      kind: 'usage',
+      usage: { promptTokens: 10, outputTokens: 5, reasoningTokens: 3 },
+    });
   });
 
   it('yields exactly N events for an N-call turn flowing through the ModelClient', async () => {

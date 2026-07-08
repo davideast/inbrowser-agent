@@ -8,7 +8,7 @@
  */
 
 import type { ChatMessage, TurnDetails } from './chat.js';
-import type { ModelClient, ModelUsage } from './llm.js';
+import type { ModelClient, ModelErrorEvent, ModelUsage } from './llm.js';
 import type { RuntimeState } from './runtime.js';
 import type { ToolContext, ToolDispatch, ToolHandler, ToolResult } from './tools.js';
 import type { Tracer } from './trace.js';
@@ -61,7 +61,7 @@ export type StrategyEvent =
   | { kind: 'tool_call'; id: string; name: string; args: unknown; signature?: string }
   | { kind: 'tool_result'; id: string; result: ToolResult }
   | { kind: 'turn_complete'; usage: ModelUsage; details: TurnDetails }
-  | { kind: 'error'; message: string }
+  | ModelErrorEvent
   /** Custom milestone — name + arbitrary payload, surfaced as
    *  `SessionEvent.kind === 'strategy_event'` to the host. */
   | { kind: 'custom'; name: string; data?: unknown };

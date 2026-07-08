@@ -192,6 +192,187 @@ describe('createReactLoopStrategy', () => {
     }
   });
 
+  test('default strict mode preserves structured model errors after tool progress', async () => {
+    const echoTool: ToolHandler<{ msg: string }, { msg: string }> = {
+      name: 'echo',
+      description: 'echo',
+      parameters: { type: 'object' },
+      async execute({ msg }) {
+        return { ok: true, summary: msg, data: { msg } };
+      },
+    };
+    const registry = createToolRegistry();
+    registry.register(echoTool);
+    const error = {
+      kind: 'error' as const,
+      message: 'Gemini produced no output',
+      code: 'gemini.thinking_only_stop',
+      retryable: true,
+      details: { finishReason: 'STOP' },
+    };
+    const llm = fakeLlm([
+      [
+        { kind: 'tool_call', id: 'c1', name: 'echo', args: { msg: 'done' } },
+        { kind: 'usage', usage: { promptTokens: 5, outputTokens: 1 } },
+      ],
+      [error],
+    ]);
+
+    const events = await collect(
+      createReactLoopStrategy().run(
+        {
+          prompt: 'use the tool',
+          history: [],
+          workspace: EMPTY_WORKSPACE,
+          runtime: EMPTY_RUNTIME,
+          llm,
+          tools: createDispatch(registry),
+          toolList: [echoTool],
+          toolContext: fakeCtx,
+          systemPrompt: 'You may call tools.',
+        },
+        new AbortController().signal,
+      ),
+    );
+
+    const finalError = events.find((e) => e.kind === 'error');
+    expect(finalError).toMatchObject(error);
+  });
+
+  test('progress-aware mode completes with warning after tool progress and Gemini thinking-only STOP', async () => {
+    const echoTool: ToolHandler<{ msg: string }, { msg: string }> = {
+      name: 'echo',
+      description: 'echo',
+      parameters: { type: 'object' },
+      async execute({ msg }) {
+        return { ok: true, summary: msg, data: { msg } };
+      },
+    };
+    const registry = createToolRegistry();
+    registry.register(echoTool);
+    const providerError = {
+      kind: 'error' as const,
+      message: 'Gemini produced no output',
+      code: 'gemini.thinking_only_stop',
+      retryable: true,
+      details: { finishReason: 'STOP' },
+    };
+    const llm = fakeLlm([
+      [
+        { kind: 'tool_call', id: 'c1', name: 'echo', args: { msg: 'done' } },
+        { kind: 'usage', usage: { promptTokens: 5, outputTokens: 1 } },
+      ],
+      [providerError],
+    ]);
+
+    const events = await collect(
+      createReactLoopStrategy({ toolProgressErrorPolicy: 'complete-with-warning' }).run(
+        {
+          prompt: 'use the tool',
+          history: [],
+          workspace: EMPTY_WORKSPACE,
+          runtime: EMPTY_RUNTIME,
+          llm,
+          tools: createDispatch(registry),
+          toolList: [echoTool],
+          toolContext: fakeCtx,
+          systemPrompt: 'You may call tools.',
+        },
+        new AbortController().signal,
+      ),
+    );
+
+    expect(events.some((e) => e.kind === 'error')).toBe(false);
+    expect(events.filter((e) => e.kind === 'turn_complete')).toHaveLength(1);
+    const warning = events.find(
+      (e) => e.kind === 'custom' && e.name === 'react_loop_model_warning',
+    );
+    expect(warning?.kind).toBe('custom');
+    if (warning?.kind === 'custom') {
+      expect(warning.data).toMatchObject({
+        error: providerError,
+        successfulToolResultCount: 1,
+      });
+    }
+  });
+
+  test('progress-aware mode does not swallow unknown provider errors', async () => {
+    const echoTool: ToolHandler<{ msg: string }, { msg: string }> = {
+      name: 'echo',
+      description: 'echo',
+      parameters: { type: 'object' },
+      async execute({ msg }) {
+        return { ok: true, summary: msg, data: { msg } };
+      },
+    };
+    const registry = createToolRegistry();
+    registry.register(echoTool);
+    const unknownError = {
+      kind: 'error' as const,
+      message: 'provider exploded',
+      code: 'provider.unknown',
+      retryable: true,
+    };
+    const llm = fakeLlm([
+      [
+        { kind: 'tool_call', id: 'c1', name: 'echo', args: { msg: 'done' } },
+        { kind: 'usage', usage: { promptTokens: 5, outputTokens: 1 } },
+      ],
+      [unknownError],
+    ]);
+
+    const events = await collect(
+      createReactLoopStrategy({ toolProgressErrorPolicy: 'complete-with-warning' }).run(
+        {
+          prompt: 'use the tool',
+          history: [],
+          workspace: EMPTY_WORKSPACE,
+          runtime: EMPTY_RUNTIME,
+          llm,
+          tools: createDispatch(registry),
+          toolList: [echoTool],
+          toolContext: fakeCtx,
+          systemPrompt: 'You may call tools.',
+        },
+        new AbortController().signal,
+      ),
+    );
+
+    expect(events.find((e) => e.kind === 'error')).toMatchObject(unknownError);
+  });
+
+  test('progress-aware mode does not complete when no tool result was dispatched', async () => {
+    const providerError = {
+      kind: 'error' as const,
+      message: 'Gemini produced no output',
+      code: 'gemini.thinking_only_stop',
+      retryable: true,
+    };
+    const llm = fakeLlm([[providerError]]);
+
+    const events = await collect(
+      createReactLoopStrategy({ toolProgressErrorPolicy: 'complete-with-warning' }).run(
+        {
+          prompt: 'answer directly',
+          history: [],
+          workspace: EMPTY_WORKSPACE,
+          runtime: EMPTY_RUNTIME,
+          llm,
+          tools: createDispatch(createToolRegistry()),
+          toolList: [],
+          toolContext: fakeCtx,
+          systemPrompt: 'You are helpful.',
+        },
+        new AbortController().signal,
+      ),
+    );
+
+    expect(events.find((e) => e.kind === 'error')).toMatchObject(providerError);
+    expect(events.some((e) => e.kind === 'custom' && e.name === 'react_loop_model_warning')).toBe(
+      false,
+    );
+  });
+
   test('aborts when the signal fires before the turn starts', async () => {
     const controller = new AbortController();
     controller.abort();
