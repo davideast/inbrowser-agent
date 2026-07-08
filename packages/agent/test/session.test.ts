@@ -86,6 +86,42 @@ describe('createAgentSession', () => {
     expect(kinds[kinds.length - 1]).toBe('completed');
   });
 
+  test('preserves structured strategy error metadata on session errors', async () => {
+    const strategy: AgentStrategy = {
+      id: 'structured-error',
+      async *run() {
+        yield {
+          kind: 'error',
+          message: 'Gemini produced no output',
+          code: 'gemini.thinking_only_stop',
+          retryable: true,
+          details: { finishReason: 'STOP' },
+        };
+      },
+    };
+    const session = createAgentSession({
+      strategy,
+      llm: fakeLlm([]),
+      tools: createDispatch(createToolRegistry()),
+      toolList: [],
+      toolContext: fakeCtx,
+      systemPromptBuilder: () => 'system',
+      metrics: createMetricsCollector(),
+      history: [],
+    });
+
+    const events = await collect(session.submit('hi', new AbortController().signal));
+    const error = events.find((e) => e.kind === 'error');
+
+    expect(error).toMatchObject({
+      kind: 'error',
+      message: 'Gemini produced no output',
+      code: 'gemini.thinking_only_stop',
+      retryable: true,
+      details: { finishReason: 'STOP' },
+    });
+  });
+
   test('applies tool result patches to workspace + runtime + emits change events', async () => {
     const writeRulesTool: ToolHandler<{ source: string }> = {
       name: 'writeRules',

@@ -1,4 +1,11 @@
-import type { ModelClient, ModelEvent, ModelRequest, ToolSpec } from '../contract.js';
+import type {
+  ModelClient,
+  ModelErrorEvent,
+  ModelEvent,
+  ModelRequest,
+  ReasoningEffort,
+  ToolSpec,
+} from '../contract.js';
 import { readSseDataLines } from '../sse.js';
 import type { CloudProviderConfig } from './types.js';
 /**
@@ -41,6 +48,30 @@ interface GeminiBody {
   systemInstruction?: { parts: { text: string }[] };
   tools?: { functionDeclarations: unknown[] }[];
   generationConfig?: Record<string, unknown>;
+}
+
+const GEMINI_25_THINKING_BUDGET: Record<Exclude<ReasoningEffort, 'off'>, number> = {
+  low: 1024,
+  medium: 4096,
+  high: 8192,
+};
+
+function buildGeminiThinkingConfig(
+  model: string,
+  effort: ReasoningEffort | undefined,
+): Record<string, unknown> | undefined {
+  if (!effort || effort === 'off') return undefined;
+
+  const thinkingConfig: Record<string, unknown> = { includeThoughts: true };
+  const normalized = model.toLowerCase();
+
+  if (normalized.includes('gemini-3.5-') || normalized.includes('gemini-3-flash')) {
+    thinkingConfig.thinkingLevel = effort;
+  } else if (normalized.includes('gemini-2.5-')) {
+    thinkingConfig.thinkingBudget = GEMINI_25_THINKING_BUDGET[effort];
+  }
+
+  return thinkingConfig;
 }
 
 function toGeminiBody(config: CloudProviderConfig, req: ModelRequest): GeminiBody {
@@ -109,7 +140,6 @@ function toGeminiBody(config: CloudProviderConfig, req: ModelRequest): GeminiBod
   }
 
   const gen: Record<string, unknown> = {
-    thinkingConfig: { includeThoughts: true },
     // Generous output budget. Left unset, the model can truncate a
     // large tool-call argument — writeApp/writeCode emit whole source
     // files as a string arg — and a truncated call is exactly what
@@ -119,6 +149,8 @@ function toGeminiBody(config: CloudProviderConfig, req: ModelRequest): GeminiBod
     // 400, not silently.
     maxOutputTokens: 65536,
   };
+  const thinkingConfig = buildGeminiThinkingConfig(config.model, req.reasoningEffort);
+  if (thinkingConfig) gen.thinkingConfig = thinkingConfig;
   // Per-request temperature wins; otherwise fall back to the
   // construction-time default (the docs agent pins 0.2; the relay sets
   // neither, preserving "send only what the client did").
@@ -140,6 +172,7 @@ interface GeminiStreamChunk {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
     cachedContentTokenCount?: number;
+    thoughtsTokenCount?: number;
   };
 }
 
@@ -229,13 +262,16 @@ export async function* geminiEventsFromResponse(
   let promptTokens = 0;
   let completionTokens = 0;
   let cachedTokens = 0;
+  let reasoningTokens = 0;
   // Diagnostics for the "thinking-only, no output" case: Gemini can
   // end a response after the thinking phase having produced nothing
   // visible. `finishReason` on the last chunk names why (MAX_TOKENS /
   // SAFETY / RECITATION); a missing one means the stream was simply
   // truncated. `sawOutput` tracks whether any *visible* output (text
   // or a tool call — not thinking) actually came through.
-  let sawOutput = false;
+  let sawThinking = false;
+  let sawVisibleText = false;
+  let sawFunctionCall = false;
   let lastFinishReason: string | undefined;
   // Function calls accumulate here and are flushed once, after the
   // stream closes (see the per-part merge below and the flush loop).
@@ -270,14 +306,15 @@ export async function* geminiEventsFromResponse(
       for (const p of parts) {
         if (typeof p.text === 'string' && p.text.length > 0) {
           if (p.thought === true) {
+            sawThinking = true;
             yield { kind: 'thinking', text: p.text };
           } else {
-            sawOutput = true;
+            sawVisibleText = true;
             yield { kind: 'text', text: p.text };
           }
         }
         if (p.functionCall) {
-          sawOutput = true;
+          sawFunctionCall = true;
           const slot = fnOrdinal++;
           let call = pending.get(slot);
           if (!call) {
@@ -322,6 +359,9 @@ export async function* geminiEventsFromResponse(
         if (typeof usage.cachedContentTokenCount === 'number') {
           cachedTokens = usage.cachedContentTokenCount;
         }
+        if (typeof usage.thoughtsTokenCount === 'number') {
+          reasoningTokens = usage.thoughtsTokenCount;
+        }
       }
     }
   } catch (e) {
@@ -333,13 +373,13 @@ export async function* geminiEventsFromResponse(
   // Stream ended cleanly but the model never produced visible output —
   // only thinking. Surface why: a non-STOP `finishReason` names it,
   // `none` means the stream was truncated before one arrived.
-  if (!sawOutput) {
-    yield {
-      kind: 'error',
-      message: `Gemini produced no output — finishReason=${
-        lastFinishReason ?? 'none'
-      } (response ended after thinking only)`,
-    };
+  if (!sawVisibleText && !sawFunctionCall) {
+    yield geminiNoOutputError({
+      finishReason: lastFinishReason,
+      sawThinking,
+      sawVisibleText,
+      sawFunctionCall,
+    });
     return;
   }
 
@@ -369,6 +409,47 @@ export async function* geminiEventsFromResponse(
       promptTokens,
       outputTokens: completionTokens,
       ...(cachedTokens > 0 ? { cachedTokens } : {}),
+      ...(reasoningTokens > 0 ? { reasoningTokens } : {}),
+    },
+  };
+}
+
+function geminiNoOutputError(opts: {
+  finishReason: string | undefined;
+  sawThinking: boolean;
+  sawVisibleText: boolean;
+  sawFunctionCall: boolean;
+}): ModelErrorEvent {
+  const finishReason = opts.finishReason ?? 'none';
+  const message = `Gemini produced no output — finishReason=${finishReason} (${
+    opts.sawThinking
+      ? 'response ended after thinking only'
+      : 'response ended with no visible output'
+  })`;
+
+  let code = 'gemini.no_output';
+  let retryable = false;
+  if (opts.finishReason === undefined) {
+    code = 'gemini.truncated_no_output';
+    retryable = true;
+  } else if (opts.finishReason === 'MALFORMED_FUNCTION_CALL') {
+    code = 'gemini.malformed_function_call';
+    retryable = true;
+  } else if (opts.finishReason === 'STOP' && opts.sawThinking) {
+    code = 'gemini.thinking_only_stop';
+    retryable = true;
+  }
+
+  return {
+    kind: 'error',
+    message,
+    code,
+    retryable,
+    details: {
+      finishReason,
+      sawThinking: opts.sawThinking,
+      sawVisibleText: opts.sawVisibleText,
+      sawFunctionCall: opts.sawFunctionCall,
     },
   };
 }
@@ -397,16 +478,32 @@ export async function* geminiEventsFromResponse(
 const MAX_GEMINI_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 500;
 
-/** Substrings that identify a retryable provider error. Matched
- *  against `ModelEvent.message` from `geminiEventsFromResponse`. */
+/** Substrings kept as a fallback for older message-only provider errors. */
 const RETRYABLE_ERROR_MARKERS = [
   'MALFORMED_FUNCTION_CALL',
   'finishReason=STOP',
   'finishReason=none',
 ];
 
-function isRetryableError(message: string): boolean {
-  return RETRYABLE_ERROR_MARKERS.some((m) => message.includes(m));
+function isRetryableError(event: ModelErrorEvent): boolean {
+  if (event.retryable === true) return true;
+  if (event.retryable === false) return false;
+  return RETRYABLE_ERROR_MARKERS.some((m) => event.message.includes(m));
+}
+
+function withAttemptMetadata(
+  event: ModelErrorEvent,
+  attempt: number,
+  maxAttempts: number,
+): ModelErrorEvent {
+  return {
+    ...event,
+    details: {
+      ...(event.details ?? {}),
+      attempt,
+      maxAttempts,
+    },
+  };
 }
 
 /**
@@ -438,15 +535,11 @@ export function geminiModelClient(config: GeminiConfig): ModelClient {
           // The non-retryable kinds (SAFETY, RECITATION, MAX_TOKENS,
           // network/parse failures) fall straight through and surface.
           // Final attempt always yields whatever it produces.
-          if (
-            evt.kind === 'error' &&
-            isRetryableError(evt.message) &&
-            attempt < MAX_GEMINI_ATTEMPTS
-          ) {
+          if (evt.kind === 'error' && isRetryableError(evt) && attempt < MAX_GEMINI_ATTEMPTS) {
             retry = true;
             break;
           }
-          yield evt;
+          yield evt.kind === 'error' ? withAttemptMetadata(evt, attempt, MAX_GEMINI_ATTEMPTS) : evt;
         }
 
         if (!retry) return;

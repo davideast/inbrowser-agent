@@ -9,7 +9,7 @@
  */
 
 import type { ChatMessage, TurnDetails, TurnMetrics } from './chat.js';
-import type { ModelClient } from './llm.js';
+import type { ModelClient, ModelErrorEvent } from './llm.js';
 import type { MetricsCollector } from './metrics.js';
 import type { RuntimeState } from './runtime.js';
 import type { AgentStrategy } from './strategy.js';
@@ -71,7 +71,7 @@ export type SessionEvent =
   | { kind: 'workspace_changed'; workspace: Workspace }
   | { kind: 'runtime_changed'; runtime: RuntimeState }
   | { kind: 'turn_completed'; turnId: string; metrics: TurnMetrics; details: TurnDetails }
-  | { kind: 'error'; turnId?: string; message: string }
+  | (ModelErrorEvent & { turnId?: string })
   | { kind: 'completed' }
   /** Strategy-emitted milestones (planner phases, branch expansions, …)
    *  — generic envelope so new strategies can surface custom events

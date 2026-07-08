@@ -33,6 +33,14 @@ interface ReactLoopOptions {
   /** Cap on loop iterations to avoid runaway tool-call ping-pong. Default 24. */
   maxTurns?: number;
   /**
+   * Default strict behavior preserves existing ReAct semantics: any
+   * model error fails the run. `complete-with-warning` is for hosts
+   * where prior successful tool effects can be authoritative even when
+   * a later final model call fails with a known retryable no-output
+   * provider error.
+   */
+  toolProgressErrorPolicy?: 'strict' | 'complete-with-warning';
+  /**
    * Opt-in: when `true`, tool calls produced in a single turn are partitioned
    * by the handler's `parallelSafe` tag. Parallel-safe calls run concurrently
    * with `Promise.all`; the remaining (mutation) calls run sequentially after
@@ -59,6 +67,7 @@ const DEFAULT_CRITIQUE_SYSTEM_PROMPT =
 export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentStrategy {
   const maxTurns = options.maxTurns ?? 24;
   const parallelDispatch = options.parallelDispatch === true;
+  const toolProgressErrorPolicy = options.toolProgressErrorPolicy ?? 'strict';
   const reflexionEnabled = options.reflexion?.enabled === true;
   const reflexionMaxRetries = Math.max(0, options.reflexion?.maxRetries ?? 1);
   const critiqueSystemPrompt =
@@ -72,6 +81,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
       // critique branch is skipped entirely and the strategy returns
       // on the first no-tool-calls turn exactly as before.
       let reflexionRetriesRemaining = reflexionMaxRetries;
+      let successfulToolResultsThisRun = 0;
 
       for (let turn = 0; turn < maxTurns; turn++) {
         if (signal.aborted) {
@@ -160,7 +170,23 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
           } else if (ev.kind === 'usage') {
             turnUsage = ev.usage;
           } else if (ev.kind === 'error') {
-            yield { kind: 'error', message: ev.message };
+            const modelError = ev as Extract<StrategyEvent, { kind: 'error' }>;
+            if (
+              toolProgressErrorPolicy === 'complete-with-warning' &&
+              successfulToolResultsThisRun > 0 &&
+              isCompletableToolProgressError(modelError)
+            ) {
+              yield {
+                kind: 'custom',
+                name: 'react_loop_model_warning',
+                data: {
+                  error: modelError,
+                  successfulToolResultCount: successfulToolResultsThisRun,
+                },
+              };
+              return;
+            }
+            yield modelError;
             return;
           }
         }
@@ -451,6 +477,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
               resultJson: JSON.stringify(safeSerializable(result)),
               text: '',
             });
+            successfulToolResultsThisRun += 1;
           }
         } else {
           // Default behavior: byte-for-byte identical to the pre-change
@@ -469,6 +496,7 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
               resultJson: JSON.stringify(safeSerializable(result)),
               text: '',
             });
+            successfulToolResultsThisRun += 1;
           }
         }
         // Close the tool-dispatch segment for this iteration. Pair
@@ -498,6 +526,10 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
       };
     },
   };
+}
+
+function isCompletableToolProgressError(ev: Extract<StrategyEvent, { kind: 'error' }>): boolean {
+  return ev.code === 'gemini.thinking_only_stop' && ev.retryable === true;
 }
 
 function buildMessages(input: StrategyRunInput): ModelMessage[] {

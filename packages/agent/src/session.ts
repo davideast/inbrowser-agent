@@ -139,7 +139,14 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
         history = [...history, assistantMsg];
         yield { kind: 'turn_completed', turnId, metrics, details: ev.details };
       } else if (ev.kind === 'error') {
-        yield { kind: 'error', turnId, message: ev.message };
+        yield {
+          kind: 'error',
+          turnId,
+          message: ev.message,
+          ...(ev.code ? { code: ev.code } : {}),
+          ...(ev.retryable !== undefined ? { retryable: ev.retryable } : {}),
+          ...(ev.details ? { details: ev.details } : {}),
+        };
         return;
       } else if (ev.kind === 'custom') {
         yield { kind: 'strategy_event', name: ev.name, data: ev.data };

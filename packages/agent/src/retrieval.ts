@@ -291,7 +291,7 @@ export function createRetrievalStrategy(opts: RetrievalStrategyOpts = {}): Agent
         } else if (ev.kind === 'usage') {
           turnUsage = ev.usage;
         } else if (ev.kind === 'error') {
-          yield { kind: 'error', message: ev.message };
+          yield ev;
           return;
         }
         // `tool_call` events are impossible here (toolUseEnabled:false,

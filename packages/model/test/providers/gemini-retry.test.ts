@@ -15,7 +15,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { ModelEvent, ModelRequest } from '../../src/contract';
-import { geminiModelClient } from '../../src/providers/gemini';
+import { geminiEventsFromResponse, geminiModelClient } from '../../src/providers/gemini';
 
 function makeSseResponse(chunks: unknown[]): Response {
   const body = chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('');
@@ -165,6 +165,8 @@ describe('gemini ModelClient retry', () => {
     expect(error?.kind).toBe('error');
     if (error?.kind === 'error') {
       expect(error.message).toContain('finishReason=SAFETY');
+      expect(error.code).toBe('gemini.no_output');
+      expect(error.retryable).toBe(false);
     }
   });
 
@@ -189,6 +191,95 @@ describe('gemini ModelClient retry', () => {
     expect(error?.kind).toBe('error');
     if (error?.kind === 'error') {
       expect(error.message).toContain('finishReason=STOP');
+      expect(error.code).toBe('gemini.thinking_only_stop');
+      expect(error.retryable).toBe(true);
+      expect(error.details).toMatchObject({
+        finishReason: 'STOP',
+        sawThinking: true,
+        sawVisibleText: false,
+        sawFunctionCall: false,
+        attempt: 3,
+        maxAttempts: 3,
+      });
+    }
+  });
+
+  it('marks truncated no-output streams as retryable structured errors', async () => {
+    const events = await collect(
+      geminiEventsFromResponse(
+        makeSseResponse([
+          {
+            candidates: [{ content: { parts: [{ text: 'starting', thought: true }] } }],
+          },
+        ]),
+      ),
+    );
+
+    const error = events.find((e) => e.kind === 'error');
+    expect(error?.kind).toBe('error');
+    if (error?.kind === 'error') {
+      expect(error.code).toBe('gemini.truncated_no_output');
+      expect(error.retryable).toBe(true);
+      expect(error.details).toMatchObject({
+        finishReason: 'none',
+        sawThinking: true,
+        sawVisibleText: false,
+        sawFunctionCall: false,
+      });
+    }
+  });
+
+  it('marks MALFORMED_FUNCTION_CALL no-output streams as retryable structured errors', async () => {
+    const events = await collect(
+      geminiEventsFromResponse(
+        makeSseResponse([
+          {
+            candidates: [
+              {
+                content: { parts: [{ text: 'thinking', thought: true }] },
+                finishReason: 'MALFORMED_FUNCTION_CALL',
+              },
+            ],
+          },
+        ]),
+      ),
+    );
+
+    const error = events.find((e) => e.kind === 'error');
+    expect(error?.kind).toBe('error');
+    if (error?.kind === 'error') {
+      expect(error.code).toBe('gemini.malformed_function_call');
+      expect(error.retryable).toBe(true);
+      expect(error.details).toMatchObject({
+        finishReason: 'MALFORMED_FUNCTION_CALL',
+      });
+    }
+  });
+
+  it('marks MAX_TOKENS no-output streams as non-retryable', async () => {
+    const events = await collect(
+      geminiEventsFromResponse(
+        makeSseResponse([
+          {
+            candidates: [
+              {
+                content: { parts: [{ text: 'thinking', thought: true }] },
+                finishReason: 'MAX_TOKENS',
+              },
+            ],
+          },
+        ]),
+      ),
+    );
+
+    const error = events.find((e) => e.kind === 'error');
+    expect(error?.kind).toBe('error');
+    if (error?.kind === 'error') {
+      expect(error.code).toBe('gemini.no_output');
+      expect(error.retryable).toBe(false);
+      expect(error.details).toMatchObject({
+        finishReason: 'MAX_TOKENS',
+      });
     }
   });
 });
