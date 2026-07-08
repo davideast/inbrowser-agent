@@ -1,37 +1,45 @@
-import type { SandboxStats } from '@inbrowser/sandbox';
+import type { SandboxStats } from '../../types.js';
 import {
   type BridgeEnvelope,
   REMOTE_PROTOCOL_TYPES,
   type RemoteBridgeEvent,
   type RemoteHostDiagnostic,
   type RemoteHostStatusResponse,
-} from '@inbrowser/sandbox/remote';
-import type { Server, ServerWebSocket } from 'bun';
+} from '../types.js';
 import type {
+  BridgeHostServerOptions,
   ContainerExposedPort,
   ContainerSandboxProvider,
   ContainerSession,
-} from './providers/types.js';
+  RemoteContainerBridgeClientConfig,
+} from './types.js';
 
-const DEFAULT_BRIDGE_PORT = 8790;
+export const DEFAULT_BRIDGE_PORT = 8790;
+export const DEFAULT_BRIDGE_HOSTNAME = '127.0.0.1';
+export const DEFAULT_BRIDGE_ROOT = '/work';
+export const BRIDGE_PATH = '/bridge';
+export const STATUS_PATH = '/status';
+export const BRIDGE_CONFIG_PATH = '/bridge-config';
+export const PORT_PROXY_PREFIX = '/__inbrowser/ports/';
 
-export interface BridgeHostServerOptions {
-  provider: ContainerSandboxProvider;
-  port?: number;
-  token?: string;
-  allowedOrigins?: readonly string[];
-  uiUrl?: string;
+export interface BridgeHostSocket {
+  send(message: string): unknown;
 }
 
-export type BridgeHostServer = Server<WebSocketData> & {
+export interface BridgeHostCore {
   readonly bridgeToken: string;
-  readonly bridgeOrigin: string;
+  readonly root: string;
+  readonly bridgePath: string;
+  readonly statusPath: string;
+  readonly bridgeConfigPath: string;
+  readonly portProxyPrefix: string;
+  clientConfig(): RemoteContainerBridgeClientConfig;
+  authenticateBridgeRequest(req: Request): Response | undefined;
+  handleHttpRequest(req: Request): Promise<Response>;
+  handleSocketMessage(socket: BridgeHostSocket, message: unknown): Promise<void>;
+  closeSocket(socket: BridgeHostSocket): Promise<void>;
   closeSessions(): Promise<void>;
-  hostStatus(): Promise<RemoteHostStatusResponse>;
-};
-
-interface WebSocketData {
-  authenticated: true;
+  hostStatus(authenticated?: boolean): Promise<RemoteHostStatusResponse>;
 }
 
 interface PortRoute {
@@ -40,98 +48,25 @@ interface PortRoute {
   targetUrl: string;
 }
 
-export async function startBridgeHostServer(
-  options: BridgeHostServerOptions,
-): Promise<BridgeHostServer> {
+export function createBridgeHostCore(
+  options: BridgeHostServerOptions & {
+    hostKind: string;
+    bridgeOrigin(): string;
+  },
+): BridgeHostCore {
   const sessions = new Map<string, ContainerSession>();
-  const socketSessions = new WeakMap<ServerWebSocket<WebSocketData>, Set<string>>();
+  const socketSessions = new WeakMap<BridgeHostSocket, Set<string>>();
   const seqBySession = new Map<string, number>();
   const portRoutes = new Map<string, PortRoute>();
+  const root = options.root ?? DEFAULT_BRIDGE_ROOT;
   const bridgeToken = options.token ?? createBridgeToken();
   const readiness = createProviderReadiness(options.provider);
+  const allowedOrigins = options.allowedOrigins ?? uiOrigin(options.uiUrl);
 
-  void options.provider.cleanupStaleSessions?.().catch((err) => {
-    console.warn(`remote container stale cleanup failed: ${errorMessage(err)}`);
-  });
-
-  const server = Bun.serve<WebSocketData>({
-    port: options.port ?? DEFAULT_BRIDGE_PORT,
-    async fetch(req, server) {
-      const url = new URL(req.url);
-      if (isWebSocketUpgrade(req)) {
-        const rejection = authenticateBridgeRequest(req, {
-          token: bridgeToken,
-          allowedOrigins: options.allowedOrigins,
-        });
-        if (rejection) return rejection;
-        if (server.upgrade(req, { data: { authenticated: true } satisfies WebSocketData })) return;
-        return new Response('WebSocket upgrade failed', { status: 426 });
-      }
-      if (url.pathname === '/status') {
-        return jsonResponse(await hostStatus(hasValidToken(req, bridgeToken)));
-      }
-      if (url.pathname === '/bridge-config') {
-        return jsonResponse({
-          provider: options.provider.kind,
-          token: bridgeToken,
-          bridgeUrl: '/bridge',
-          statusUrl: '/status',
-          root: '/work',
-        });
-      }
-      if (url.pathname.startsWith(PORT_PROXY_PREFIX)) {
-        return proxyPortRequest(req, {
-          token: bridgeToken,
-          routes: portRoutes,
-        });
-      }
-      if (options.uiUrl) return Response.redirect(options.uiUrl, 302);
-      return new Response(
-        'Remote container bridge host is running. Start the Vite UI with `bun run dev`.',
-        {
-          headers: { 'content-type': 'text/plain; charset=utf-8' },
-        },
-      );
-    },
-    websocket: {
-      async message(ws, message) {
-        const envelope = JSON.parse(String(message)) as BridgeEnvelope;
-        if (envelope.kind !== 'request') return;
-        try {
-          const payload = await handleRequest(
-            envelope,
-            {
-              provider: options.provider,
-              readiness,
-              sessions,
-              portRoutes,
-              publicOrigin: () => options.uiUrl ?? `http://127.0.0.1:${server.port}`,
-              bridgeToken,
-              hostStatus,
-            },
-            (event) => {
-              sendEvent(ws, envelope.sessionId, seqBySession, event);
-            },
-          );
-          if (envelope.type === REMOTE_PROTOCOL_TYPES.sessionCreate) {
-            const ids = socketSessions.get(ws) ?? new Set<string>();
-            ids.add(envelope.sessionId);
-            socketSessions.set(ws, ids);
-          }
-          ws.send(JSON.stringify(responseEnvelope(envelope, payload)));
-        } catch (err) {
-          ws.send(JSON.stringify(errorEnvelope(envelope, err)));
-        }
-      },
-      close(ws) {
-        void disposeSocketSessions(ws, socketSessions, sessions, portRoutes);
-      },
-    },
-  });
-
-  async function closeSessions() {
-    const ids = Array.from(sessions.keys());
-    for (const id of ids) await disposeSession(id, sessions, portRoutes);
+  if (options.cleanupStaleSessions !== false) {
+    void options.provider.cleanupStaleSessions?.().catch((err) => {
+      console.warn(`remote container stale cleanup failed: ${errorMessage(err)}`);
+    });
   }
 
   async function hostStatus(authenticated = false): Promise<RemoteHostStatusResponse> {
@@ -142,14 +77,89 @@ export async function startBridgeHostServer(
     };
   }
 
-  return Object.assign(server, {
+  async function closeSessions() {
+    const ids = Array.from(sessions.keys());
+    for (const id of ids) await disposeSession(id, sessions, portRoutes);
+  }
+
+  function clientConfig(): RemoteContainerBridgeClientConfig {
+    return {
+      provider: options.provider.kind,
+      host: options.hostKind,
+      token: bridgeToken,
+      bridgeUrl: BRIDGE_PATH,
+      statusUrl: STATUS_PATH,
+      root,
+    };
+  }
+
+  return {
     bridgeToken,
-    get bridgeOrigin() {
-      return `http://127.0.0.1:${server.port}`;
+    root,
+    bridgePath: BRIDGE_PATH,
+    statusPath: STATUS_PATH,
+    bridgeConfigPath: BRIDGE_CONFIG_PATH,
+    portProxyPrefix: PORT_PROXY_PREFIX,
+    clientConfig,
+    authenticateBridgeRequest(req) {
+      return authenticateBridgeRequest(req, { token: bridgeToken, allowedOrigins });
+    },
+    async handleHttpRequest(req) {
+      const url = new URL(req.url);
+      if (url.pathname === STATUS_PATH) {
+        return jsonResponse(await hostStatus(hasValidToken(req, bridgeToken)));
+      }
+      if (url.pathname === BRIDGE_CONFIG_PATH) return jsonResponse(clientConfig());
+      if (url.pathname.startsWith(PORT_PROXY_PREFIX)) {
+        return proxyPortRequest(req, {
+          token: bridgeToken,
+          routes: portRoutes,
+        });
+      }
+      if (options.uiUrl) return Response.redirect(options.uiUrl, 302);
+      return new Response(
+        'Remote container bridge host is running. Start a UI and connect to /bridge.',
+        {
+          headers: { 'content-type': 'text/plain; charset=utf-8' },
+        },
+      );
+    },
+    async handleSocketMessage(socket, message) {
+      const envelope = JSON.parse(messageText(message)) as BridgeEnvelope;
+      if (envelope.kind !== 'request') return;
+      try {
+        const payload = await handleRequest(
+          envelope,
+          {
+            provider: options.provider,
+            readiness,
+            sessions,
+            portRoutes,
+            publicOrigin: () => options.uiUrl ?? options.bridgeOrigin(),
+            bridgeToken,
+            root,
+            hostStatus,
+          },
+          (event) => {
+            sendEvent(socket, envelope.sessionId, seqBySession, event);
+          },
+        );
+        if (envelope.type === REMOTE_PROTOCOL_TYPES.sessionCreate) {
+          const ids = socketSessions.get(socket) ?? new Set<string>();
+          ids.add(envelope.sessionId);
+          socketSessions.set(socket, ids);
+        }
+        socket.send(JSON.stringify(responseEnvelope(envelope, payload)));
+      } catch (err) {
+        socket.send(JSON.stringify(errorEnvelope(envelope, err)));
+      }
+    },
+    closeSocket(socket) {
+      return disposeSocketSessions(socket, socketSessions, sessions, portRoutes);
     },
     closeSessions,
-    hostStatus: () => hostStatus(false),
-  });
+    hostStatus,
+  };
 }
 
 async function handleRequest(
@@ -161,6 +171,7 @@ async function handleRequest(
     portRoutes: Map<string, PortRoute>;
     publicOrigin(): string;
     bridgeToken: string;
+    root: string;
     hostStatus(authenticated: boolean): Promise<RemoteHostStatusResponse>;
   },
   emit: (event: RemoteBridgeEvent) => void,
@@ -174,7 +185,7 @@ async function handleRequest(
     const payload = envelope.payload as { root?: string };
     const session = await context.provider.createSession({
       id: envelope.sessionId,
-      root: payload.root ?? '/work',
+      root: payload.root ?? context.root,
     });
     context.sessions.set(envelope.sessionId, session);
     return {
@@ -332,14 +343,14 @@ async function exposePort(options: {
 }
 
 function sendEvent(
-  ws: ServerWebSocket<WebSocketData>,
+  socket: BridgeHostSocket,
   sessionId: string,
   seqBySession: Map<string, number>,
   payload: RemoteBridgeEvent,
 ) {
   const seq = (seqBySession.get(sessionId) ?? 0) + 1;
   seqBySession.set(sessionId, seq);
-  ws.send(
+  socket.send(
     JSON.stringify({
       id: `event-${sessionId}-${seq}`,
       sessionId,
@@ -375,7 +386,7 @@ function errorEnvelope(request: BridgeEnvelope, err: unknown): BridgeEnvelope {
     replyTo: request.id,
     sentAt: Date.now(),
     peer: 'host',
-    payload: { message: err instanceof Error ? err.message : String(err) },
+    payload: { message: errorMessage(err) },
   };
 }
 
@@ -400,8 +411,6 @@ function base64ToBytes(value: string): Uint8Array {
   for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
   return bytes;
 }
-
-const PORT_PROXY_PREFIX = '/__inbrowser/ports/';
 
 interface ProviderReadiness {
   ensureReady(): Promise<void>;
@@ -478,10 +487,6 @@ function statusMessage(state: RemoteHostDiagnostic['state']): string {
   return 'Container provider is idle';
 }
 
-function isWebSocketUpgrade(req: Request): boolean {
-  return req.headers.get('upgrade')?.toLowerCase() === 'websocket';
-}
-
 function authenticateBridgeRequest(
   req: Request,
   options: { token: string; allowedOrigins?: readonly string[] },
@@ -511,12 +516,12 @@ function hasAllowedOrigin(req: Request, allowedOrigins: readonly string[] = []):
 }
 
 async function disposeSocketSessions(
-  ws: ServerWebSocket<WebSocketData>,
-  socketSessions: WeakMap<ServerWebSocket<WebSocketData>, Set<string>>,
+  socket: BridgeHostSocket,
+  socketSessions: WeakMap<BridgeHostSocket, Set<string>>,
   sessions: Map<string, ContainerSession>,
   portRoutes: Map<string, PortRoute>,
 ) {
-  const ids = socketSessions.get(ws);
+  const ids = socketSessions.get(socket);
   if (!ids) return;
   for (const id of ids) await disposeSession(id, sessions, portRoutes);
 }
@@ -606,6 +611,18 @@ function jsonResponse(value: unknown): Response {
 
 function createBridgeToken(): string {
   return crypto.randomUUID();
+}
+
+function uiOrigin(uiUrl?: string): string[] {
+  if (!uiUrl) return [];
+  return [new URL(uiUrl).origin];
+}
+
+function messageText(message: unknown): string {
+  if (typeof message === 'string') return message;
+  if (message instanceof Uint8Array) return new TextDecoder().decode(message);
+  if (message instanceof ArrayBuffer) return new TextDecoder().decode(message);
+  return String(message);
 }
 
 function errorMessage(err: unknown): string {

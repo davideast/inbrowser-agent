@@ -1,10 +1,10 @@
 import type { SandboxFileEvent, SandboxSnapshot } from '@inbrowser/sandbox';
-import { createMemoryFileSystem } from '@inbrowser/workspace/fs';
 import type {
   ContainerSandboxProvider,
   ContainerSession,
   ContainerSessionOptions,
-} from './types.js';
+} from '@inbrowser/sandbox/remote/host';
+import { createMemoryFileSystem } from '@inbrowser/workspace/fs';
 
 export function createFakeContainerProvider(): ContainerSandboxProvider {
   return {

@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { type BridgeEnvelope, REMOTE_PROTOCOL_TYPES } from '@inbrowser/sandbox/remote';
-import { createAppleContainerProvider } from '../src/providers/apple-container.js';
+import {
+  type BridgeEnvelope,
+  REMOTE_PROTOCOL_TYPES,
+  createRemoteSandbox,
+} from '@inbrowser/sandbox/remote';
+import { startBridgeHostServer } from '@inbrowser/sandbox/remote/bun';
+import { startRemoteContainerBridge } from '@inbrowser/sandbox/remote/host';
 import { createFakeContainerProvider } from '../src/providers/fake.js';
-import { startBridgeHostServer } from '../src/server.js';
 
 describe('remote container bridge demo', () => {
   test('serves bridge config and streams run output over WebSocket', async () => {
@@ -109,8 +113,7 @@ describe('remote container bridge demo', () => {
         });
       }
     } finally {
-      await server.closeSessions();
-      server.stop(true);
+      await server.stop();
     }
   });
 
@@ -133,8 +136,7 @@ describe('remote container bridge demo', () => {
       );
       expect(badOrigin.status).toBe(403);
     } finally {
-      await server.closeSessions();
-      server.stop(true);
+      await server.stop();
     }
   });
 
@@ -193,8 +195,7 @@ describe('remote container bridge demo', () => {
       expect(await proxied.text()).toBe('proxied container response');
     } finally {
       socket.close();
-      await server.closeSessions();
-      server.stop(true);
+      await server.stop();
       upstream.stop(true);
     }
 
@@ -224,89 +225,34 @@ describe('remote container bridge demo', () => {
   appleIntegrationTest(
     'streams output from a real Apple container and cleans up the session',
     async () => {
-      const server = await startBridgeHostServer({
-        provider: createAppleContainerProvider({
-          image: process.env.REMOTE_CONTAINER_IMAGE ?? 'ubuntu:latest',
-        }),
+      const bridge = await startRemoteContainerBridge({
+        image: process.env.REMOTE_CONTAINER_IMAGE ?? 'ubuntu:latest',
+        provider: 'auto',
+        host: 'bun',
         port: 0,
       });
-      const sessionId = `apple-test-${Date.now().toString(36)}`;
-      const socket = new WebSocket(
-        `ws://127.0.0.1:${server.port}/bridge?sessionId=${sessionId}&role=browser&token=${server.bridgeToken}`,
-      );
-      const pending = new Map<
-        string,
-        {
-          resolve(value: unknown): void;
-          reject(err: Error): void;
-        }
-      >();
       const chunks: string[] = [];
-      let counter = 0;
-
-      socket.addEventListener('message', (event) => {
-        const envelope = JSON.parse(String(event.data)) as BridgeEnvelope;
-        if (
-          envelope.kind === 'event' &&
-          (envelope.payload as { type?: string }).type === 'artifact'
-        ) {
-          const artifact = (envelope.payload as { artifact?: { kind?: string; chunk?: string } })
-            .artifact;
-          if (artifact?.kind === 'run.output' && artifact.chunk) chunks.push(artifact.chunk);
-        }
-        if ((envelope.kind === 'response' || envelope.kind === 'error') && envelope.replyTo) {
-          const waiting = pending.get(envelope.replyTo);
-          if (!waiting) return;
-          pending.delete(envelope.replyTo);
-          if (envelope.kind === 'error') {
-            waiting.reject(new Error(String((envelope.payload as { message?: string }).message)));
-          } else {
-            waiting.resolve(envelope.payload);
-          }
-        }
-      });
 
       try {
-        await new Promise<void>((resolve, reject) => {
-          socket.addEventListener('open', () => resolve(), { once: true });
-          socket.addEventListener('error', () => reject(new Error('websocket failed')), {
-            once: true,
-          });
+        expect(bridge.provider).toBe('apple-container');
+        const sandbox = await createRemoteSandbox({
+          id: `apple-test-${Date.now().toString(36)}`,
+          transport: bridge.createWebSocketProvider(),
+          requestTimeoutMs: 120_000,
         });
-        const session = (await request(REMOTE_PROTOCOL_TYPES.sessionCreate, {
-          root: '/work',
-        })) as { root: string };
-        const result = (await request(REMOTE_PROTOCOL_TYPES.runStart, {
-          command: 'printf "real-bridge-stream\\n"',
-          options: { cwd: session.root },
-        })) as { exitCode: number; stdout: string };
+        sandbox.on((event) => {
+          if (event.type === 'artifact' && event.artifact.kind === 'run.output') {
+            chunks.push(String(event.artifact.chunk));
+          }
+        });
+        const result = await sandbox.runtime.run('printf "real-bridge-stream\\n"');
 
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toContain('real-bridge-stream');
         expect(chunks.join('')).toContain('real-bridge-stream');
+        sandbox.destroy();
       } finally {
-        socket.close();
-        await server.closeSessions();
-        server.stop(true);
-      }
-
-      function request(type: string, payload: unknown): Promise<unknown> {
-        counter += 1;
-        const id = `apple-test-${counter}`;
-        socket.send(
-          JSON.stringify({
-            id,
-            sessionId,
-            kind: 'request',
-            type,
-            sentAt: Date.now(),
-            peer: 'browser',
-            payload,
-          } satisfies BridgeEnvelope),
-        );
-        return new Promise((resolve, reject) => {
-          pending.set(id, { resolve, reject });
-        });
+        await bridge.stop();
       }
     },
     120_000,

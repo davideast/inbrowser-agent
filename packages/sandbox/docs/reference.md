@@ -8,6 +8,10 @@ This page describes the public surface of `@inbrowser/sandbox`.
 | --- | --- |
 | `@inbrowser/sandbox` | Sandbox contracts, workspace adapter, standard tools, runtime adapter, checkpoints, and path helpers |
 | `@inbrowser/sandbox/remote` | Remote bridge contracts, `createRemoteSandbox`, generic bridge connection helpers, and WebSocket transport |
+| `@inbrowser/sandbox/remote/host` | Host-side `startRemoteContainerBridge`, provider/host contracts, and auto-resolution types |
+| `@inbrowser/sandbox/remote/node` | Node bridge host server and Node command runner for local WebSocket container providers |
+| `@inbrowser/sandbox/remote/bun` | Bun bridge host server and Bun command runner for local WebSocket container providers |
+| `@inbrowser/sandbox/remote/apple-container` | Apple `container` CLI provider for macOS host demos and integrations |
 | `@inbrowser/agent/sandbox` | Agent bridge that adapts sandbox tools to `AgentTools` |
 
 Related guides:
@@ -190,6 +194,44 @@ Remote sandbox requests use `REMOTE_PROTOCOL_TYPES`, including `host.status`,
 envelopes can carry file events, sandbox events, port metadata, and artifact
 metadata. `createRemoteSandbox` re-emits remote artifacts and ports as normal
 `SandboxEvent` values.
+
+Host-side bridge code can use the decision-less host API:
+
+```ts
+import { startRemoteContainerBridge } from '@inbrowser/sandbox/remote/host';
+
+const bridge = await startRemoteContainerBridge({
+  image: 'ubuntu:latest',
+});
+
+const sandbox = await createRemoteSandbox({
+  id: 'local-container-session',
+  transport: bridge.createWebSocketProvider(),
+});
+```
+
+The default resolver chooses Bun under Bun, Node under Node, and Apple
+`container` when the CLI is available on macOS. Explicit composition remains
+available when an app wants to choose every layer:
+
+```ts
+import { createAppleContainerProvider } from '@inbrowser/sandbox/remote/apple-container';
+import { startNodeBridgeHostServer } from '@inbrowser/sandbox/remote/node';
+
+const server = await startNodeBridgeHostServer({
+  provider: createAppleContainerProvider({
+    image: 'ubuntu:latest',
+  }),
+  port: 8790,
+});
+
+console.log(server.bridgeOrigin);
+```
+
+The provider contract exported from `@inbrowser/sandbox/remote/host` is runtime
+specific and intentionally separate from `BridgeTransportProvider`. A WebSocket,
+Realtime Database, or test transport can drive the same Apple, WSL, Docker, or
+fake container provider without changing the sandbox client API.
 
 ## Events
 

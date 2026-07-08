@@ -1,32 +1,43 @@
-import type { SandboxDirent, SandboxSnapshot, SandboxStats } from '@inbrowser/sandbox';
+import type { SandboxDirent, SandboxSnapshot, SandboxStats } from '../../types.js';
 import type {
-  ContainerProcessOutput,
+  ContainerProviderFactory,
   ContainerRunOptions,
   ContainerSandboxProvider,
   ContainerSession,
   ContainerSessionOptions,
-} from './types.js';
+  HostCommandRunner,
+} from '../host/types.js';
+import { createNodeCommandRunner } from '../node/command.js';
 
 export interface AppleContainerProviderOptions {
   image: string;
   containerBin?: string;
+  namePrefix?: string;
+  maxBufferedOutputChars?: number;
+  commandRunner?: HostCommandRunner;
 }
 
-const INBROWSER_CONTAINER_PREFIX = 'inbrowser-';
-const MAX_BUFFERED_OUTPUT_CHARS = 1_048_576;
+const DEFAULT_CONTAINER_PREFIX = 'inbrowser-';
+const DEFAULT_MAX_BUFFERED_OUTPUT_CHARS = 1_048_576;
 
 export function createAppleContainerProvider(
   options: AppleContainerProviderOptions,
 ): ContainerSandboxProvider {
   const containerBin = options.containerBin ?? 'container';
-  const createdNames = new Set<string>();
+  const namePrefix = options.namePrefix ?? DEFAULT_CONTAINER_PREFIX;
+  const commandRunner = options.commandRunner ?? createNodeCommandRunner();
+  const maxBufferedOutputChars = Math.max(
+    0,
+    options.maxBufferedOutputChars ?? DEFAULT_MAX_BUFFERED_OUTPUT_CHARS,
+  );
+  const activeNames = new Set<string>();
   return {
     kind: 'apple-container',
     async ensureReady() {
-      await runHostCommand([containerBin, 'system', 'start'], { rejectOnFailure: true });
+      await commandRunner.run([containerBin, 'system', 'start'], { rejectOnFailure: true });
     },
     async diagnose() {
-      const version = await runHostCommand([containerBin, '--version']);
+      const version = await commandRunner.run([containerBin, '--version']);
       const runtimeAvailable = version.exitCode === 0;
       return {
         providerKind: 'apple-container',
@@ -41,24 +52,29 @@ export function createAppleContainerProvider(
       };
     },
     async cleanupStaleSessions() {
-      const names = await listContainerNames(containerBin);
+      const names = await listContainerNames(commandRunner, containerBin, namePrefix);
       await Promise.all(
         names
-          .filter((name) => name.startsWith(INBROWSER_CONTAINER_PREFIX))
-          .map((name) => deleteContainer(containerBin, name)),
+          .filter((name) => name.startsWith(namePrefix) && !activeNames.has(name))
+          .map((name) => deleteContainer(commandRunner, containerBin, name)),
       );
     },
     async createSession(sessionOptions) {
-      const name = safeContainerName(sessionOptions.id);
-      await deleteContainer(containerBin, name);
-      await runHostCommand(
+      const name = safeContainerName(sessionOptions.id, namePrefix);
+      await deleteContainer(commandRunner, containerBin, name);
+      await commandRunner.run(
         [containerBin, 'run', '--detach', '--name', name, options.image, 'sleep', 'infinity'],
         { rejectOnFailure: true },
       );
-      createdNames.add(name);
-      const session = new AppleContainerSession(containerBin, name, sessionOptions, () => {
-        createdNames.delete(name);
-      });
+      const session = new AppleContainerSession(
+        commandRunner,
+        containerBin,
+        name,
+        sessionOptions,
+        maxBufferedOutputChars,
+        () => activeNames.delete(name),
+      );
+      activeNames.add(name);
       const mkdir = await session.run(`mkdir -p ${shellQuote(sessionOptions.root)}`, { cwd: '/' });
       if (mkdir.exitCode !== 0) {
         await session.dispose();
@@ -69,15 +85,46 @@ export function createAppleContainerProvider(
   };
 }
 
+export const appleContainerProviderFactory: ContainerProviderFactory = {
+  kind: 'apple-container',
+  priority: 100,
+  async detect(context) {
+    if (!context.commandRunner && typeof process !== 'undefined' && process.platform !== 'darwin') {
+      return { available: false, reason: 'not running on macOS' };
+    }
+    const containerBin = context.containerBin ?? 'container';
+    const commandRunner = context.commandRunner ?? createNodeCommandRunner();
+    try {
+      const version = await commandRunner.run([containerBin, '--version']);
+      return version.exitCode === 0
+        ? { available: true, details: { version: version.stdout.trim() || version.stderr.trim() } }
+        : {
+            available: false,
+            reason: `${containerBin} command failed: ${version.stderr || version.stdout}`,
+          };
+    } catch (err) {
+      return {
+        available: false,
+        reason: err instanceof Error ? err.message : String(err),
+      };
+    }
+  },
+  create(options) {
+    return createAppleContainerProvider(options);
+  },
+};
+
 class AppleContainerSession implements ContainerSession {
   readonly id: string;
   readonly root: string;
 
   constructor(
+    private readonly commandRunner: HostCommandRunner,
     private readonly containerBin: string,
     private readonly name: string,
     options: ContainerSessionOptions,
-    private readonly onDispose?: () => void,
+    private readonly maxBufferedOutputChars: number,
+    private readonly onDispose: () => void,
   ) {
     this.id = options.id;
     this.root = options.root;
@@ -86,9 +133,13 @@ class AppleContainerSession implements ContainerSession {
   async run(command: string, options: ContainerRunOptions = {}) {
     const started = Date.now();
     const cwd = options.cwd ?? this.root;
-    const result = await runHostCommand(
+    const result = await this.commandRunner.run(
       [this.containerBin, 'exec', this.name, 'sh', '-lc', `cd ${shellQuote(cwd)} && ${command}`],
-      { signal: options.signal, onOutput: options.onOutput },
+      {
+        signal: options.signal,
+        onOutput: options.onOutput,
+        maxBufferedOutputChars: this.maxBufferedOutputChars,
+      },
     );
     return {
       stdout: result.stdout,
@@ -102,7 +153,7 @@ class AppleContainerSession implements ContainerSession {
   }
 
   async readFile(path: string): Promise<Uint8Array> {
-    const result = await runHostCommand(
+    const result = await this.commandRunner.run(
       [this.containerBin, 'exec', this.name, 'sh', '-lc', `base64 < ${shellQuote(path)}`],
       { rejectOnFailure: true },
     );
@@ -112,7 +163,7 @@ class AppleContainerSession implements ContainerSession {
   async writeFile(path: string, data: Uint8Array): Promise<void> {
     const encoded = bytesToBase64(data);
     await this.run(`mkdir -p ${shellQuote(dirname(path))}`, { cwd: this.root });
-    await runHostCommand(
+    await this.commandRunner.run(
       [
         this.containerBin,
         'exec',
@@ -206,8 +257,11 @@ class AppleContainerSession implements ContainerSession {
   }
 
   async dispose(): Promise<void> {
-    await deleteContainer(this.containerBin, this.name);
-    this.onDispose?.();
+    try {
+      await deleteContainer(this.commandRunner, this.containerBin, this.name);
+    } finally {
+      this.onDispose();
+    }
   }
 
   private async statLike(path: string): Promise<SandboxStats> {
@@ -227,11 +281,11 @@ class AppleContainerSession implements ContainerSession {
   }
 
   private async resolveContainerAddress(): Promise<string> {
-    const inspect = await runHostCommand([this.containerBin, 'inspect', this.name]);
+    const inspect = await this.commandRunner.run([this.containerBin, 'inspect', this.name]);
     const inspectIp = firstRoutableIpv4(inspect.stdout);
     if (inspectIp) return inspectIp;
 
-    const list = await runHostCommand([this.containerBin, 'list', '--all']);
+    const list = await this.commandRunner.run([this.containerBin, 'list', '--all']);
     const row = list.stdout
       .split('\n')
       .find((line) => line.includes(this.name) && firstRoutableIpv4(line));
@@ -244,67 +298,8 @@ class AppleContainerSession implements ContainerSession {
   }
 }
 
-interface RunHostCommandOptions {
-  signal?: AbortSignal;
-  onOutput?: (output: ContainerProcessOutput) => void;
-  rejectOnFailure?: boolean;
-}
-
-async function runHostCommand(args: string[], options: RunHostCommandOptions = {}) {
-  const proc = Bun.spawn(args, { stdout: 'pipe', stderr: 'pipe', signal: options.signal });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    readStream(proc.stdout, 'stdout', options.onOutput),
-    readStream(proc.stderr, 'stderr', options.onOutput),
-    proc.exited,
-  ]);
-  if (options.rejectOnFailure && exitCode !== 0) {
-    throw new Error(`${args.join(' ')} failed (${exitCode}): ${stderr.text || stdout.text}`);
-  }
-  return {
-    stdout: stdout.text,
-    stderr: stderr.text,
-    exitCode,
-    stdoutTruncated: stdout.truncated,
-    stderrTruncated: stderr.truncated,
-  };
-}
-
-async function readStream(
-  stream: ReadableStream<Uint8Array>,
-  name: 'stdout' | 'stderr',
-  onOutput?: (output: ContainerProcessOutput) => void,
-): Promise<{ text: string; truncated: boolean }> {
-  const decoder = new TextDecoder();
-  const reader = stream.getReader();
-  let text = '';
-  let truncated = false;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunkText = decoder.decode(value, { stream: true });
-    if (text.length < MAX_BUFFERED_OUTPUT_CHARS) {
-      text += chunkText.slice(0, MAX_BUFFERED_OUTPUT_CHARS - text.length);
-      truncated = truncated || text.length >= MAX_BUFFERED_OUTPUT_CHARS;
-    } else {
-      truncated = true;
-    }
-    if (chunkText) onOutput?.({ stream: name, chunk: chunkText });
-  }
-  const tail = decoder.decode();
-  if (tail) {
-    if (text.length < MAX_BUFFERED_OUTPUT_CHARS) {
-      text += tail.slice(0, MAX_BUFFERED_OUTPUT_CHARS - text.length);
-      truncated = truncated || text.length >= MAX_BUFFERED_OUTPUT_CHARS;
-    } else {
-      truncated = true;
-    }
-    onOutput?.({ stream: name, chunk: tail });
-  }
-  return { text, truncated };
-}
-
-function safeContainerName(id: string): string {
-  return `${INBROWSER_CONTAINER_PREFIX}${id.replace(/[^A-Za-z0-9_.-]/g, '-')}`.slice(0, 63);
+function safeContainerName(id: string, prefix: string): string {
+  return `${prefix}${id.replace(/[^A-Za-z0-9_.-]/g, '-')}`.slice(0, 63);
 }
 
 function shellQuote(value: string): string {
@@ -329,18 +324,26 @@ function base64ToBytes(value: string): Uint8Array {
   return bytes;
 }
 
-async function deleteContainer(containerBin: string, name: string): Promise<void> {
-  await runHostCommand([containerBin, 'stop', name]);
-  await runHostCommand([containerBin, 'delete', name]);
+async function deleteContainer(
+  commandRunner: HostCommandRunner,
+  containerBin: string,
+  name: string,
+): Promise<void> {
+  await commandRunner.run([containerBin, 'stop', name]);
+  await commandRunner.run([containerBin, 'delete', name]);
 }
 
-async function listContainerNames(containerBin: string): Promise<string[]> {
-  const result = await runHostCommand([containerBin, 'list', '--all']);
+async function listContainerNames(
+  commandRunner: HostCommandRunner,
+  containerBin: string,
+  prefix: string,
+): Promise<string[]> {
+  const result = await commandRunner.run([containerBin, 'list', '--all']);
   if (result.exitCode !== 0) return [];
   return result.stdout
     .split('\n')
     .flatMap((line) => line.trim().split(/\s+/))
-    .filter((part) => part.startsWith(INBROWSER_CONTAINER_PREFIX));
+    .filter((part) => part.startsWith(prefix));
 }
 
 function firstRoutableIpv4(text: string): string | undefined {

@@ -53,6 +53,8 @@ when a host needs a common tool, checkpoint, event, or runtime adapter layer.
 - A `createWorkspaceSandbox` adapter for `@inbrowser/workspace`.
 - A remote bridge subpath for adapting WebSocket-backed host/container runtimes
   into the same sandbox contract.
+- Host-only remote bridge subpaths for decision-less local container bridges,
+  Node/Bun daemons, command runners, and Apple `container` providers.
 
 ## What It Does Not Own
 

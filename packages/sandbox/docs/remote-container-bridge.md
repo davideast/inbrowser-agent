@@ -24,9 +24,14 @@ The clean package fit is:
 | `@inbrowser/relay` | Optional server boundary when the bridge needs authenticated remote access across devices. |
 | `@inbrowser/model` | Out of scope. Container execution is a tool/runtime concern, not a model provider concern. |
 
-The concrete provider code should start as a sandbox subpath or example rather
-than a new package. A new package is only warranted once the host-side bridge
-pulls in platform-specific dependencies or release cadence that would make
+The concrete provider code starts as host-only sandbox subpaths rather than a
+new package. `@inbrowser/sandbox/remote/host` owns the decision-less
+`startRemoteContainerBridge` API plus provider/host contracts,
+`@inbrowser/sandbox/remote/node` owns the standard Node host,
+`@inbrowser/sandbox/remote/bun` owns the Bun host, and
+`@inbrowser/sandbox/remote/apple-container` owns the Apple `container` CLI
+provider. A new package is only warranted once the host-side bridge pulls in
+platform-specific dependencies or release cadence that would make
 `@inbrowser/sandbox` too heavy.
 
 ## Why Sandbox Is The Boundary
@@ -118,8 +123,8 @@ interface ContainerSession {
 
 That provider can be adapted into the existing `Sandbox` shape by implementing
 `SandboxFileSystem`, `SandboxRuntime`, and optional `SandboxServices`.
-The example host starts before `ensureReady()` succeeds, reports diagnostics
-through `/status` and `host.status`, and lazily starts the provider on
+The Node and Bun hosts start before `ensureReady()` succeeds, report diagnostics
+through `/status` and `host.status`, and lazily start the provider on
 `session.create`.
 
 ## Apple Container Notes
@@ -423,12 +428,14 @@ Recommended defaults:
 3. Add a browser-safe `RemoteSandboxClient` that adapts a
    `BridgeTransportProvider` into `SandboxFileSystem`, `SandboxRuntime`, and
    `SandboxServices`. Done as `createRemoteSandbox`.
-4. Add a Node host daemon example that implements the protocol for one container
-   provider. Done in `examples/remote-container-bridge`.
+4. Add Node and Bun host daemons that implement the protocol for container
+   providers. Done as `@inbrowser/sandbox/remote/node` and
+   `@inbrowser/sandbox/remote/bun`, with shared host core.
 5. Implement Apple `container` first through the CLI on macOS 26 because its
    commands cover run, exec, copy, inspect, logs, stats, ports, and image
-   lifecycle. Implemented in the example host with diagnostics, cleanup, and an
-   opt-in real integration test.
+   lifecycle. Implemented as `@inbrowser/sandbox/remote/apple-container` with
+   diagnostics, cleanup, a runtime-neutral command runner, and an opt-in real
+   integration test.
 6. Add WSL support through the WSL container API when a Windows test host is
    available; keep `wslc.exe` as the parity fallback.
 7. Add `RealtimeDatabaseProvider` once the event protocol and idempotency rules
@@ -443,8 +450,6 @@ Recommended defaults:
 
 ## Open Questions
 
-- Should the host daemon live in an example first, or should `@inbrowser/sandbox`
-  grow explicit `./remote` and `./remote/node` subpaths?
 - What is the smallest acceptable file sync primitive for interactive editing:
   `copy` per operation, tar deltas, rsync-like manifests, or git patches?
 - Does Apple `container` expose enough stable Swift API surface for a structured

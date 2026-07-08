@@ -1,19 +1,17 @@
+import { startRemoteContainerBridge } from '@inbrowser/sandbox/remote/host';
 import { readRemoteContainerBridgeEnv } from './env.js';
-import { startBridgeHostServer } from './server.js';
 
-const { provider, bridgePort, allowedOrigins } = readRemoteContainerBridgeEnv();
+const { bridgeOptions } = readRemoteContainerBridgeEnv();
 
-const server = await startBridgeHostServer({ provider, port: bridgePort, allowedOrigins });
+const bridge = await startRemoteContainerBridge(bridgeOptions);
 
-console.log(
-  `remote container bridge listening on ws://127.0.0.1:${server.port} (${provider.kind})`,
-);
-console.log(`remote container bridge API available at http://127.0.0.1:${server.port}`);
+console.log(`remote container bridge listening on ${bridge.origin}${bridge.bridgeUrl}`);
+console.log(`remote container bridge API available at ${bridge.origin}`);
+console.log(`provider=${bridge.provider} host=${bridge.host}`);
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, async () => {
-    await server.closeSessions();
-    server.stop(true);
+    await bridge.stop();
     process.exit(0);
   });
 }

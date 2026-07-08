@@ -1,13 +1,11 @@
-import { createAppleContainerProvider } from './providers/apple-container.js';
+import type { StartRemoteContainerBridgeOptions } from '@inbrowser/sandbox/remote/host';
 import { createFakeContainerProvider } from './providers/fake.js';
-import type { ContainerSandboxProvider } from './providers/types.js';
 
 export interface RemoteContainerBridgeEnv {
-  provider: ContainerSandboxProvider;
+  bridgeOptions: StartRemoteContainerBridgeOptions;
   providerName: string;
   bridgePort: number;
   uiPort: number;
-  allowedOrigins: string[];
   image: string;
 }
 
@@ -22,10 +20,13 @@ export function readRemoteContainerBridgeEnv(): RemoteContainerBridgeEnv {
   const uiOrigins = [`http://127.0.0.1:${uiPort}`, `http://localhost:${uiPort}`];
   const allowedOrigins = explicitOrigins?.length ? explicitOrigins : uiOrigins;
 
-  const provider =
-    providerName === 'apple'
-      ? createAppleContainerProvider({ image })
-      : createFakeContainerProvider();
+  const bridgeOptions: StartRemoteContainerBridgeOptions = {
+    image,
+    provider: providerName === 'fake' ? createFakeContainerProvider() : 'auto',
+    host: 'auto',
+    port: bridgePort,
+    allowedOrigins,
+  };
 
-  return { provider, providerName, bridgePort, uiPort, allowedOrigins, image };
+  return { bridgeOptions, providerName, bridgePort, uiPort, image };
 }
