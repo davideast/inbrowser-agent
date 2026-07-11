@@ -16,10 +16,10 @@
  *   6. bundles `@inbrowser/relay/client/browser` for the `browser` target
  *      to prove the browser sub-export has no Node API references
  *
- * Model coverage is import-only — `createEngine` exists in node but
- * needs `@huggingface/transformers` and a real model to do anything;
- * this script asserts the export shape and stops before attempting
- * to load a model.
+ * The on-device model coverage is import-only because `createEngine`
+ * needs a real model. Constructed-runtime adapters are invoked with
+ * structural fakes so their packed root exports and dependency seams
+ * are exercised.
  */
 
 import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
@@ -145,6 +145,8 @@ const SPECS: PackSpec[] = [
       // (stage 4).
       'package/dist/with-retry.js',
       'package/dist/providers/gemini.js',
+      'package/dist/providers/gemini-protocol.js',
+      'package/dist/providers/firebase-ai-logic.js',
       'package/dist/providers/openrouter.js',
       'package/dist/providers/anthropic.js',
       'package/dist/providers/oai-compat.js',
@@ -379,6 +381,7 @@ import {
   llamaServerModelClient,
   anthropicModelClient,
   claudeCliModelClient,
+  createFirebaseAiLogicModelClient,
   withRetry,
 } from '@inbrowser/model';
 for (const [name, fn] of [
@@ -388,6 +391,7 @@ for (const [name, fn] of [
   ['llamaServerModelClient', llamaServerModelClient],
   ['anthropicModelClient', anthropicModelClient],
   ['claudeCliModelClient', claudeCliModelClient],
+  ['createFirebaseAiLogicModelClient', createFirebaseAiLogicModelClient],
   ['withRetry', withRetry],
 ]) {
   assert.equal(typeof fn, 'function', \`model root: \${name} should be a function\`);
@@ -399,7 +403,43 @@ assert.equal(typeof geminiClient.chat, 'function');
 const llamaClient = llamaServerModelClient({ model: 'qwen2.5-coder' });
 assert.equal(llamaClient.id, 'llama:qwen2.5-coder');
 assert.equal(typeof llamaClient.chat, 'function');
-console.log('  ✓ model: cloud provider factories + withRetry exported from root');
+
+// Firebase itself is deliberately absent from this scratch install. A
+// caller-constructed structural model is enough to use the adapter.
+const firebaseClient = createFirebaseAiLogicModelClient({
+  model: 'models/gemini-3.5-flash',
+  async generateContentStream(request, options) {
+    assert.equal(request.contents[0].parts[0].text, 'smoke');
+    assert.equal(options.signal.aborted, false);
+    return {
+      stream: (async function* () {
+        yield {
+          candidates: [{ content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' }],
+          usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+        };
+      })(),
+      response: Promise.resolve({}),
+    };
+  },
+});
+assert.equal(firebaseClient.id, 'firebase-ai-logic:models/gemini-3.5-flash');
+assert.equal(firebaseClient.supportsTools, true);
+const firebaseEvents = [];
+for await (const event of firebaseClient.chat(
+  {
+    messages: [{ role: 'user', text: 'smoke' }],
+    tools: [],
+    toolUseEnabled: false,
+  },
+  new AbortController().signal,
+)) {
+  firebaseEvents.push(event);
+}
+assert.deepEqual(firebaseEvents, [
+  { kind: 'text', text: 'ok' },
+  { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
+]);
+console.log('  ✓ model: provider factories, Firebase adapter, and withRetry exported from root');
 
 // The engine→ModelClient adapter resolves from the root and is a function
 // (the on-device engine is now a ModelClient).

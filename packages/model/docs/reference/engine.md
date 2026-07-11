@@ -21,6 +21,7 @@ Everything is imported from the package root `@inbrowser/model`.
 | `createEngine`, `definePreset`, `parseToolCalls`, `splitThinking`, and engine types | The on-device engine surface |
 | The six bundled presets | `deepseek_r1_qwen_1_5b`, `gemma4_E2B`, `gemma4_E4B`, `qwen2_5_coder_1_5b`, `qwen3_1_7b`, `smollm2_360m`. See [./presets.md](./presets.md). |
 | The cloud provider factories (`geminiModelClient`, …), `withRetry` | Cloud providers + the retry decorator |
+| `createFirebaseAiLogicModelClient` | Wraps a caller-constructed Firebase AI Logic model as a `ModelClient`; it is not an API-key cloud factory. |
 | `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` | The shared `ModelClient` contract types (type-only) |
 | `createEngineModelClient` | Wraps an `Engine` as a `ModelClient`. See [./adapters-and-worker.md](./adapters-and-worker.md). |
 | `hostEngineInWorker`, `connectWorkerEngine` | Worker host/connect helpers. See [./adapters-and-worker.md](./adapters-and-worker.md). |
