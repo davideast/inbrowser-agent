@@ -12,7 +12,7 @@ Put a language model in a web app without running an inference backend. It runs 
 
 
 ## No API Key or BYOK
-On-device models don't need API keys. Cloud models use BYOK (bring your own key): each user supplies their own, and it stays on the client instead of on a server you run.
+On-device models don't need API keys. Most cloud providers use BYOK (bring your own key): each user supplies their own, and it stays on the client instead of on a server you run. Firebase AI Logic instead uses the host app's configured Firebase project, backend, Authentication, and App Check context.
 
 ## Run a model in the browser
 
@@ -47,7 +47,7 @@ for await (const ev of client.chat({
 }
 ```
 
-The weights download once via Transformers.js and run on WebGPU (WASM fallback when there's no GPU). `createEngineModelClient` wraps the engine as a `ModelClient` — the same interface every cloud provider implements, so swapping it for `geminiModelClient({ apiKey, model })` (or `openrouterModelClient`, `requestyModelClient`, `ollamaModelClient`, …) changes that one line and nothing else.
+The weights download once via Transformers.js and run on WebGPU (WASM fallback when there's no GPU). `createEngineModelClient` wraps the engine as a `ModelClient` — the same interface every cloud provider implements, so swapping it for `geminiModelClient({ apiKey, model })`, `createFirebaseAiLogicModelClient(firebaseModel)`, or another provider changes that one line and nothing else.
 
 ## OpenRouter OAuth for BYOK
 
@@ -149,13 +149,14 @@ The log is append-only and ordered by `seq`. A consumer that reconnects after a 
 
 ### `@inbrowser/model`
 
-The shared `ModelClient` contract that relay and agent both consume, a set of cloud provider factories, and an on-device engine (Transformers.js + ONNX Runtime Web). Single root entrypoint — `import { … } from '@inbrowser/model'`.
+The shared `ModelClient` contract that relay and agent both consume, cloud provider factories and adapters, and an on-device engine (Transformers.js + ONNX Runtime Web). Single root entrypoint — `import { … } from '@inbrowser/model'`.
 
-**Cloud providers** — each is a factory that returns a `ModelClient` from `{ apiKey, model, … }`:
+**Cloud providers** — each returns a `ModelClient`; most are `{ apiKey, model, … }` factories, while Firebase AI Logic wraps a model constructed by the host app:
 
 | Factory | Config | Notes |
 |---------|--------|-------|
 | `geminiModelClient(config)` | `GeminiConfig` | Google AI Studio / Vertex |
+| `createFirebaseAiLogicModelClient(model, opts?)` | Constructed Firebase `GenerativeModel` | Host owns Firebase, App Check, backend, and location; no Firebase dependency; not directly relay-registerable |
 | `openrouterModelClient(config)` | `OpenRouterConfig` | Unified API, many models |
 | `requestyModelClient(config)` | `RequestyConfig` | OpenAI-compatible gateway, many models |
 | `anthropicModelClient(config)` | `AnthropicConfig` | Anthropic Claude |

@@ -9,10 +9,12 @@ shared contract from `@inbrowser/model/contract`, re-exported from
 provider and maps its stream to `ModelEvent`s. For the full event and usage
 shapes, see the [`ModelClient` reference](../reference/library.md).
 
-> Already have a provider? The cloud providers (Gemini, OpenRouter, Anthropic,
-> Ollama, the Claude CLI/Code bridges) ship as `ModelClient` factories in
-> `@inbrowser/model`. Import one and hand it to a session — you only need this
-> guide when wiring an API the package does not cover.
+> Already have a provider? The API-key and subscription providers (Gemini,
+> OpenRouter, Anthropic, Ollama, and the Claude CLI/Code bridges) ship as
+> `ModelClient` factories in `@inbrowser/model`. Firebase AI Logic instead uses
+> `createFirebaseAiLogicModelClient` to wrap a caller-constructed Firebase model.
+> Import one and hand it to a session — you only need this guide when wiring an
+> API the package does not cover.
 
 ## Choose your path
 

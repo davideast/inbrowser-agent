@@ -102,6 +102,15 @@ export {
 // it. Importing this file is SSR-safe; the SDK is lazy-loaded inside chat.
 export { claudeCodeModelClient, type ClaudeCodeConfig } from './providers/claude-code.js';
 
+// Constructed-runtime adapter: the caller owns Firebase app, backend, App
+// Check, and model lifecycle. This package has no Firebase dependency.
+export {
+  createFirebaseAiLogicModelClient,
+  type FirebaseAiLogicGenerativeModelLike,
+  type FirebaseAiLogicModelClientOptions,
+  type FirebaseAiLogicRequestOptionsLike,
+} from './providers/firebase-ai-logic.js';
+
 // The reusable transient-retry decorator (was the site's relay bridge).
 export { withRetry, type WithRetryOpts } from './with-retry.js';
 

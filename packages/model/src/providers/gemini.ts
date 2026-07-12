@@ -1,13 +1,13 @@
-import type {
-  ModelClient,
-  ModelErrorEvent,
-  ModelEvent,
-  ModelRequest,
-  ReasoningEffort,
-  ToolSpec,
-} from '../contract.js';
+import type { ModelClient, ModelErrorEvent, ModelEvent, ModelRequest } from '../contract.js';
 import { readSseDataLines } from '../sse.js';
+import {
+  geminiNoOutputError,
+  selectGeminiThinking,
+  toGeminiFunctionDeclarations,
+} from './gemini-protocol.js';
 import type { CloudProviderConfig } from './types.js';
+
+export { sanitizeGeminiSchema } from './gemini-protocol.js';
 /**
  * Gemini provider — raw fetch against the Generative Language REST
  * API, parsing SSE directly. The `@google/genai` SDK is intentionally
@@ -50,26 +50,16 @@ interface GeminiBody {
   generationConfig?: Record<string, unknown>;
 }
 
-const GEMINI_25_THINKING_BUDGET: Record<Exclude<ReasoningEffort, 'off'>, number> = {
-  low: 1024,
-  medium: 4096,
-  high: 8192,
-};
-
 function buildGeminiThinkingConfig(
   model: string,
-  effort: ReasoningEffort | undefined,
+  effort: ModelRequest['reasoningEffort'],
 ): Record<string, unknown> | undefined {
-  if (!effort || effort === 'off') return undefined;
+  const selection = selectGeminiThinking(model, effort);
+  if (!selection) return undefined;
 
   const thinkingConfig: Record<string, unknown> = { includeThoughts: true };
-  const normalized = model.toLowerCase();
-
-  if (normalized.includes('gemini-3.5-') || normalized.includes('gemini-3-flash')) {
-    thinkingConfig.thinkingLevel = effort;
-  } else if (normalized.includes('gemini-2.5-')) {
-    thinkingConfig.thinkingBudget = GEMINI_25_THINKING_BUDGET[effort];
-  }
+  if (selection.kind === 'level') thinkingConfig.thinkingLevel = selection.effort;
+  if (selection.kind === 'budget') thinkingConfig.thinkingBudget = selection.budget;
 
   return thinkingConfig;
 }
@@ -131,12 +121,7 @@ function toGeminiBody(config: CloudProviderConfig, req: ModelRequest): GeminiBod
   if (systemText) body.systemInstruction = { parts: [{ text: systemText }] };
 
   if (req.tools.length > 0) {
-    const functionDeclarations = req.tools.map((t: ToolSpec) => ({
-      name: t.function.name,
-      description: t.function.description,
-      parameters: sanitizeGeminiSchema(t.function.parameters),
-    }));
-    body.tools = [{ functionDeclarations }];
+    body.tools = [{ functionDeclarations: toGeminiFunctionDeclarations(req.tools) }];
   }
 
   const gen: Record<string, unknown> = {
@@ -374,7 +359,7 @@ export async function* geminiEventsFromResponse(
   // only thinking. Surface why: a non-STOP `finishReason` names it,
   // `none` means the stream was truncated before one arrived.
   if (!sawVisibleText && !sawFunctionCall) {
-    yield geminiNoOutputError({
+    yield geminiNoOutputError('Gemini', 'gemini', {
       finishReason: lastFinishReason,
       sawThinking,
       sawVisibleText,
@@ -410,46 +395,6 @@ export async function* geminiEventsFromResponse(
       outputTokens: completionTokens,
       ...(cachedTokens > 0 ? { cachedTokens } : {}),
       ...(reasoningTokens > 0 ? { reasoningTokens } : {}),
-    },
-  };
-}
-
-function geminiNoOutputError(opts: {
-  finishReason: string | undefined;
-  sawThinking: boolean;
-  sawVisibleText: boolean;
-  sawFunctionCall: boolean;
-}): ModelErrorEvent {
-  const finishReason = opts.finishReason ?? 'none';
-  const message = `Gemini produced no output — finishReason=${finishReason} (${
-    opts.sawThinking
-      ? 'response ended after thinking only'
-      : 'response ended with no visible output'
-  })`;
-
-  let code = 'gemini.no_output';
-  let retryable = false;
-  if (opts.finishReason === undefined) {
-    code = 'gemini.truncated_no_output';
-    retryable = true;
-  } else if (opts.finishReason === 'MALFORMED_FUNCTION_CALL') {
-    code = 'gemini.malformed_function_call';
-    retryable = true;
-  } else if (opts.finishReason === 'STOP' && opts.sawThinking) {
-    code = 'gemini.thinking_only_stop';
-    retryable = true;
-  }
-
-  return {
-    kind: 'error',
-    message,
-    code,
-    retryable,
-    details: {
-      finishReason,
-      sawThinking: opts.sawThinking,
-      sawVisibleText: opts.sawVisibleText,
-      sawFunctionCall: opts.sawFunctionCall,
     },
   };
 }
@@ -553,40 +498,4 @@ export function geminiModelClient(config: GeminiConfig): ModelClient {
       }
     },
   };
-}
-
-/**
- * Strip JSON-Schema keywords Gemini's `function_declarations[].parameters`
- * validator rejects. The validator is a narrow subset of OpenAPI 3.0
- * Schema — anything `zodToJsonSchema` (or hand-written JSON Schema)
- * emits beyond that subset 400s with `Unknown name "<key>"`.
- *
- * Keys stripped:
- *   - `additionalProperties` — emitted by `zodToJsonSchema` on every
- *     object; Gemini rejects it outright.
- *   - `$schema`, `$ref`, `$defs`, `definitions` — JSON-Schema-isms not
- *     supported in OpenAPI 3.0 Schema.
- *
- * OpenRouter's adapter accepts the standard JSON Schema unchanged —
- * no equivalent sanitizer there.
- *
- * Implementation: deep-clone walk so we never mutate the caller's
- * schema object (the same `parameters` reference is held by the
- * ToolRegistry and shared across providers).
- */
-const STRIP_KEYS = new Set(['additionalProperties', '$schema', '$ref', '$defs', 'definitions']);
-
-export function sanitizeGeminiSchema(node: unknown): unknown {
-  if (Array.isArray(node)) {
-    return node.map(sanitizeGeminiSchema);
-  }
-  if (node && typeof node === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(node)) {
-      if (STRIP_KEYS.has(k)) continue;
-      out[k] = sanitizeGeminiSchema(v);
-    }
-    return out;
-  }
-  return node;
 }

@@ -319,12 +319,14 @@ interface ModelClient {
 }
 ```
 
-The narrow model interface. The cloud providers in `@inbrowser/model`
-(`geminiModelClient`, `openrouterModelClient`, `anthropicModelClient`,
-`ollamaModelClient`, `claudeCliModelClient`, `claudeCodeModelClient`) are
-factories returning one. The client knows about model calls and streamed events;
-it knows nothing about BYOK forms, storage, model pickers, or pricing. `chat`
-yields `ModelEvent`s, enumerated in [events.md](./events.md). `id` is a stable
+The narrow model interface. The API-key and subscription providers in
+`@inbrowser/model` (`geminiModelClient`, `openrouterModelClient`,
+`anthropicModelClient`, `ollamaModelClient`, `claudeCliModelClient`,
+`claudeCodeModelClient`) are factories returning one.
+`createFirebaseAiLogicModelClient` instead wraps a caller-constructed Firebase
+AI Logic model. The client knows about model calls and streamed events; it knows
+nothing about BYOK forms, storage, model pickers, or pricing. `chat` yields
+`ModelEvent`s, enumerated in [events.md](./events.md). `id` is a stable
 metrics/provenance string such as `gemini:gemini-3.5-flash`.
 
 ### `ModelRequest`

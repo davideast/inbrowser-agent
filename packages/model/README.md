@@ -13,7 +13,8 @@ Two halves, one package:
   providers (`geminiModelClient`, `openrouterModelClient`,
   `requestyModelClient`, `anthropicModelClient`, `openaiCompatModelClient`,
   `ollamaModelClient`, `llamaServerModelClient`, `claudeCliModelClient`,
-  `claudeCodeModelClient`) are factories that each return a `ModelClient`.
+  `claudeCodeModelClient`) and the Firebase AI Logic constructed-model
+  adapter (`createFirebaseAiLogicModelClient`) each return a `ModelClient`.
   `withRetry` decorates one.
 - **The on-device engine.** `createEngine` loads ONNX models in the
   browser via `@huggingface/transformers` + ONNX Runtime Web (WebGPU /
@@ -57,6 +58,34 @@ for await (const evt of client.chat(
 The turn ends when the iterable returns; a `usage` event (or a terminal
 `error` event) is the last thing emitted. There is no `turn_complete`
 event.
+
+## Firebase AI Logic from an existing Firebase app
+
+Firebase AI Logic uses the Firebase app that the host already configured. The
+host owns Firebase initialization, App Check, backend selection, Vertex AI
+location, and construction of the `GenerativeModel`; this package only adapts
+that model to `ModelClient`:
+
+```ts
+import { initializeApp } from 'firebase/app';
+import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
+import { createFirebaseAiLogicModelClient } from '@inbrowser/model';
+
+const app = initializeApp(firebaseConfig);
+// Initialize App Check for `app` before making production AI requests.
+const ai = getAI(app, { backend: new GoogleAIBackend() });
+const firebaseModel = getGenerativeModel(ai, { model: 'gemini-3.5-flash' });
+const client = createFirebaseAiLogicModelClient(firebaseModel);
+```
+
+The adapter streams text and thinking, translates caller-run custom function
+calls (including thought-signature replay), maps sampling and usage, forwards
+cancellation, and normalizes Firebase errors. It has no `firebase` dependency:
+the constructed model crosses a small structural interface. Live API, Imagen,
+server templates, Firebase built-in/automatic tools, multimodal events,
+structured-output configuration, token counting, and hybrid lifecycle control
+are intentionally outside this adapter. See the
+[Firebase AI Logic reference](docs/reference/firebase-ai-logic.md).
 
 ## A local OpenAI-compatible server
 
@@ -134,6 +163,7 @@ Everything is imported from the package root `@inbrowser/model`.
 |---|---|
 | `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` | The shared contract (type-only) |
 | `geminiModelClient`, `openrouterModelClient`, `requestyModelClient`, `anthropicModelClient`, `openaiCompatModelClient`, `ollamaModelClient`, `llamaServerModelClient`, `claudeCliModelClient`, `claudeCodeModelClient` | Cloud + local provider factories; each returns a `ModelClient` |
+| `createFirebaseAiLogicModelClient(model, opts?)` | Wraps a caller-constructed Firebase AI Logic `GenerativeModel`; Firebase/App Check lifecycle stays with the host |
 | `OpenAiCompatConfig`, `OllamaConfig`, `LlamaServerConfig` | Config shapes for the OpenAI-compatible factory and its local presets |
 | `withRetry(client, opts?)` | Decorator that retries transient upstream errors while nothing has streamed |
 | `CloudProviderConfig`, `ModelClientFactory` | Shared provider config + the factory type the relay routes on |
