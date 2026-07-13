@@ -118,6 +118,12 @@ directly for any server without a named preset.
 
 ## An on-device model via the engine
 
+Install the optional Transformers peer only when using the on-device engine:
+
+```sh
+npm install @inbrowser/model @huggingface/transformers
+```
+
 ```ts
 import { createEngine, gemma4_E2B } from '@inbrowser/model';
 

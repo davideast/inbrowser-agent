@@ -66,8 +66,9 @@ Use the precise terms — they show up in types, comments, and PRs:
 - Don't re-introduce provider exports into `@inbrowser/relay` — the
   providers live here now and the relay consumes them as
   `ModelClientFactory`s.
-- Don't make `@huggingface/transformers` a regular dependency. It's
-  a peer dep; consumers control the version. (The Claude Code Agent SDK,
+- Don't make `@huggingface/transformers` a regular dependency. It's an
+  optional peer; on-device consumers install it explicitly and control the
+  version. (The Claude Code Agent SDK,
   used only by `claudeCodeModelClient`, is an optional peer dep.)
 - Don't make `firebase` a dependency or initialize Firebase/App Check in this
   package. `createFirebaseAiLogicModelClient` accepts a structural,

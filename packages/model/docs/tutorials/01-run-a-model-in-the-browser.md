@@ -38,9 +38,11 @@ Add the engine and its inference runtime to your project:
 npm install @inbrowser/model @huggingface/transformers
 ```
 
-`@huggingface/transformers` is a peer dependency: it is the runtime that
-actually fetches weights and runs the forward pass. The engine wraps it behind
-a narrow surface you will use directly.
+`@huggingface/transformers` is an optional peer dependency: cloud-only and
+contract-only consumers do not install it. It is the runtime that actually
+fetches weights and runs the forward pass, so applications using the on-device
+engine install it explicitly. The engine wraps it behind a narrow surface you
+will use directly.
 
 ## 2. Add A Place To Show Output
 

@@ -34,8 +34,33 @@ import { parseToolCalls } from './parse-tool-calls.js';
 // fetched only when an engine actually loads or generates.
 let transformersModule: Promise<typeof import('@huggingface/transformers')> | null = null;
 function loadTransformers() {
-  transformersModule ??= import('@huggingface/transformers');
+  transformersModule ??= import('@huggingface/transformers').catch((error: unknown) => {
+    // Only translate failure to resolve the optional peer itself. A missing
+    // transitive dependency or an exception while evaluating Transformers is
+    // an installation/runtime problem of its own and must retain its original
+    // error and stack.
+    if (isMissingTransformersPeer(error)) {
+      throw new Error(
+        'Local inference requires the optional peer @huggingface/transformers. ' +
+          'Install it alongside @inbrowser/model (for example: npm install @huggingface/transformers).',
+        { cause: error },
+      );
+    }
+    throw error;
+  });
   return transformersModule;
+}
+
+function isMissingTransformersPeer(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  const code = (error as Error & { code?: unknown }).code;
+  if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') return false;
+
+  return (
+    error.message.includes("Cannot find package '@huggingface/transformers'") ||
+    error.message.includes("Cannot find module '@huggingface/transformers'")
+  );
 }
 
 import type {

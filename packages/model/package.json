@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/model",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "The model layer for the inbrowser stack: it OWNS the shared ModelClient contract that @inbrowser/relay (transport) and @inbrowser/agent (runtime) both consume, cloud provider factories, a constructed-model Firebase AI Logic adapter, a withRetry decorator, and the on-device LLM engine (lazy-loads @huggingface/transformers + ONNX Runtime Web behind a narrow EngineEvent-streaming Engine surface; Gemma 4 + Qwen + SmolLM2 presets; in-worker host/connect helpers). The engine is also a ModelClient via createEngineModelClient. Everything is exported from the package root.",
   "type": "module",
   "main": "./dist/index.js",
@@ -28,7 +28,7 @@
       "optional": true
     },
     "@huggingface/transformers": {
-      "optional": false
+      "optional": true
     }
   },
   "devDependencies": {
