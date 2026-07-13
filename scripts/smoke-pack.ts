@@ -216,6 +216,18 @@ async function scratchInstall(tarballs: string[]): Promise<void> {
   // resolution sees them together.
   await $`npm install --silent --no-audit --no-fund ${tarballs}`.cwd(SCRATCH);
   ok(`installed ${tarballs.length} packages into ${SCRATCH}`);
+
+  // npm installs non-optional peers by default. Keep the on-device runtime out
+  // of a plain agent/model install unless the application explicitly asks for
+  // it.
+  const heavyweightTree =
+    await $`npm ls @huggingface/transformers onnxruntime-node --all --parseable`
+      .cwd(SCRATCH)
+      .text();
+  if (heavyweightTree.trim()) {
+    fail(`default install contains local-model dependencies:\n${heavyweightTree.trim()}`);
+  }
+  ok('default install has no @huggingface/transformers or onnxruntime-node');
 }
 
 async function importTest(): Promise<void> {
@@ -335,8 +347,8 @@ assert.equal(dispatchRead.ok, true);
 console.log('  ✓ workspace+sandbox: memory workspace, tools, checkpoints, and agent bridge work');
 
 // === @inbrowser/model ===
-// Import shape only — createEngine() needs @huggingface/transformers
-// and a real model to do anything. Smoke just verifies the surface.
+// Import shape only — createEngine() needs the optional
+// @huggingface/transformers peer and a real model to do useful inference.
 // Presets are also reachable from root for ergonomics.
 import {
   createEngine,
@@ -366,6 +378,21 @@ for (const [name, p] of [
   assert.equal(typeof p.dtype, 'string', \`preset \${name} should have dtype\`);
 }
 console.log('  ✓ model: createEngine + utilities + six presets exported from root');
+
+const missingPeerEngine = createEngine(smollm2_360m);
+await assert.rejects(
+  missingPeerEngine.ensureReady(),
+  (error) => {
+    assert.equal(error instanceof Error, true);
+    assert.ok(
+      error.message.includes(
+        'Local inference requires the optional peer @huggingface/transformers',
+      ),
+    );
+    return true;
+  },
+);
+console.log('  ✓ model: missing optional peer reports an actionable install error');
 
 // Worker host/connect helpers are exported from the root barrel.
 import * as modelRoot from '@inbrowser/model';

@@ -345,7 +345,8 @@ bun add @inbrowser/workspace    # browser workspace: files, shell, preview, git
 bun add @inbrowser/sandbox      # tools, events, checkpoints, artifacts
 ```
 
-The on-device engine needs Transformers.js as a peer dependency:
+The on-device engine uses Transformers.js as an optional peer. Install it only
+in applications that run models on-device:
 
 ```bash
 bun add @huggingface/transformers
