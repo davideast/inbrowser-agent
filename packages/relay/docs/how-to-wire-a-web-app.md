@@ -17,7 +17,7 @@ import { geminiModelClient, openrouterModelClient } from '@inbrowser/model';
 import {
   createRtdbJobStore,
   serviceAccountTokenProvider,
-} from '@inbrowser/resumable/rtdb';
+} from '@inbrowser/resumable';
 
 export const relay = createRelay({
   store: createRtdbJobStore<ModelEvent>({

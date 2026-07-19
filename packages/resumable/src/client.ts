@@ -1,6 +1,7 @@
 /**
- * `@inbrowser/resumable/client` — environment-agnostic reconnecting consumer of
- * a resumable job's start + stream HTTP endpoints. Generic over the event type.
+ * Reconnecting client — environment-agnostic consumer of a resumable job's
+ * start + stream HTTP endpoints. Exported from the `@inbrowser/resumable`
+ * root (no `./client` subpath). Generic over the event type.
  *
  * Two passes:
  *   1. POST `startUrl` to allocate a job; server returns `{ jobId }`.

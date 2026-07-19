@@ -2,10 +2,11 @@
  * `createResumableClient` — relay-specialized reconnecting consumer of a
  * relay's `/inference/job` + `/inference/job/:id/stream` endpoints.
  *
- * A thin wrapper over the generic transport in `@inbrowser/resumable/client`,
- * typed to `ModelEvent`: transport errors (start failed, job 404, gave up
- * reconnecting) surface as `{ kind: 'error' }` events on the stream, and the
- * `relay ` label reproduces the relay's error-message wording.
+ * A thin wrapper over the generic transport from `@inbrowser/resumable`
+ * (`createResumableClient`), typed to `ModelEvent`: transport errors (start
+ * failed, job 404, gave up reconnecting) surface as `{ kind: 'error' }`
+ * events on the stream, and the `relay ` label reproduces the relay's
+ * error-message wording.
  */
 import {
   type ClientMessage,

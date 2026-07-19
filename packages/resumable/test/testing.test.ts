@@ -1,5 +1,5 @@
 /**
- * Verify the testing utilities exposed at `@inbrowser/resumable/testing`
+ * Verify the testing utilities exposed from `@inbrowser/resumable`
  * actually catch the conditions they claim to. Run against the
  * memory store (memoized so the two engines share state).
  */

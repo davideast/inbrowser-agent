@@ -4,10 +4,11 @@
  * ONE root barrel, no subpaths. The engine + types + `JobStore` contract,
  * every store implementation (memory / rtdb / idb), the SSE HTTP binding,
  * the reconnecting client, the worker transport, and the conformance
- * probes all hang off this single entrypoint. Each backing module is
- * browser-safe (the RTDB store is fetch-based; its service-account token
- * provider lazy-`import()`s `node:` only when invoked), so the root barrel
- * never statically pulls a Node builtin.
+ * probes all hang off this single entrypoint. Deep store/transport subpaths
+ * stay closed on purpose — import from `@inbrowser/resumable`. Each backing
+ * module is browser-safe (the RTDB store is fetch-based; its service-account
+ * token provider lazy-`import()`s `node:` only when invoked), so the root
+ * barrel never statically pulls a Node builtin.
  *
  * See `plans/resumable-and-llm-relay-extraction.md` for the design.
  */
@@ -37,8 +38,7 @@ export type {
   SweepResult,
 } from './store/contract.js';
 
-// The IndexedDB store — the browser-durable backing store. On the root barrel
-// (no subpath); the older memory/rtdb stores are flattened to root in a later pass.
+// The IndexedDB store — the browser-durable backing store. Root barrel only.
 export {
   createIdbJobStore,
   type CreateIdbJobStoreOpts,

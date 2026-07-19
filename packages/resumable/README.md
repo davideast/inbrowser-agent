@@ -18,13 +18,12 @@ incremental events.
 - `createRtdbJobStore` for Firebase Realtime Database persistence through REST
   writes and RTDB SSE watches.
 - Post-terminal TTL support through `ttlMs`, `expiresAt`, and `sweepExpired`.
-- `@inbrowser/resumable/testing` probes for durability and TTL sweep behaviour.
+- Durability and TTL sweep probes (`probeStoreDurability`, `probeSweepTtl`).
 
 ## Quick Start
 
 ```ts
-import { createJobEngine } from '@inbrowser/resumable';
-import { createMemoryJobStore } from '@inbrowser/resumable/memory';
+import { createJobEngine, createMemoryJobStore } from '@inbrowser/resumable';
 
 type ChunkEvent = { kind: 'chunk'; text: string };
 
@@ -59,11 +58,11 @@ Use RTDB when the event log must survive process restart or a subscriber
 reconnecting through another server instance:
 
 ```ts
-import { createJobEngine } from '@inbrowser/resumable';
 import {
+  createJobEngine,
   createRtdbJobStore,
   serviceAccountTokenProvider,
-} from '@inbrowser/resumable/rtdb';
+} from '@inbrowser/resumable';
 
 type ChunkEvent = { kind: 'chunk'; text: string };
 
@@ -111,10 +110,11 @@ user need.
 
 ## Package Exports
 
-- `@inbrowser/resumable` - `createJobEngine` plus core types.
-- `@inbrowser/resumable/memory` - in-process `JobStore`.
-- `@inbrowser/resumable/rtdb` - Firebase RTDB `JobStore` and token providers.
-- `@inbrowser/resumable/testing` - durability and TTL probe helpers.
+One root entrypoint — `import { … } from '@inbrowser/resumable'`. That barrel
+exports `createJobEngine`, every store (`createMemoryJobStore`,
+`createIdbJobStore`, `createRtdbJobStore` + token providers), the SSE HTTP
+binding, reconnecting client, worker transport, and conformance probes. Deep
+store/transport subpaths stay closed on purpose; import from the root.
 
 ## Relationship To `@inbrowser/relay`
 

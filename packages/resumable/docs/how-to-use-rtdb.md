@@ -6,11 +6,11 @@ reconnecting to a different process.
 ## Configure The Store
 
 ```ts
-import { createJobEngine } from '@inbrowser/resumable';
 import {
+  createJobEngine,
   createRtdbJobStore,
   serviceAccountTokenProvider,
-} from '@inbrowser/resumable/rtdb';
+} from '@inbrowser/resumable';
 
 type Event = { kind: 'chunk'; text: string };
 
@@ -102,10 +102,10 @@ await store.sweepExpired?.({
 
 ## Verify Durability And TTL
 
-Run the probes from `@inbrowser/resumable/testing` against the same RTDB namespace:
+Run the probes from `@inbrowser/resumable` against the same RTDB namespace:
 
 ```ts
-import { probeStoreDurability, probeSweepTtl } from '@inbrowser/resumable/testing';
+import { probeStoreDurability, probeSweepTtl } from '@inbrowser/resumable';
 
 const makeStore = () =>
   createRtdbJobStore<Event>({

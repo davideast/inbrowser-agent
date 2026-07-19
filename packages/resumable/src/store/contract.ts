@@ -7,9 +7,10 @@
  * implementation). Third parties implement this contract against
  * Redis, Postgres, Firestore, etc.
  *
- * The shared conformance suite at `@inbrowser/resumable/testing` runs every
+ * The shared conformance suite in this package's test directory runs every
  * `JobStore` implementation through the same scenarios — passing the
- * suite *is* the correctness bar for a new store.
+ * suite *is* the correctness bar for a new store. Published probes live on
+ * the `@inbrowser/resumable` root (`probeStoreDurability`, `probeSweepTtl`).
  */
 import type { JobMeta, JobSnapshot, JobStatus, TerminalStatus } from '../types.js';
 

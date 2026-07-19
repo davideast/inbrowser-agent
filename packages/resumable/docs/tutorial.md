@@ -9,8 +9,7 @@ The memory store is used so the example has no external services.
 ## 1. Create The Engine
 
 ```ts
-import { createJobEngine } from '@inbrowser/resumable';
-import { createMemoryJobStore } from '@inbrowser/resumable/memory';
+import { createJobEngine, createMemoryJobStore } from '@inbrowser/resumable';
 
 type ChunkEvent = { kind: 'chunk'; text: string };
 

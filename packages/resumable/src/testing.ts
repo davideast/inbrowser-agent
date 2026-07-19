@@ -1,6 +1,7 @@
 /**
- * `@inbrowser/resumable/testing` — utilities for verifying a `JobStore`
- * implementation end-to-end.
+ * Store probes — utilities for verifying a `JobStore` implementation
+ * end-to-end. Exported from the `@inbrowser/resumable` root (no `./testing`
+ * subpath).
  *
  * Three layers ship here:
  *
