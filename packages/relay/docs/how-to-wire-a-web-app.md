@@ -18,7 +18,7 @@ import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 import {
   createRtdbJobStore,
   serviceAccountTokenProvider,
-} from '@inbrowser/resumable/rtdb';
+} from '@inbrowser/resumable';
 
 export const relay = createRelay({
   store: createRtdbJobStore<ModelEvent>({
