@@ -39,7 +39,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@inbrowser/model": "^0.4.2",
+    "@inbrowser/model": "^0.5.0",
     "@inbrowser/sandbox": "^0.4.2",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@opentui/core": "^0.1.0",

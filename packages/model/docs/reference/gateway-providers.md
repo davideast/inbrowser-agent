@@ -7,10 +7,8 @@ reasoning, usage, and telemetry.
 ## Factories
 
 ```ts
-import {
-  openrouterModelClient,
-  requestyModelClient,
-} from '@inbrowser/model';
+import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
+import { requestyModelClient } from '@inbrowser/model/providers/requesty';
 ```
 
 | Factory | Endpoint | Client id |

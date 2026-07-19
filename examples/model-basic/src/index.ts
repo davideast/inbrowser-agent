@@ -1,11 +1,5 @@
-import {
-  type EngineEvent,
-  type ModelUsage,
-  normalizeModelUsage,
-  parseToolCalls,
-  splitThinking,
-  sumModelUsage,
-} from '@inbrowser/model';
+import { type ModelUsage, normalizeModelUsage, sumModelUsage } from '@inbrowser/model';
+import { type EngineEvent, parseToolCalls, splitThinking } from '@inbrowser/model/local';
 
 export interface ModelBasicResult {
   events: EngineEvent[];

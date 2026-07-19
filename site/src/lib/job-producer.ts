@@ -17,13 +17,11 @@
  */
 import { createReactLoopStrategy } from '@inbrowser/agent';
 import type { ContextWindowTraceHostContext } from '@inbrowser/agent/usage';
-import {
-  type ModelClient,
-  geminiModelClient,
-  llamaServerModelClient,
-  ollamaModelClient,
-  openrouterModelClient,
-} from '@inbrowser/model';
+import type { ModelClient } from '@inbrowser/model';
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
+import { llamaServerModelClient } from '@inbrowser/model/providers/llama-server';
+import { ollamaModelClient } from '@inbrowser/model/providers/ollama';
+import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 import type { Producer } from '@inbrowser/resumable';
 import { type DurableEvent, REACT_SYSTEM_PROMPT, agentEvents } from './local-agent';
 

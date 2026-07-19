@@ -2,29 +2,38 @@
 
 ## Purpose
 
-The model layer. Two halves:
+The model layer. Three public seams:
 
-1. **Contract + cloud providers.** `src/contract.ts` defines the one
+1. **Root (`@inbrowser/model`).** `src/contract.ts` defines the one
    `ModelClient` contract the whole stack shares (relay + agent both
-   consume it). `src/providers/*` are the cloud providers (Gemini,
-   Firebase AI Logic, OpenRouter, Requesty, Anthropic, Ollama, Claude-CLI,
-   Claude-Code), each returning a `ModelClient`. Firebase AI Logic is a
+   consume it). Usage helpers, `withRetry`, and shared provider config
+   types live here. No provider factories. No engine.
+2. **Providers (`@inbrowser/model/providers/<name>`).** Each
+   `src/providers/<name>.ts` is a cloud provider (Gemini, Firebase AI
+   Logic, OpenRouter, Requesty, Anthropic, Ollama, Claude-CLI,
+   Claude-Code, …), returning a `ModelClient`. Firebase AI Logic is a
    constructed-model adapter; the others are provider factories.
-   `src/with-retry.ts` decorates one.
-2. **On-device engine.** Wraps `@huggingface/transformers` behind a
-   narrow `Engine` surface (`src/engine.ts`) that streams `EngineEvent`.
+3. **Local (`@inbrowser/model/local`).** On-device engine wrapping
+   `@huggingface/transformers` behind a narrow `Engine` surface
+   (`src/engine.ts`) that streams `EngineEvent`. Also
+   `createEngineModelClient`, presets, worker helpers.
 
 The engine is also a `ModelClient`, via `createEngineModelClient`
-(`src/engine-client.ts`; exported from the root + the
-`@inbrowser/model/engine-client` subpath). It wraps an `Engine`,
+(`src/engine-client.ts`; exported from `@inbrowser/model/local`). It wraps an `Engine`,
 widening the engine's `EngineEvent` stream to the contract's
 `ModelEvent`. The old engine→relay/agent adapter subpaths were removed;
-this single wrapper replaces them. (The site's in-browser docs-chat
-toggle that drives a local engine through the agent is a separate,
-still-forthcoming piece — the adapter is the building block it needs.)
+this single wrapper replaces them.
 
 ## Layering invariants
 
+- `src/index.ts` is the lightweight contract/utilities interface. It must
+  not export engine modules, engine types, presets, worker helpers, or
+  provider factories.
+- `src/local.ts` is the opt-in on-device interface. All Transformers-backed
+  runtime exports and engine-specific helpers/types belong there.
+- Public providers are imported as `@inbrowser/model/providers/<name>`.
+  Do not export internals (`gemini-protocol`, `providers/types` as a
+  deep path — types are re-exported from the root).
 - `src/contract.ts` is type-only (zero runtime imports) so importing the
   contract never pulls in the engine or `@huggingface/transformers`.
 - `src/types.ts` is the canonical engine type surface. Engine-side files
@@ -67,8 +76,8 @@ Use the precise terms — they show up in types, comments, and PRs:
   providers live here now and the relay consumes them as
   `ModelClientFactory`s.
 - Don't make `@huggingface/transformers` a regular dependency. It's an
-  optional peer; on-device consumers install it explicitly and control the
-  version. (The Claude Code Agent SDK,
+  optional peer used through `@inbrowser/model/local`; local-inference
+  consumers install it explicitly. (The Claude Code Agent SDK,
   used only by `claudeCodeModelClient`, is an optional peer dep.)
 - Don't make `firebase` a dependency or initialize Firebase/App Check in this
   package. `createFirebaseAiLogicModelClient` accepts a structural,

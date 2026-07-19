@@ -13,7 +13,8 @@ them. Each cloud factory already matches `ModelClientFactory` (its config is
 
 ```ts
 import { createRelay, type ModelEvent } from '@inbrowser/relay';
-import { geminiModelClient, openrouterModelClient } from '@inbrowser/model';
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
+import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 import {
   createRtdbJobStore,
   serviceAccountTokenProvider,
@@ -44,7 +45,7 @@ token — wrap the factory so the relay-supplied `{ apiKey, model }` is merged
 with your extras:
 
 ```ts
-import { ollamaModelClient } from '@inbrowser/model';
+import { ollamaModelClient } from '@inbrowser/model/providers/ollama';
 
 providers: {
   // Pin Ollama's base URL instead of carrying it on the wire via apiKey.

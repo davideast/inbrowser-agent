@@ -17,7 +17,7 @@ On-device models don't need API keys. Most cloud providers use BYOK (bring your 
 ## Run a model in the browser
 
 ```ts
-import { createEngine, createEngineModelClient, smollm2_360m } from '@inbrowser/model';
+import { createEngine, createEngineModelClient, smollm2_360m } from '@inbrowser/model/local';
 
 const engine = createEngine({
   ...smollm2_360m,
@@ -54,7 +54,8 @@ The weights download once via Transformers.js and run on WebGPU (WASM fallback w
 Cloud models need a key, and there is no server to keep one on, so the user brings it. For OpenRouter that can be a one-click connect instead of a pasted key:
 
 ```ts
-import { beginOpenRouterOAuth, completeOpenRouterOAuth, openrouterModelClient } from '@inbrowser/model';
+import { beginOpenRouterOAuth, completeOpenRouterOAuth } from '@inbrowser/model/providers/openrouter-oauth';
+import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 
 // 1. Send the user to OpenRouter to authorize (full-page redirect or popup).
 const { authUrl, codeVerifier } = await beginOpenRouterOAuth({ callbackUrl: location.href });
@@ -84,7 +85,7 @@ import {
   createDispatch,
   createMetricsCollector,
 } from '@inbrowser/agent';
-import { openrouterModelClient } from '@inbrowser/model';
+import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 
 // A tool is a plain object: name, description, JSON-schema params, and execute().
 const getWeather = {
@@ -149,7 +150,7 @@ The log is append-only and ordered by `seq`. A consumer that reconnects after a 
 
 ### `@inbrowser/model`
 
-The shared `ModelClient` contract that relay and agent both consume, cloud provider factories and adapters, and an on-device engine (Transformers.js + ONNX Runtime Web). Single root entrypoint — `import { … } from '@inbrowser/model'`.
+The shared `ModelClient` contract that relay and agent both consume, cloud provider factories and adapters, and an opt-in on-device engine (Transformers.js + ONNX Runtime Web). Import the contract from `@inbrowser/model`, providers from `@inbrowser/model/providers/<name>`, and the on-device runtime from `@inbrowser/model/local`.
 
 **Cloud providers** — each returns a `ModelClient`; most are `{ apiKey, model, … }` factories, while Firebase AI Logic wraps a model constructed by the host app:
 
@@ -166,12 +167,12 @@ The shared `ModelClient` contract that relay and agent both consume, cloud provi
 | `claudeCliModelClient(config)` | `ClaudeCliConfig` | Claude CLI subprocess (Node only) |
 | `claudeCodeModelClient(config)` | `ClaudeCodeConfig` | Claude Code Agent SDK (Node only) |
 
-`openrouterModelClient` also exports `beginOpenRouterOAuth` / `completeOpenRouterOAuth` for PKCE browser auth (no key on a server).
+OpenRouter PKCE browser auth lives at `@inbrowser/model/providers/openrouter-oauth` (`beginOpenRouterOAuth` / `completeOpenRouterOAuth`).
 
 **On-device engine** — the lower-level API under `createEngineModelClient`. Use it directly when you want raw token events rather than the `ModelClient` contract:
 
 ```ts
-import { createEngine, smollm2_360m } from '@inbrowser/model';
+import { createEngine, smollm2_360m } from '@inbrowser/model/local';
 
 const engine = createEngine({ ...smollm2_360m });
 await engine.ensureReady();
@@ -242,7 +243,7 @@ Wires `@inbrowser/resumable` to the `ModelClient` contract: routes a provider re
 
 ```ts
 import { createRelay } from '@inbrowser/relay';
-import { openrouterModelClient } from '@inbrowser/model';
+import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 import { createMemoryJobStore } from '@inbrowser/resumable';
 
 const relay = createRelay({
@@ -338,15 +339,14 @@ Packages are published independently. Install what you need:
 
 ```bash
 bun add @inbrowser/resumable    # resumable streaming-job engine
-bun add @inbrowser/model        # model contract + providers + on-device engine
+bun add @inbrowser/model        # model contract; providers via /providers/<name>; on-device via /local
 bun add @inbrowser/relay        # LLM relay (depends on resumable + model)
 bun add @inbrowser/agent        # agent runtime + CLI
 bun add @inbrowser/workspace    # browser workspace: files, shell, preview, git
 bun add @inbrowser/sandbox      # tools, events, checkpoints, artifacts
 ```
 
-The on-device engine uses Transformers.js as an optional peer. Install it only
-in applications that run models on-device:
+The opt-in `@inbrowser/model/local` engine needs Transformers.js as an optional peer dependency. Install it only in applications that run models on-device:
 
 ```bash
 bun add @huggingface/transformers

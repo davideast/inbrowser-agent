@@ -1,10 +1,10 @@
 # Engine Reference
 
-This page describes the root `@inbrowser/model` export: the engine factory,
+This page describes the opt-in `@inbrowser/model/local` export: the engine factory,
 the `Engine` surface, the event vocabulary, and the stream transformers.
 
 For preset data and the shared static types they carry, see
-[./presets.md](./presets.md). For the worker subpath, see
+[./presets.md](./presets.md). For the worker helpers, see
 [./adapters-and-worker.md](./adapters-and-worker.md).
 
 This page covers the on-device engine. The same package also owns the cloud
@@ -14,21 +14,18 @@ those.
 
 ## Exports
 
-Everything is imported from the package root `@inbrowser/model`.
+Everything on this page is imported from `@inbrowser/model/local`.
 
 | Symbols | What they are |
 | --- | --- |
 | `createEngine`, `definePreset`, `parseToolCalls`, `splitThinking`, and engine types | The on-device engine surface |
 | The six bundled presets | `deepseek_r1_qwen_1_5b`, `gemma4_E2B`, `gemma4_E4B`, `qwen2_5_coder_1_5b`, `qwen3_1_7b`, `smollm2_360m`. See [./presets.md](./presets.md). |
-| The cloud provider factories (`geminiModelClient`, …), `withRetry` | Cloud providers + the retry decorator |
-| `createFirebaseAiLogicModelClient` | Wraps a caller-constructed Firebase AI Logic model as a `ModelClient`; it is not an API-key cloud factory. |
-| `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` | The shared `ModelClient` contract types (type-only) |
 | `createEngineModelClient` | Wraps an `Engine` as a `ModelClient`. See [./adapters-and-worker.md](./adapters-and-worker.md). |
 | `hostEngineInWorker`, `connectWorkerEngine` | Worker host/connect helpers. See [./adapters-and-worker.md](./adapters-and-worker.md). |
 
 > The removed `@inbrowser/model/relay` and `@inbrowser/model/agent` adapter
 > subpaths are gone. The engine is now a `ModelClient` via
-> `createEngineModelClient` (from `@inbrowser/model`). See
+> `createEngineModelClient` (from `@inbrowser/model/local`). See
 > [./adapters-and-worker.md](./adapters-and-worker.md).
 
 ## `createEngine`
@@ -42,7 +39,7 @@ until `ensureReady()` or the first `generate()` call. Spread a `ModelPreset`
 into the call along with optional `EngineHooks`.
 
 ```ts
-import { createEngine, gemma4_E2B } from '@inbrowser/model';
+import { createEngine, gemma4_E2B } from '@inbrowser/model/local';
 
 const engine = createEngine({ ...gemma4_E2B, onLoadProgress: console.log });
 ```
@@ -263,7 +260,7 @@ value is the completeness check it enforces on caller-defined presets. Used to
 author both the bundled presets and community presets.
 
 ```ts
-import { definePreset } from '@inbrowser/model';
+import { definePreset } from '@inbrowser/model/local';
 
 export const myPreset = definePreset({
   model: { modelId: 'org/model-ONNX' },

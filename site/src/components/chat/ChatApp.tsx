@@ -1,4 +1,4 @@
-import type { LoadProgress } from '@inbrowser/model';
+import type { LoadProgress } from '@inbrowser/model/local';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentStreamHandlers, VisitedCard } from '../../lib/agent-types';
 import { buildDocsContextWindowSnapshot, traceHostContextForConfig } from '../../lib/agent-usage';

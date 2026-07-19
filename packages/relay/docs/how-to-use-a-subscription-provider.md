@@ -41,7 +41,7 @@ bun add @anthropic-ai/claude-agent-sdk
 
 ```ts
 import { createRelay } from '@inbrowser/relay';
-import { claudeCodeModelClient } from '@inbrowser/model';
+import { claudeCodeModelClient } from '@inbrowser/model/providers/claude-code';
 
 const relay = createRelay({
   store,
@@ -73,7 +73,7 @@ factory:
 
 ```ts
 import { createRelay } from '@inbrowser/relay';
-import { claudeCliModelClient } from '@inbrowser/model';
+import { claudeCliModelClient } from '@inbrowser/model/providers/claude-cli';
 
 const relay = createRelay({
   store,

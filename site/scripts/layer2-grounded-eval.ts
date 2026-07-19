@@ -23,7 +23,7 @@ import {
   createEngineModelClient,
   qwen2_5_0_5b,
   smollm2_360m,
-} from '@inbrowser/model';
+} from '@inbrowser/model/local';
 import { createGraphToolRegistry } from '../src/agent/graph-tools';
 import { getNode } from '../src/lib/graph';
 

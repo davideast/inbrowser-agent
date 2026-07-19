@@ -1,25 +1,30 @@
 # `@inbrowser/model` Documentation
 
-`@inbrowser/model` is the model layer for the stack. It owns the shared
-`ModelClient` contract (from `@inbrowser/model`) that both `@inbrowser/relay`
-(transport) and `@inbrowser/agent` (runtime) consume, the cloud providers that
-implement it (Gemini, OpenRouter, Requesty, Anthropic, Ollama, Claude-CLI,
-Claude-Code, plus the Firebase AI Logic constructed-model adapter), and the
-on-device LLM engine. The engine loads ONNX models in the browser
-through `@huggingface/transformers` (ONNX Runtime Web over WebGPU or WASM) and
-exposes them behind a narrow `Engine` surface that streams `EngineEvent`s; a
-worker transport lets the same engine run off the main thread without any
-consumer noticing.
+`@inbrowser/model` is the model layer for the stack. Three public seams:
+
+- **Root** — the shared `ModelClient` contract that `@inbrowser/relay` and
+  `@inbrowser/agent` consume, plus usage helpers and `withRetry`.
+- **Providers** — `@inbrowser/model/providers/<name>` for each cloud factory
+  (Gemini, OpenRouter, Requesty, Anthropic, Ollama, Claude-CLI, Claude-Code,
+  Firebase AI Logic, …).
+- **Local** — opt-in `@inbrowser/model/local` for the on-device engine.
+
+The engine loads ONNX models in the browser through
+`@huggingface/transformers` (ONNX Runtime Web over WebGPU or WASM) and exposes
+them behind a narrow `Engine` surface that streams `EngineEvent`s; a worker
+transport lets the same engine run off the main thread without any consumer
+noticing.
 
 The engine can also be wrapped as a `ModelClient` with
 `createEngineModelClient`. Drive the `EngineEvent` stream directly when you need
 engine-specific details; use the wrapper when you want to hand the engine to the
 relay or agent through the shared model contract.
 
-These docs cover the on-device engine in depth. For the cloud-provider factories
-and the `withRetry` decorator, the package
-[README](../README.md) and the [contract source](../src/contract.ts) are the
-reference; the providers all implement the same `ModelClient.chat()` surface.
+These docs cover the on-device engine in depth. For cloud-provider factories,
+import from `@inbrowser/model/providers/<name>`; for `withRetry` and the
+contract, see the package [README](../README.md) and
+[contract source](../src/contract.ts). Providers all implement the same
+`ModelClient.chat()` surface.
 
 The documentation is organised along [Diataxis](https://diataxis.fr) lines:
 tutorials to learn, how-to guides to get a job done, reference for the facts,
@@ -37,8 +42,8 @@ Start here to learn by doing.
 Task-focused recipes for when you know what you want.
 
 - [Choose a preset](how-to/choose-a-preset.md)
-- [Use a local model in the relay](how-to/use-a-local-model-in-relay.md) — status of the (unbuilt) `ModelClient` path
-- [Use a local model in the agent](how-to/use-a-local-model-in-the-agent.md) — status of the (unbuilt) `ModelClient` path
+- [Use a local model in the relay](how-to/use-a-local-model-in-relay.md)
+- [Use a local model in the agent](how-to/use-a-local-model-in-the-agent.md)
 - [Handle thinking and tool calls](how-to/handle-thinking-and-tool-calls.md)
 
 ## Reference

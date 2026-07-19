@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
-import { type ModelRequest, geminiModelClient } from '@inbrowser/model';
+import type { ModelRequest } from '@inbrowser/model';
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
 import { YoutubeTranscript } from 'youtube-transcript';
 import type { TranscriptSegmentView } from '../shared/types';
 import type { AudioStore } from './audio-store';

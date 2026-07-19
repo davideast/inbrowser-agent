@@ -1,5 +1,5 @@
 /**
- * Public types for `@inbrowser/model`.
+ * Public types for `@inbrowser/model/local`.
  *
  * Vocabulary anchor:
  *   - `ModelRef`     — bare locator (HF Hub repo id + revision).
@@ -8,10 +8,9 @@
  *   - `Engine`       — runtime object owning a loaded model.
  *                      Spread a preset into `createEngine` to get one.
  *
- * The Engine speaks a narrow `EngineEvent` vocabulary. Adapters in
- * `./adapters/*` translate to the relay's `InferenceEvent` or the
- * agent's `ChatEvent` shape. Cloud-only concepts (cost, signatures)
- * are deliberately absent here.
+ * The Engine speaks a narrow `EngineEvent` vocabulary. The engine-client
+ * adapter translates it to the shared `ModelEvent` shape. Cloud-only concepts
+ * (cost, signatures) are deliberately absent here.
  */
 
 import type { ToolSpec } from './contract.js';

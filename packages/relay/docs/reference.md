@@ -89,7 +89,9 @@ the relay 400s if it is missing. To keep the key on the server instead, list the
 provider in `CreateRelayOpts.apiKeys`:
 
 ```ts
-import { geminiModelClient, anthropicModelClient, ollamaModelClient } from '@inbrowser/model';
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
+import { anthropicModelClient } from '@inbrowser/model/providers/anthropic';
+import { ollamaModelClient } from '@inbrowser/model/providers/ollama';
 
 type ApiKeySource =
   | string

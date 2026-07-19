@@ -2,7 +2,7 @@
  * Worker transport — host a `JobEngine` inside a Web Worker (dedicated
  * or shared) and drive it from another context over a postMessage RPC.
  *
- * The shape mirrors `@inbrowser/model`'s `worker.ts`: a `PortLike`
+ * The shape mirrors the worker helpers in `@inbrowser/model/local`: a `PortLike`
  * abstraction that works for `Worker`, `MessagePort`, a SharedWorker
  * port, and `MessageChannel` ports in tests; request-id-routed frames
  * with a pending map for request→reply calls and a stream-slot map for

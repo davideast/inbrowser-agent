@@ -1,16 +1,9 @@
 # How To Use A Local Model In Relay
 
-> **Status: the on-device path into the relay is not wired yet.** The relay
-> consumes a [`ModelClient`](../../src/contract.ts) (the contract this package
-> owns), and the **cloud providers already implement it** — so a Gemini /
-> OpenRouter / Anthropic / Ollama model drops into `createRelay` today. The
-> **on-device engine does not implement `ModelClient` yet**: it streams
-> `EngineEvent`, not the contract's `ModelEvent`. The old
-> `@inbrowser/model/relay` adapter (`createLocalInferenceProvider`) and the
-> `InferenceProvider` contract it targeted have been removed. A
-> `createEngineModelClient(engine)` wrapper that lets a local engine serve over
-> the relay is **planned but not built**. This page records both the working
-> path (cloud) and what to do with a local engine until the wrapper lands.
+The relay consumes a [`ModelClient`](../../src/contract.ts), the contract this
+package owns. Cloud providers implement it directly. An on-device `Engine`
+speaks the narrower `EngineEvent` vocabulary, so wrap it with
+`createEngineModelClient` before registering it with the relay.
 
 ## A cloud model over the relay (works today)
 
@@ -19,7 +12,7 @@ construct a `ModelClient` per request (so a BYOK key can be threaded in). Import
 a cloud provider factory from this package and register it under a key:
 
 ```ts
-import { geminiModelClient } from '@inbrowser/model';
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
 import { createRelay } from '@inbrowser/relay';
 
 const relay = createRelay({
@@ -38,39 +31,32 @@ Clients then run a job against `provider: 'gemini'`. For wiring the relay's
 store and the client side, see the relay's own
 [how-to](../../../relay/docs/how-to-wire-a-web-app.md).
 
-## A local engine until the wrapper lands
+## A local engine over the relay
 
-There is no supported way to register the on-device engine in `createRelay`
-right now. Two honest options:
+Build the engine and wrapper once, then return that `ModelClient` from the
+relay's provider factory:
 
-1. **Drive the engine directly**, off to the side of the relay. Build it from a
-   preset and consume its `EngineEvent` stream yourself:
+```ts
+import {
+  createEngine,
+  createEngineModelClient,
+  qwen3_1_7b,
+} from '@inbrowser/model/local';
 
-   ```ts
-   import { createEngine, qwen3_1_7b } from '@inbrowser/model';
+const engine = createEngine(qwen3_1_7b);
+const local = createEngineModelClient(engine);
 
-   const engine = createEngine(qwen3_1_7b);
-   await engine.ensureReady();
+const relay = createRelay({
+  store,
+  providers: { local: () => local },
+});
+```
 
-   for await (const evt of engine.generate([{ role: 'user', text: 'hi' }])) {
-     if (evt.kind === 'token') process.stdout.write(evt.text);
-   }
-   ```
-
-   See [run a model in the browser](../tutorials/01-run-a-model-in-the-browser.md).
-
-2. **Wait for `createEngineModelClient`.** The planned wrapper will adapt an
-   `Engine` to a `ModelClient` — widening `EngineEvent` to the contract's
-   `ModelEvent` (e.g. `token` → `{ kind: 'text' }`, the engine's terminal
-   `usage` into a `ModelEvent` `usage`) — so that a local engine registers in
-   `createRelay({ providers })` exactly like a cloud factory. When it ships, the
-   shape will mirror the cloud example above.
-
-## What the wrapper will have to translate
+## What the wrapper translates
 
 For reference, the engine's narrow [`EngineEvent`](../reference/engine.md)
 vocabulary differs from the contract's `ModelEvent` in a few ways the wrapper
-will reconcile:
+reconciles:
 
 - `token` carries `text`; the contract's `text` event carries `text` too, so
   this is a straight rename of the `kind`.

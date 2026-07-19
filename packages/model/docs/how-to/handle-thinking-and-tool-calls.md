@@ -2,14 +2,14 @@
 
 Separate a model's reasoning trace and its tool-call envelopes out of the raw token stream, so you can route them to different surfaces.
 
-The engine speaks a narrow [`EngineEvent`](../reference/engine.md) vocabulary: it emits decoded text as `token` events and never classifies reasoning or tool calls on its own. Two stream transformers, both exported from the package root, do that classification by wrapping the engine's generator.
+The engine speaks a narrow [`EngineEvent`](../reference/engine.md) vocabulary: it emits decoded text as `token` events and never classifies reasoning or tool calls on its own. Two stream transformers, both exported from `@inbrowser/model/local`, do that classification by wrapping the engine's generator.
 
 ## Split Out Thinking
 
 `splitThinking(source, opts?)` re-emits the stream unchanged, except text inside the reasoning tags becomes `kind: 'thinking'` instead of `kind: 'token'`. The default tags are `<think>` and `</think>`.
 
 ```ts
-import { splitThinking } from '@inbrowser/model';
+import { splitThinking } from '@inbrowser/model/local';
 
 for await (const evt of splitThinking(engine.generate(messages))) {
   if (evt.kind === 'thinking') showReasoning(evt.text);
@@ -20,7 +20,7 @@ for await (const evt of splitThinking(engine.generate(messages))) {
 If your model uses different tags, pass `openTag` and `closeTag`. The cleanest path is to read them off the preset so your consumer stays model-agnostic:
 
 ```ts
-import { deepseek_r1_qwen_1_5b } from '@inbrowser/model';
+import { deepseek_r1_qwen_1_5b } from '@inbrowser/model/local';
 
 const tags = deepseek_r1_qwen_1_5b.capabilities.thinkingTags;
 for await (const evt of splitThinking(engine.generate(messages), tags)) {
@@ -37,7 +37,7 @@ If the model begins generating *inside* the thinking channel (its chat template 
 `parseToolCalls(source, opts?)` detects `<tool_call>{ ... }</tool_call>` envelopes and emits one `kind: 'tool_call'` event per envelope, with `id`, `name`, and `args`.
 
 ```ts
-import { parseToolCalls } from '@inbrowser/model';
+import { parseToolCalls } from '@inbrowser/model/local';
 
 for await (const evt of parseToolCalls(engine.generate(messages))) {
   if (evt.kind === 'tool_call') dispatchTool(evt.name, evt.args);
@@ -52,7 +52,7 @@ The envelope body is parsed as JSON to extract `name` and `arguments`. On a pars
 The transformers share the same shape, so wrap one in the other around a single `engine.generate()` call:
 
 ```ts
-import { splitThinking, parseToolCalls } from '@inbrowser/model';
+import { splitThinking, parseToolCalls } from '@inbrowser/model/local';
 
 for await (const evt of parseToolCalls(splitThinking(engine.generate(messages)))) {
   switch (evt.kind) {

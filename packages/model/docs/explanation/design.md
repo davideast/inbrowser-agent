@@ -1,6 +1,6 @@
 # Why The Engine Is Shaped This Way
 
-`@inbrowser/model` runs an LLM in the browser and exposes it behind a small
+`@inbrowser/model/local` runs an LLM in the browser and exposes it behind a small
 `Engine` surface. The surface is small on purpose. This page explains the
 load-bearing decisions behind that shape and the trade-offs each one accepts.
 
@@ -73,7 +73,7 @@ The wider shape that consumers actually want is the stack's one
 `ModelClient` contract and its `ModelEvent` — owned by this same package
 (`@inbrowser/model`) and implemented directly by the cloud providers.
 The engine deliberately does *not* implement that contract itself; the
-intended bridge is a single boundary, the planned `createEngineModelClient`
+bridge is a single seam, the `createEngineModelClient`
 wrapper, that widens `EngineEvent` into `ModelEvent` once. (The earlier
 per-consumer adapters — one widening to the relay, one to the agent — have been
 removed in favour of that single contract.) Widening at one boundary, rather
@@ -91,7 +91,7 @@ protocol does.
 
 ## Worker Transparency
 
-The worker subpath hosts an engine inside a Web Worker and connects to it from
+The local module hosts an engine inside a Web Worker and connects to it from
 the main thread. The connecting call, `connectWorkerEngine()`, returns a value
 that satisfies the same `Engine` interface as `createEngine()`. Same methods,
 same events, same capability shape.

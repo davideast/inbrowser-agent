@@ -9,13 +9,11 @@
  * from the loaded engine (it owns the engine lifecycle), so this module never
  * imports the engine / worker / transformers.
  */
-import {
-  type ModelClient,
-  geminiModelClient,
-  llamaServerModelClient,
-  ollamaModelClient,
-  openrouterModelClient,
-} from '@inbrowser/model';
+import type { ModelClient } from '@inbrowser/model';
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
+import { llamaServerModelClient } from '@inbrowser/model/providers/llama-server';
+import { ollamaModelClient } from '@inbrowser/model/providers/ollama';
+import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OnDevicePreset } from './on-device-agent';
 import { consumeOpenRouterCallback } from './openrouter-oauth';
@@ -285,9 +283,9 @@ export function useModelSource(): UseModelSource {
  * intentionally NOT handled here — it's built by the caller from the loaded
  * engine via `createOnDeviceModelClient`.
  *
- * All providers import from the `@inbrowser/model` root. The root barrel is
- * bundle-safe: the on-device transformers runtime is lazy-loaded inside the
- * engine, so importing a cloud provider never statically pulls ONNX/WASM here.
+ * All providers import from the lightweight `@inbrowser/model` root. The
+ * on-device Transformers runtime lives behind `@inbrowser/model/local`, so
+ * importing a cloud provider never pulls the local engine into this module.
  */
 export function buildLocalModelClient(config: ModelSourceConfig): ModelClient {
   if (config.source === 'gemini') {

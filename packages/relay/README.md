@@ -42,10 +42,8 @@ Import the provider factories from `@inbrowser/model` and register them in the
 
 ```ts
 import { createRelay, type ModelEvent } from '@inbrowser/relay';
-import {
-  geminiModelClient,
-  openrouterModelClient,
-} from '@inbrowser/model';
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
+import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 import {
   createRtdbJobStore,
   serviceAccountTokenProvider,
@@ -94,11 +92,9 @@ key itself, so the browser never carries it on the wire. This is the "your app,
 your bill" mode.
 
 ```ts
-import {
-  geminiModelClient,
-  anthropicModelClient,
-  ollamaModelClient,
-} from '@inbrowser/model';
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
+import { anthropicModelClient } from '@inbrowser/model/providers/anthropic';
+import { ollamaModelClient } from '@inbrowser/model/providers/ollama';
 
 const relay = createRelay({
   store,

@@ -1,6 +1,6 @@
 # local-llm-poc
 
-End-to-end demo of `@inbrowser/model` — loads a local LLM in the
+End-to-end demo of `@inbrowser/model/local` — loads a local LLM in the
 browser via WebGPU (or WASM) and streams a response from a prompt.
 
 > **See also:** [`docs/bundling.md`](./docs/bundling.md) — the
@@ -40,7 +40,7 @@ download, ~8s to first token on first run, near-instant on reloads.
 DeepSeek R1 Distill (and similar reasoning models) emit their
 chain-of-thought inside literal `<think>…</think>` tags before the
 final answer. The example wraps the engine's stream with
-`splitThinking` from `@inbrowser/model` when the active preset
+`splitThinking` from `@inbrowser/model/local` when the active preset
 declares `supportsThinking: true`, then routes the two event kinds
 to separate panes:
 
@@ -292,7 +292,7 @@ the report shape and what each phase exercises.
 
 - **No worker.** The model loads on the main thread. The tab will
   freeze briefly during ONNX graph compilation.
-  `@inbrowser/model/worker` is typed but unimplemented; landing it is
+  `@inbrowser/model/local` exposes the worker transport; wiring it here is
   the next step.
 - **No tool calling.** Native tool support isn't in Gemma 4 or
   SmolLM2; the prompt-engineered polyfill lives in `@inbrowser/agent`,

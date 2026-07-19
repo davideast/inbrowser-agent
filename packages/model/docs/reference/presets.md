@@ -7,7 +7,7 @@ Spread a preset into `createEngine` to construct a running engine; see
 [./engine.md](./engine.md).
 
 ```ts
-import { createEngine, smollm2_360m } from '@inbrowser/model';
+import { createEngine, smollm2_360m } from '@inbrowser/model/local';
 
 const engine = createEngine(smollm2_360m);
 ```
