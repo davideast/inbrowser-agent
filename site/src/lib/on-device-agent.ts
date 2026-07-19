@@ -1,3 +1,4 @@
+import type { ModelClient } from '@inbrowser/model';
 /**
  * On-device docs agent — runs the SAME agent loop the server runs, but entirely
  * in the browser: the engine streams in a Web Worker, wrapped as a `ModelClient`
@@ -13,11 +14,10 @@ import {
   type Engine,
   type EngineState,
   type LoadProgress,
-  type ModelClient,
   connectWorkerEngine,
   createEngineModelClient,
   smollm2_360m,
-} from '@inbrowser/model';
+} from '@inbrowser/model/local';
 import type { AgentStreamHandlers } from './agent-types';
 import { runLocalAgent } from './local-agent';
 

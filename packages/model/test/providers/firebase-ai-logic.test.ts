@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'bun:test';
+import type { ModelEvent, ModelRequest } from '../../src/index';
 import {
   type FirebaseAiLogicGenerativeModelLike,
-  type ModelEvent,
-  type ModelRequest,
   createFirebaseAiLogicModelClient,
-} from '../../src/index';
+} from '../../src/providers/firebase-ai-logic';
 
 async function collect(source: AsyncIterable<ModelEvent>): Promise<ModelEvent[]> {
   const events: ModelEvent[] = [];

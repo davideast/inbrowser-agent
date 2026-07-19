@@ -29,7 +29,7 @@ All bundled presets ship at `dtype: 'q4f16'` with `backend: 'auto'` (WebGPU when
 Because a preset is inert data, read its fields directly without constructing an engine:
 
 ```ts
-import { gemma4_E2B } from '@inbrowser/model';
+import { gemma4_E2B } from '@inbrowser/model/local';
 
 gemma4_E2B.capabilities.contextWindow; // 128000
 gemma4_E2B.capabilities.supportsTools; // false
@@ -38,7 +38,7 @@ gemma4_E2B.capabilities.supportsTools; // false
 Gate your own UI or routing on these fields before you spend a cold start. To choose at runtime from a list:
 
 ```ts
-import { qwen3_1_7b, gemma4_E2B } from '@inbrowser/model';
+import { qwen3_1_7b, gemma4_E2B } from '@inbrowser/model/local';
 
 const candidates = [qwen3_1_7b, gemma4_E2B];
 const preset = needTools
@@ -53,7 +53,7 @@ Spread the chosen preset into `createEngine` to load it. See [run a model in the
 If none of the bundled presets fit, author one with `definePreset`. It is an identity helper that gives you compile-time completeness checks against `ModelPreset`:
 
 ```ts
-import { definePreset } from '@inbrowser/model';
+import { definePreset } from '@inbrowser/model/local';
 
 export const myModel = definePreset({
   model: { modelId: 'onnx-community/Some-Model-ONNX', revision: 'main' },

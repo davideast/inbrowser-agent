@@ -1,7 +1,7 @@
 # Worker Reference
 
 This page describes the in-worker host/connect helpers (exported from
-`@inbrowser/model`), which host an `Engine` inside a Web Worker and expose the
+`@inbrowser/model/local`), which host an `Engine` inside a Web Worker and expose the
 same `Engine` shape on the main thread.
 
 For the `Engine` surface and the `EngineEvent` vocabulary the worker transports,
@@ -25,7 +25,11 @@ removed**; `createEngineModelClient` is their single replacement against the
 shared `ModelClient` contract.
 
 ```ts
-import { createEngineModelClient, createEngine, smollm2_360m } from '@inbrowser/model';
+import {
+  createEngineModelClient,
+  createEngine,
+  smollm2_360m,
+} from '@inbrowser/model/local';
 
 const engine = createEngine(smollm2_360m);
 const client = createEngineModelClient(engine); // a ModelClient
@@ -97,7 +101,7 @@ function hostEngineInWorker(
 Installs the worker-side RPC. Call from inside a worker entry, passing `self`.
 
 ```ts
-import { hostEngineInWorker } from '@inbrowser/model';
+import { hostEngineInWorker } from '@inbrowser/model/local';
 hostEngineInWorker(self);
 ```
 

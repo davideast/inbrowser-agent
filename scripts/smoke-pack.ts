@@ -9,17 +9,19 @@
  *   3. asserts tarball contents (no `src/`, no `tsconfig.json`, no tests;
  *      yes `dist/`, README, the agent's `bin/` + `skills/`, model's
  *      `adapters/` and `worker.js`, etc.)
- *   4. installs all tarballs into a fresh scratch dir
- *   5. runs a `test.mjs` that imports a real entry from each package
+ *   4. performs a plain npm install of the packed agent dependency chain and
+ *      proves the optional local-model runtime is absent
+ *   5. installs all tarballs into a fresh scratch dir
+ *   6. runs a `test.mjs` that imports a real entry from each package
  *      (root + sub-exports), verifying the published exports resolve
  *      and emit the expected values
- *   6. bundles `@inbrowser/relay/client/browser` for the `browser` target
- *      to prove the browser sub-export has no Node API references
+ *   7. browser-bundles relay and the cloud-only model root, proving the model
+ *      root has no reference to Transformers or ONNX
  *
- * The on-device model coverage is import-only because `createEngine`
- * needs a real model. Constructed-runtime adapters are invoked with
- * structural fakes so their packed root exports and dependency seams
- * are exercised.
+ * The on-device model coverage imports its dedicated subpath and verifies its
+ * missing-peer diagnostic. Constructed-runtime adapters are invoked with
+ * structural fakes so their packed root exports and dependency seams are
+ * exercised.
  */
 
 import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
@@ -30,6 +32,8 @@ import { $ } from 'bun';
 const ROOT = resolve(import.meta.dir, '..');
 const PACK_OUT = mkdtempSync(join(tmpdir(), 'inbrowser-pack-'));
 const SCRATCH = mkdtempSync(join(tmpdir(), 'inbrowser-smoke-'));
+const AGENT_INSTALL_SCRATCH = mkdtempSync(join(tmpdir(), 'inbrowser-agent-install-'));
+const NPM_CACHE = join(PACK_OUT, '.npm-cache');
 
 interface PackSpec {
   name:
@@ -134,6 +138,8 @@ const SPECS: PackSpec[] = [
     expectFiles: [
       'package/dist/index.js',
       'package/dist/index.d.ts',
+      'package/dist/local.js',
+      'package/dist/local.d.ts',
       'package/dist/contract.js',
       'package/dist/contract.d.ts',
       'package/dist/engine-client.js',
@@ -148,6 +154,8 @@ const SPECS: PackSpec[] = [
       'package/dist/providers/gemini-protocol.js',
       'package/dist/providers/firebase-ai-logic.js',
       'package/dist/providers/openrouter.js',
+      'package/dist/providers/openrouter-oauth.js',
+      'package/dist/providers/requesty.js',
       'package/dist/providers/anthropic.js',
       'package/dist/providers/oai-compat.js',
       'package/dist/providers/ollama.js',
@@ -181,6 +189,13 @@ function fail(msg: string): never {
 
 async function build(): Promise<void> {
   step('build all packages');
+  // `tsc` does not delete stale outputs. Providers moved out of relay long
+  // ago; clear any leftover dist/providers so the pack forbid rule stays honest.
+  const staleRelayProviders = join(ROOT, 'packages/relay/dist/providers');
+  if (existsSync(staleRelayProviders)) {
+    await $`find ${staleRelayProviders} -type f -delete`.quiet();
+    await $`rmdir ${staleRelayProviders}`.quiet().nothrow();
+  }
   await $`bun run build`.cwd(ROOT);
   ok('bun run build');
 }
@@ -214,7 +229,7 @@ async function scratchInstall(tarballs: string[]): Promise<void> {
   await $`npm init -y`.cwd(SCRATCH).quiet();
   // npm needs the tarballs by path; pass all packages at once so peer
   // resolution sees them together.
-  await $`npm install --silent --no-audit --no-fund ${tarballs}`.cwd(SCRATCH);
+  await $`npm install --silent --no-audit --no-fund --cache ${NPM_CACHE} ${tarballs}`.cwd(SCRATCH);
   ok(`installed ${tarballs.length} packages into ${SCRATCH}`);
 
   // npm installs non-optional peers by default. Keep the on-device runtime out
@@ -228,6 +243,43 @@ async function scratchInstall(tarballs: string[]): Promise<void> {
     fail(`default install contains local-model dependencies:\n${heavyweightTree.trim()}`);
   }
   ok('default install has no @huggingface/transformers or onnxruntime-node');
+}
+
+async function verifyDefaultAgentInstall(
+  tarballs: ReadonlyMap<PackSpec['name'], string>,
+): Promise<void> {
+  step('default agent install excludes the local-model runtime');
+  await $`npm init -y`.cwd(AGENT_INSTALL_SCRATCH).quiet();
+
+  // Supply the packed workspace packages that make up the agent's local
+  // dependency chain. All third-party dependencies are resolved exactly as a
+  // consumer's plain `npm install` would resolve them: no --omit flags and no
+  // legacy-peer-deps escape hatch.
+  const localPackages = [
+    '@inbrowser/workspace',
+    '@inbrowser/sandbox',
+    '@inbrowser/model',
+    '@inbrowser/agent',
+  ] as const;
+  const localTarballs = localPackages.map((name) => {
+    const tarball = tarballs.get(name);
+    if (!tarball) fail(`missing packed dependency for default agent install: ${name}`);
+    return tarball;
+  });
+  await $`npm install --silent --no-audit --no-fund --cache ${NPM_CACHE} ${localTarballs}`.cwd(
+    AGENT_INSTALL_SCRATCH,
+  );
+
+  // `npm ls` searches the complete dependency tree, including nested copies;
+  // checking only top-level node_modules would miss a transitive regression.
+  const heavyweightTree =
+    await $`npm ls @huggingface/transformers onnxruntime-node --all --parseable`
+      .cwd(AGENT_INSTALL_SCRATCH)
+      .text();
+  if (heavyweightTree.trim()) {
+    fail(`default agent install contains local-model dependencies:\n${heavyweightTree.trim()}`);
+  }
+  ok('plain npm install has no @huggingface/transformers or onnxruntime-node');
 }
 
 async function importTest(): Promise<void> {
@@ -346,10 +398,10 @@ const dispatchRead = await sandboxTools.execute(
 assert.equal(dispatchRead.ok, true);
 console.log('  ✓ workspace+sandbox: memory workspace, tools, checkpoints, and agent bridge work');
 
-// === @inbrowser/model ===
+// === @inbrowser/model/local ===
 // Import shape only — createEngine() needs the optional
 // @huggingface/transformers peer and a real model to do useful inference.
-// Presets are also reachable from root for ergonomics.
+// Keeping this surface on /local lets cloud-only consumers avoid loading it.
 import {
   createEngine,
   definePreset,
@@ -361,7 +413,7 @@ import {
   qwen2_5_coder_1_5b,
   qwen3_1_7b,
   deepseek_r1_qwen_1_5b,
-} from '@inbrowser/model';
+} from '@inbrowser/model/local';
 assert.equal(typeof createEngine, 'function');
 assert.equal(typeof definePreset, 'function');
 assert.equal(typeof splitThinking, 'function');
@@ -377,8 +429,10 @@ for (const [name, p] of [
   assert.equal(typeof p.model.modelId, 'string', \`preset \${name} should have model.modelId\`);
   assert.equal(typeof p.dtype, 'string', \`preset \${name} should have dtype\`);
 }
-console.log('  ✓ model: createEngine + utilities + six presets exported from root');
+console.log('  ✓ model/local: createEngine + utilities + six presets exported');
 
+// Calling the local surface without its optional runtime should fail with an
+// actionable message, not a raw module-resolution stack.
 const missingPeerEngine = createEngine(smollm2_360m);
 await assert.rejects(
   missingPeerEngine.ensureReady(),
@@ -392,25 +446,30 @@ await assert.rejects(
     return true;
   },
 );
-console.log('  ✓ model: missing optional peer reports an actionable install error');
+console.log('  ✓ model/local: missing optional peer reports an actionable install error');
 
-// Worker host/connect helpers are exported from the root barrel.
+// Worker host/connect helpers belong to the opt-in local entrypoint too.
+import * as localModel from '@inbrowser/model/local';
+assert.equal(typeof localModel.hostEngineInWorker, 'function');
+assert.equal(typeof localModel.connectWorkerEngine, 'function');
+console.log('  ✓ model/local: worker host/connect helpers exported');
+
+// === @inbrowser/model root stays free of provider factories ===
+import { withRetry } from '@inbrowser/model';
 import * as modelRoot from '@inbrowser/model';
-assert.equal(typeof modelRoot.hostEngineInWorker, 'function');
-assert.equal(typeof modelRoot.connectWorkerEngine, 'function');
-console.log('  ✓ model: worker host/connect helpers exported from root');
+assert.equal(typeof withRetry, 'function', 'model root: withRetry');
+assert.equal('geminiModelClient' in modelRoot, false, 'model root must not export geminiModelClient');
+assert.equal('createEngine' in modelRoot, false, 'model root must not export createEngine');
+console.log('  ✓ model root: withRetry only; no provider/engine factories');
 
-// === @inbrowser/model cloud provider factories + withRetry (stage 4) ===
-import {
-  geminiModelClient,
-  ollamaModelClient,
-  openaiCompatModelClient,
-  llamaServerModelClient,
-  anthropicModelClient,
-  claudeCliModelClient,
-  createFirebaseAiLogicModelClient,
-  withRetry,
-} from '@inbrowser/model';
+// === @inbrowser/model/providers/* ===
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
+import { ollamaModelClient } from '@inbrowser/model/providers/ollama';
+import { openaiCompatModelClient } from '@inbrowser/model/providers/oai-compat';
+import { llamaServerModelClient } from '@inbrowser/model/providers/llama-server';
+import { anthropicModelClient } from '@inbrowser/model/providers/anthropic';
+import { claudeCliModelClient } from '@inbrowser/model/providers/claude-cli';
+import { createFirebaseAiLogicModelClient } from '@inbrowser/model/providers/firebase-ai-logic';
 for (const [name, fn] of [
   ['geminiModelClient', geminiModelClient],
   ['ollamaModelClient', ollamaModelClient],
@@ -419,9 +478,8 @@ for (const [name, fn] of [
   ['anthropicModelClient', anthropicModelClient],
   ['claudeCliModelClient', claudeCliModelClient],
   ['createFirebaseAiLogicModelClient', createFirebaseAiLogicModelClient],
-  ['withRetry', withRetry],
 ]) {
-  assert.equal(typeof fn, 'function', \`model root: \${name} should be a function\`);
+  assert.equal(typeof fn, 'function', \`model providers: \${name} should be a function\`);
 }
 // Constructing a factory yields a ModelClient (id + supportsTools + chat).
 const geminiClient = geminiModelClient({ apiKey: 'sk-test', model: 'gemini-3-flash-preview' });
@@ -466,13 +524,13 @@ assert.deepEqual(firebaseEvents, [
   { kind: 'text', text: 'ok' },
   { kind: 'usage', usage: { promptTokens: 1, outputTokens: 1 } },
 ]);
-console.log('  ✓ model: provider factories, Firebase adapter, and withRetry exported from root');
+console.log('  ✓ model/providers: factories + Firebase adapter resolve from subpaths');
 
-// The engine→ModelClient adapter resolves from the root and is a function
+// The engine→ModelClient adapter resolves from /local and is a function
 // (the on-device engine is now a ModelClient).
-import { createEngineModelClient } from '@inbrowser/model';
-assert.equal(typeof createEngineModelClient, 'function', 'model root: createEngineModelClient');
-console.log('  ✓ model: createEngineModelClient resolves from root');
+import { createEngineModelClient } from '@inbrowser/model/local';
+assert.equal(typeof createEngineModelClient, 'function', 'model/local: createEngineModelClient');
+console.log('  ✓ model/local: createEngineModelClient resolves');
 `,
   );
   await $`node test.mjs`.cwd(SCRATCH);
@@ -480,7 +538,7 @@ console.log('  ✓ model: createEngineModelClient resolves from root');
 }
 
 async function browserBundle(): Promise<void> {
-  step('browser-target bundle of @inbrowser/relay (root barrel)');
+  step('browser-target bundles');
   // The scratch dir already has @inbrowser/relay installed. Resolve
   // through node_modules so the test uses the *packed* output, not the
   // local source. Bundling the ROOT barrel for the browser proves the
@@ -493,6 +551,27 @@ async function browserBundle(): Promise<void> {
   const out = join(SCRATCH, 'browser-bundle');
   await $`bun build --target=browser --outdir=${out} ${entry}`.cwd(SCRATCH);
   ok(`bundled @inbrowser/relay root barrel for the browser (output: ${out})`);
+
+  // Bundle the packed cloud-only model root in the same HF-free installation.
+  // This catches accidental root re-exports of the local engine even though a
+  // dynamic import might otherwise make ordinary runtime import tests pass.
+  const packedModelEntry = join(SCRATCH, 'node_modules/@inbrowser/model/dist/index.js');
+  if (!existsSync(packedModelEntry)) fail(`model browser entry missing: ${packedModelEntry}`);
+  // Bundle through a consumer entry. Passing a file inside node_modules
+  // directly makes Bun treat its relative re-exports as external, which can
+  // produce a tiny but invalid bundle and would not exercise the provider
+  // graph we want to keep free of the local runtime.
+  const modelEntry = join(SCRATCH, 'model-cloud-entry.mjs');
+  await Bun.write(modelEntry, "export * from '@inbrowser/model';\n");
+  const modelOut = join(SCRATCH, 'model-browser-bundle');
+  await $`bun build --target=browser --outdir=${modelOut} ${modelEntry}`.cwd(SCRATCH);
+  for (const file of readdirSync(modelOut)) {
+    const output = await Bun.file(join(modelOut, file)).text();
+    if (output.includes('@huggingface/transformers') || output.includes('onnxruntime')) {
+      fail(`cloud-only @inbrowser/model browser bundle includes local runtime reference: ${file}`);
+    }
+  }
+  ok('packed @inbrowser/model root browser bundle has no Transformers or ONNX reference');
 }
 
 function showTarballSizes(): void {
@@ -510,12 +589,15 @@ const KEEP_TMP = process.env['KEEP_TMP'] === '1';
 try {
   await build();
   const tarballs: string[] = [];
+  const tarballsByName = new Map<PackSpec['name'], string>();
   for (const spec of SPECS) {
     const tar = await pack(spec);
     tarballs.push(tar);
+    tarballsByName.set(spec.name, tar);
     await verifyTarball(spec, tar);
   }
   showTarballSizes();
+  await verifyDefaultAgentInstall(tarballsByName);
   await scratchInstall(tarballs);
   await importTest();
   await browserBundle();
@@ -531,7 +613,10 @@ try {
   if (!KEEP_TMP) {
     rmSync(PACK_OUT, { recursive: true, force: true });
     rmSync(SCRATCH, { recursive: true, force: true });
+    rmSync(AGENT_INSTALL_SCRATCH, { recursive: true, force: true });
   } else {
-    console.log(`\n(KEEP_TMP=1: tarballs at ${PACK_OUT}, scratch at ${SCRATCH})`);
+    console.log(
+      `\n(KEEP_TMP=1: tarballs at ${PACK_OUT}, scratch at ${SCRATCH}, agent install at ${AGENT_INSTALL_SCRATCH})`,
+    );
   }
 }

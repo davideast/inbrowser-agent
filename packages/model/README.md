@@ -6,27 +6,24 @@ on-device LLM engine. `@inbrowser/relay` (transport) and
 `@inbrowser/agent` (runtime) both consume a `ModelClient`, so this is the
 single shared definition of "an LLM" for everything downstream.
 
-Two halves, one package:
+Three public seams, one package:
 
-- **The contract + cloud providers.** `@inbrowser/model`
-  defines `ModelClient` / `ModelRequest` / `ModelEvent`. The cloud
-  providers (`geminiModelClient`, `openrouterModelClient`,
-  `requestyModelClient`, `anthropicModelClient`, `openaiCompatModelClient`,
-  `ollamaModelClient`, `llamaServerModelClient`, `claudeCliModelClient`,
-  `claudeCodeModelClient`) and the Firebase AI Logic constructed-model
-  adapter (`createFirebaseAiLogicModelClient`) each return a `ModelClient`.
-  `withRetry` decorates one.
-- **The on-device engine.** `createEngine` loads ONNX models in the
-  browser via `@huggingface/transformers` + ONNX Runtime Web (WebGPU /
-  WASM) and exposes them behind a narrow `Engine` surface that streams
-  `EngineEvent`s.
+- **Root (`@inbrowser/model`).** Defines `ModelClient` / `ModelRequest` /
+  `ModelEvent`, plus usage helpers and `withRetry`. No provider factories.
+- **Providers (`@inbrowser/model/providers/<name>`).** Each cloud provider
+  (`gemini`, `openrouter`, `requesty`, `anthropic`, `oai-compat`, `ollama`,
+  `llama-server`, `claude-cli`, `claude-code`) and the Firebase AI Logic
+  constructed-model adapter (`firebase-ai-logic`) returns a `ModelClient`.
+- **Local (`@inbrowser/model/local`).** `createEngine` loads ONNX models in
+  the browser via `@huggingface/transformers` + ONNX Runtime Web (WebGPU /
+  WASM) behind a narrow `Engine` surface that streams `EngineEvent`s.
 
 > **Status.** Contract + cloud providers are the live integration path:
 > relay and agent both consume a `ModelClient`. `createEngine` loads a
 > model through `@huggingface/transformers` and `generate()` streams real
 > tokens (the end-to-end load path runs in `examples/local-llm-poc`,
 > headless-verified). The engine is now a `ModelClient` too, via
-> `createEngineModelClient` (root),
+> `createEngineModelClient` (from `@inbrowser/model/local`),
 > which widens the engine's `EngineEvent` stream to the contract's
 > `ModelEvent`. The old `@inbrowser/model/relay` and
 > `@inbrowser/model/agent` adapter subpaths have been removed.
@@ -38,7 +35,7 @@ Two halves, one package:
 ## A cloud model as a `ModelClient`
 
 ```ts
-import { geminiModelClient } from '@inbrowser/model';
+import { geminiModelClient } from '@inbrowser/model/providers/gemini';
 
 const client = geminiModelClient({ apiKey: process.env.GEMINI_KEY, model: 'gemini-3.5-flash' });
 
@@ -69,7 +66,7 @@ that model to `ModelClient`:
 ```ts
 import { initializeApp } from 'firebase/app';
 import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
-import { createFirebaseAiLogicModelClient } from '@inbrowser/model';
+import { createFirebaseAiLogicModelClient } from '@inbrowser/model/providers/firebase-ai-logic';
 
 const app = initializeApp(firebaseConfig);
 // Initialize App Check for `app` before making production AI requests.
@@ -95,11 +92,9 @@ factory talks to any of them; two named presets carry the right defaults for
 the common local servers:
 
 ```ts
-import {
-  openaiCompatModelClient, // any OAI server — set baseUrl (or endpoint)
-  ollamaModelClient,       // preset: defaults to http://localhost:11434, no auth
-  llamaServerModelClient,  // preset: defaults to http://localhost:8080
-} from '@inbrowser/model';
+import { openaiCompatModelClient } from '@inbrowser/model/providers/oai-compat'; // any OAI server
+import { ollamaModelClient } from '@inbrowser/model/providers/ollama'; // localhost:11434
+import { llamaServerModelClient } from '@inbrowser/model/providers/llama-server'; // localhost:8080
 
 // Generic: point at any OAI-compatible server. `apiKey` becomes a Bearer token.
 const vllm = openaiCompatModelClient({ baseUrl: 'http://gpu.local:8000', model: 'qwen2.5' });
@@ -118,14 +113,17 @@ directly for any server without a named preset.
 
 ## An on-device model via the engine
 
-Install the optional Transformers peer only when using the on-device engine:
+The local engine uses the optional Transformers peer. Install it only in an
+application that runs on-device inference:
 
 ```sh
 npm install @inbrowser/model @huggingface/transformers
 ```
 
+Then import the opt-in local surface:
+
 ```ts
-import { createEngine, gemma4_E2B } from '@inbrowser/model';
+import { createEngine, gemma4_E2B } from '@inbrowser/model/local';
 
 const engine = createEngine(gemma4_E2B);
 await engine.ensureReady();
@@ -142,7 +140,11 @@ The engine speaks `EngineEvent` (`token` / `thinking` / `tool_call` /
 e.g. to hand it to the agent — wrap it with `createEngineModelClient`:
 
 ```ts
-import { createEngine, createEngineModelClient, smollm2_360m } from '@inbrowser/model';
+import {
+  createEngine,
+  createEngineModelClient,
+  smollm2_360m,
+} from '@inbrowser/model/local';
 
 const engine = createEngine(smollm2_360m);
 const client = createEngineModelClient(engine); // a ModelClient
@@ -161,9 +163,9 @@ and drops the engine-only extras (`decodeMs`, `recoverable`). Wiring a
 local model into the docs-chat site through the agent is forthcoming;
 the `createEngineModelClient` building block it needs now exists.
 
-## Surface
+## Surfaces
 
-Everything is imported from the package root `@inbrowser/model`.
+The root `@inbrowser/model` is the lightweight contract/provider surface:
 
 | Export | What it gives you |
 |---|---|
@@ -173,13 +175,21 @@ Everything is imported from the package root `@inbrowser/model`.
 | `OpenAiCompatConfig`, `OllamaConfig`, `LlamaServerConfig` | Config shapes for the OpenAI-compatible factory and its local presets |
 | `withRetry(client, opts?)` | Decorator that retries transient upstream errors while nothing has streamed |
 | `CloudProviderConfig`, `ModelClientFactory` | Shared provider config + the factory type the relay routes on |
+
+The opt-in `@inbrowser/model/local` surface contains everything tied to
+on-device inference:
+
+| Export | What it gives you |
+|---|---|
 | `createEngine(preset)` | Runtime `Engine` — owns load state + decode loop, streams `EngineEvent` |
 | `createEngineModelClient(engine, id?)` | Wraps an `Engine` as a `ModelClient` (maps `EngineEvent` → `ModelEvent`) |
 | `definePreset(p)` | Type-safe identity helper for community presets |
 | `parseToolCalls`, `splitThinking` | Stream transformers over an `EngineEvent` stream |
 | `ModelPreset`, `Engine`, `EngineEvent`, … | Public engine types |
-| `gemma4_E2B`, `gemma4_E4B`, `qwen2_5_coder_1_5b`, `qwen3_1_7b`, `deepseek_r1_qwen_1_5b`, `smollm2_360m` | The six bundled presets |
+| `gemma4_E2B`, `gemma4_E4B`, `qwen2_5_coder_1_5b`, `qwen3_1_7b`, `deepseek_r1_qwen_1_5b`, `smollm2_360m` | The bundled presets |
 | `hostEngineInWorker(self)`, `connectWorkerEngine(opts)` | Worker host/connect helpers |
+
+Consumers that do not import `/local` never cross the on-device runtime seam.
 
 ## Vocabulary anchor
 

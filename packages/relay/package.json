@@ -20,7 +20,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@inbrowser/model": "^0.4.2",
+    "@inbrowser/model": "^0.5.0",
     "@inbrowser/resumable": "^0.4.2"
   },
   "peerDependencies": {

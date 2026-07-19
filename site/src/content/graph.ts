@@ -522,7 +522,7 @@ export const NODES: DocNode[] = [
     route: '/model',
     sourcePath: 'packages/model/README.md',
     summary:
-      'The model layer: the one ModelClient contract, the cloud provider factories that implement it, and an on-device LLM engine over @huggingface/transformers + ONNX. The engine is not yet a ModelClient.',
+      'The model layer: the lightweight ModelClient contract at the root, cloud providers under @inbrowser/model/providers/<name>, and an opt-in on-device LLM engine under @inbrowser/model/local.',
   },
   {
     id: 'model/tutorials/run-a-model-in-the-browser',
@@ -562,7 +562,7 @@ export const NODES: DocNode[] = [
     route: '/model/how-to/use-a-local-model-in-relay',
     sourcePath: 'packages/model/docs/how-to/use-a-local-model-in-relay.md',
     summary:
-      'Register a cloud ModelClient factory in @inbrowser/relay today; serving the on-device engine the same way awaits the planned createEngineModelClient wrapper, so drive the engine directly meanwhile.',
+      'Wrap an on-device engine as a ModelClient with createEngineModelClient, then expose it through a relay provider factory.',
   },
   {
     id: 'model/how-to/use-a-local-model-in-the-agent',
@@ -572,7 +572,7 @@ export const NODES: DocNode[] = [
     route: '/model/how-to/use-a-local-model-in-the-agent',
     sourcePath: 'packages/model/docs/how-to/use-a-local-model-in-the-agent.md',
     summary:
-      "Pass a cloud ModelClient as a session's llm today; wiring the on-device engine the same way awaits the planned createEngineModelClient wrapper, so drive the engine directly meanwhile.",
+      "Wrap an on-device engine with createEngineModelClient and pass it directly as an agent session's llm.",
   },
   {
     id: 'model/how-to/handle-thinking-and-tool-calls',
@@ -592,7 +592,7 @@ export const NODES: DocNode[] = [
     route: '/model/reference/engine',
     sourcePath: 'packages/model/docs/reference/engine.md',
     summary:
-      'The root @inbrowser/model export: the engine factory, the Engine surface, the event vocabulary, and the stream transformers.',
+      'The @inbrowser/model/local export: the engine factory, the Engine surface, the event vocabulary, and the stream transformers.',
   },
   {
     id: 'model/reference/presets',
@@ -602,7 +602,7 @@ export const NODES: DocNode[] = [
     route: '/model/reference/presets',
     sourcePath: 'packages/model/docs/reference/presets.md',
     summary:
-      'The @inbrowser/model/presets export: the six bundled ModelPreset values and the static types they carry.',
+      'The @inbrowser/model/local export: the bundled ModelPreset values and the static types they carry.',
   },
   {
     id: 'model/reference/adapters-and-worker',
@@ -612,7 +612,7 @@ export const NODES: DocNode[] = [
     route: '/model/reference/adapters-and-worker',
     sourcePath: 'packages/model/docs/reference/adapters-and-worker.md',
     summary:
-      'The @inbrowser/model/worker subpath that hosts an Engine in a Web Worker behind the same Engine surface, plus why the removed relay/agent adapters await the planned createEngineModelClient wrapper.',
+      'The worker helpers in @inbrowser/model/local that host an Engine in a Web Worker and connect to it behind the same Engine surface.',
   },
   {
     id: 'model/reference/gateway-providers',

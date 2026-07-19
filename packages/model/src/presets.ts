@@ -2,7 +2,7 @@
  * Bundled `ModelPreset`s for Gemma 4 family.
  *
  * Adding a model is one entry here — not a new factory. Consumers
- * may also author their own via `definePreset` from the package root.
+ * may also author their own via `definePreset` from `@inbrowser/model/local`.
  *
  * Capabilities are declared statically from the upstream model card;
  * the runtime engine confirms them after load.
@@ -188,7 +188,7 @@ export const qwen3_1_7b: ModelPreset = definePreset({
  * `supportsThinking: true` because the model emits its reasoning
  * trace inside literal `<think>…</think>` tags before the answer.
  * Consumers should wrap the engine's stream with `splitThinking()`
- * from `@inbrowser/model` to receive `kind: 'thinking'` events
+ * from `@inbrowser/model/local` to receive `kind: 'thinking'` events
  * separated from `kind: 'token'` output, then render the two streams
  * differently (e.g., collapsible thinking pane + main output pane).
  *

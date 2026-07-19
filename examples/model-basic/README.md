@@ -1,6 +1,7 @@
 # model-basic
 
-A keyless script demo for `@inbrowser/model`.
+A keyless script demo for `@inbrowser/model` contracts and usage helpers plus
+the event-stream helpers from `@inbrowser/model/local`.
 
 It demonstrates the offline parts of the model contract:
 

@@ -22,7 +22,7 @@ import {
   qwen3_1_7b,
   smollm2_360m,
   splitThinking,
-} from '@inbrowser/model';
+} from '@inbrowser/model/local';
 
 const PRESETS: Record<string, ModelPreset> = {
   gemma4_e2b: gemma4_E2B,

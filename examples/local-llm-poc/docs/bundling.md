@@ -1,9 +1,9 @@
-# Bundling guide — running large LLMs in the browser via `@inbrowser/model`
+# Bundling guide — running large LLMs in the browser via `@inbrowser/model/local`
 
 This document is the field manual for getting an on-device LLM to run in
 a real browser tab. If your Gemma 4 demo "isn't working" and you don't
 know why, start here. The intended audience is somebody integrating
-`@inbrowser/model` for the first time and hitting one of the many paper
+`@inbrowser/model/local` for the first time and hitting one of the many paper
 cuts the POC team already paid for.
 
 It is a teaching document, not an archaeology one. The blow-by-blow of
@@ -124,7 +124,7 @@ the RAM figures are observed (Gemma 4) or expected (others).
 
 ## 2. Choosing a preset
 
-The five-plus bundled presets are exported from `@inbrowser/model/presets`.
+The bundled presets are exported from `@inbrowser/model/local`.
 For the full per-preset rationale see
 [`packages/model/src/presets.ts`](../../../packages/model/src/presets.ts);
 the table below is the "which one do I pick" view.
@@ -150,7 +150,7 @@ A few rules of thumb:
   desktop GPU; greedy sampling).
 - **For reasoning UX, use `deepseek_r1_qwen_1_5b`.** It emits its
   chain-of-thought inside literal `<think>…</think>` tags; wrap the
-  engine's event stream with `splitThinking` from `@inbrowser/model` to
+  engine's event stream with `splitThinking` from `@inbrowser/model/local` to
   route reasoning to a separate pane (see the example's main.ts).
 - **For code tasks, use `qwen2_5_coder_1_5b`.** It targets the same
   hardware band as the other Qwen but specializes in code / FIM.
@@ -173,7 +173,7 @@ exactly 1 GiB and will fail Gemma 4 with the `Buffer size exceeds` error
 
 ### Custom presets
 
-`@inbrowser/model` exports a `definePreset` helper for community
+`@inbrowser/model/local` exports a `definePreset` helper for community
 presets — see
 [`packages/model/README.md`](../../../packages/model/README.md). Adding
 a model is one new preset entry, not a new factory. If your model is
@@ -184,7 +184,7 @@ the existing code path; other architectures may need engine work.
 
 ## 3. First-run experience
 
-A cold load of `@inbrowser/model` walks through four phases. The
+A cold load of `@inbrowser/model/local` walks through four phases. The
 example UI surfaces each phase in its status line — track that line as
 your progress indicator.
 
@@ -439,10 +439,9 @@ big chunks and blocks the event loop while it runs. Not a bug — a
 known limitation of the POC.
 
 **Fix.** Wait. The freeze is finite for any preset that can actually
-run end-to-end on your hardware. The `@inbrowser/model/worker` subpath
-is typed but unimplemented as of this writing
-([`packages/model/README.md`](../../../packages/model/README.md)
-status); landing it would move compilation off the UI thread.
+run end-to-end on your hardware. To avoid the freeze, host the engine with
+the worker helpers from `@inbrowser/model/local`; that moves compilation off
+the UI thread.
 
 ### Decode stops mid-sentence at exactly 512 tokens (or 2048)
 
@@ -491,7 +490,7 @@ specifically reproduced in this repo against the bundled text presets.
   what the ONNX repo actually shipped. Don't assume `q4f16` works just
   because the model was quantized "to 4 bits" — `q4`, `q4f16`, `q4f32`
   are different exports.
-- If you're hitting this on a text preset bundled with `@inbrowser/model`,
+- If you're hitting this on a text preset bundled with `@inbrowser/model/local`,
   it's likely the same root cause as the `GatherBlockQuantized` error
   above; treat it as a hardware/driver gap.
 
@@ -609,8 +608,8 @@ It does **not** prove:
   real GPU; see the example README's
   "[Testing Gemma 4 in a real browser](../README.md#testing-gemma-4-in-a-real-browser)"
   section.
-- That the worker transport works. `@inbrowser/model/worker` is typed
-  but unimplemented.
+- That the worker transport from `@inbrowser/model/local` works; this example
+  runs the engine directly on the main thread.
 - That sample sequences, stop sequences, or mid-decode cancellation
   work. The engine fields are wired but not yet honored.
 

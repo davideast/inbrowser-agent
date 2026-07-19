@@ -11,7 +11,7 @@ Gemini backend selection, Vertex AI location, and model construction:
 ```ts
 import { initializeApp } from 'firebase/app';
 import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
-import { createFirebaseAiLogicModelClient } from '@inbrowser/model';
+import { createFirebaseAiLogicModelClient } from '@inbrowser/model/providers/firebase-ai-logic';
 
 const app = initializeApp(firebaseConfig);
 // Configure App Check for this app before production requests.

@@ -1,6 +1,7 @@
 /**
  * Site-side wiring for the OpenRouter "Connect" flow (PKCE). The library
- * (`@inbrowser/model`) provides the crypto + exchange primitives; this module
+ * (`@inbrowser/model/providers/openrouter-oauth`) provides the crypto +
+ * exchange primitives; this module
  * owns the browser policy the library deliberately leaves to the app: the
  * verifier storage, the redirect-or-popup transport, and consuming `?code=`.
  *
@@ -12,7 +13,7 @@ import {
   type OpenRouterOAuthStart,
   beginOpenRouterOAuth,
   completeOpenRouterOAuth,
-} from '@inbrowser/model';
+} from '@inbrowser/model/providers/openrouter-oauth';
 
 // The PKCE verifier must survive the redirect to OpenRouter and back.
 // sessionStorage (not localStorage): scoped to this tab, gone when it closes.
