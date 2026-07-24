@@ -6,10 +6,7 @@ This page describes the public surface of `@inbrowser/resumable`.
 
 | Import path | Exports |
 | --- | --- |
-| `@inbrowser/resumable` | `createJobEngine`, engine types, job types, `JobStore`, `silentLogger` |
-| `@inbrowser/resumable/memory` | `createMemoryJobStore` |
-| `@inbrowser/resumable/rtdb` | `createRtdbJobStore`, `staticTokenProvider`, `serviceAccountTokenProvider`, token provider types |
-| `@inbrowser/resumable/testing` | `probeStoreDurability`, `probeSweepTtl`, probe result types |
+| `@inbrowser/resumable` | Everything: `createJobEngine`, stores (`createMemoryJobStore`, `createIdbJobStore`, `createRtdbJobStore` + token providers), HTTP/client/worker helpers, `probeStoreDurability`, `probeSweepTtl`, and related types. Deep subpaths are not part of the public map. |
 
 ## `createJobEngine`
 

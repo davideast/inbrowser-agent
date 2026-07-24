@@ -49,7 +49,7 @@ import {
 import {
   createRtdbJobStore,
   serviceAccountTokenProvider,
-} from '@inbrowser/resumable/rtdb';
+} from '@inbrowser/resumable';
 
 const relay = createRelay({
   store: createRtdbJobStore<ModelEvent>({

@@ -7,7 +7,7 @@ services are required.
 ## 1. Create The Relay
 
 ```ts
-import { createMemoryJobStore } from '@inbrowser/resumable/memory';
+import { createMemoryJobStore } from '@inbrowser/resumable';
 import { createRelay, type ModelEvent } from '@inbrowser/relay';
 import type { ModelClientFactory } from '@inbrowser/model';
 

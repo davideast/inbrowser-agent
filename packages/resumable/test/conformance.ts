@@ -8,8 +8,8 @@
  *
  * The suite is intentionally framework-coupled to `bun:test` — the
  * shape lives inside the package's test directory and is NOT a
- * published export. The published `@inbrowser/resumable/testing` ships
- * the probe harness (Probes A-D), not the suite itself.
+ * published export. The published root exports the probe harness
+ * (Probes A-D), not this suite itself.
  */
 import { describe, expect, it } from 'bun:test';
 import type { JobStore } from '../src/store/contract';
