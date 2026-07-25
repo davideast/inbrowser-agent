@@ -95,7 +95,8 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
     if (hasTracer) {
       runInput.tracer = config.tracer;
     }
-    const hasReasoningEffort = config.reasoningEffort !== undefined && config.reasoningEffort !== null;
+    const hasReasoningEffort =
+      config.reasoningEffort !== undefined && config.reasoningEffort !== null;
     if (hasReasoningEffort) {
       runInput.reasoningEffort = config.reasoningEffort;
     }

@@ -105,7 +105,8 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
           tools,
           toolUseEnabled: tools.length > 0 && input.llm.supportsTools,
         };
-        const hasReasoningEffort = input.reasoningEffort !== undefined && input.reasoningEffort !== null;
+        const hasReasoningEffort =
+          input.reasoningEffort !== undefined && input.reasoningEffort !== null;
         if (hasReasoningEffort) {
           chatRequest.reasoningEffort = input.reasoningEffort;
         }
@@ -270,7 +271,8 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
             tools: [],
             toolUseEnabled: false,
           };
-          const hasReasoningEffort = input.reasoningEffort !== undefined && input.reasoningEffort !== null;
+          const hasReasoningEffort =
+            input.reasoningEffort !== undefined && input.reasoningEffort !== null;
           if (hasReasoningEffort) {
             critiqueRequest.reasoningEffort = input.reasoningEffort;
           }
