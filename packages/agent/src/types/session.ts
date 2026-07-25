@@ -9,7 +9,7 @@
  */
 
 import type { ChatMessage, TurnDetails, TurnMetrics } from './chat.js';
-import type { ModelClient, ModelErrorEvent } from './llm.js';
+import type { ModelClient, ModelErrorEvent, ReasoningEffort } from './llm.js';
 import type { MetricsCollector } from './metrics.js';
 import type { RuntimeState } from './runtime.js';
 import type { AgentStrategy } from './strategy.js';
@@ -43,6 +43,8 @@ export interface AgentSessionConfig {
    *  `LlmRequestTrace.turnId` back to `SessionEvent`s. Absent =
    *  zero-cost no-op. */
   tracer?: Tracer;
+  /** Optional Gemini reasoning effort (e.g., 'low' | 'medium' | 'high'). */
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface AgentSession {
