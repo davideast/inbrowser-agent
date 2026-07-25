@@ -9,7 +9,7 @@
 import type { ChatMessage } from './types/chat.js';
 import type { RuntimeState } from './types/runtime.js';
 import type { AgentSession, AgentSessionConfig, SessionEvent } from './types/session.js';
-import type { StrategyEvent } from './types/strategy.js';
+import type { StrategyEvent, StrategyRunInput } from './types/strategy.js';
 import type { AgentTools, ToolDispatch, ToolHandler, ToolResult } from './types/tools.js';
 import type { Workspace } from './types/workspace.js';
 
