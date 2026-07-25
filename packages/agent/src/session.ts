@@ -9,7 +9,7 @@
 import type { ChatMessage } from './types/chat.js';
 import type { RuntimeState } from './types/runtime.js';
 import type { AgentSession, AgentSessionConfig, SessionEvent } from './types/session.js';
-import type { StrategyEvent } from './types/strategy.js';
+import type { StrategyEvent, StrategyRunInput } from './types/strategy.js';
 import type { AgentTools, ToolDispatch, ToolHandler, ToolResult } from './types/tools.js';
 import type { Workspace } from './types/workspace.js';
 
@@ -79,22 +79,28 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
 
     const systemPrompt = config.systemPromptBuilder(workspace, runtime);
 
-    const strategyEvents = config.strategy.run(
-      {
-        prompt,
-        history: priorHistory,
-        workspace,
-        runtime,
-        llm: config.llm,
-        tools: tools.dispatch,
-        toolList: tools.toolList,
-        toolContext: config.toolContext,
-        systemPrompt,
-        ...(config.tracer ? { tracer: config.tracer } : {}),
-        turnId,
-      },
-      signal,
-    );
+    const runInput: StrategyRunInput = {
+      prompt,
+      history: priorHistory,
+      workspace,
+      runtime,
+      llm: config.llm,
+      tools: tools.dispatch,
+      toolList: tools.toolList,
+      toolContext: config.toolContext,
+      systemPrompt,
+      turnId,
+    };
+    const hasTracer = config.tracer !== undefined && config.tracer !== null;
+    if (hasTracer) {
+      runInput.tracer = config.tracer;
+    }
+    const hasReasoningEffort =
+      config.reasoningEffort !== undefined && config.reasoningEffort !== null;
+    if (hasReasoningEffort) {
+      runInput.reasoningEffort = config.reasoningEffort;
+    }
+    const strategyEvents = config.strategy.run(runInput, signal);
 
     let assistantText = '';
     const assistantId = `a-${turnId}`;

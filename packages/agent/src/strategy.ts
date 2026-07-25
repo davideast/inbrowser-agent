@@ -105,6 +105,11 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
           tools,
           toolUseEnabled: tools.length > 0 && input.llm.supportsTools,
         };
+        const hasReasoningEffort =
+          input.reasoningEffort !== undefined && input.reasoningEffort !== null;
+        if (hasReasoningEffort) {
+          chatRequest.reasoningEffort = input.reasoningEffort;
+        }
 
         // Emit the trace BEFORE dispatch. Captures the request as the
         // strategy assembled it — agent-layer view, not provider-
@@ -266,6 +271,11 @@ export function createReactLoopStrategy(options: ReactLoopOptions = {}): AgentSt
             tools: [],
             toolUseEnabled: false,
           };
+          const hasReasoningEffort =
+            input.reasoningEffort !== undefined && input.reasoningEffort !== null;
+          if (hasReasoningEffort) {
+            critiqueRequest.reasoningEffort = input.reasoningEffort;
+          }
 
           const critiqueRequestId = `${requestId}#critique`;
           if (input.tracer) {

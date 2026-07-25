@@ -8,7 +8,7 @@
  */
 
 import type { ChatMessage, TurnDetails } from './chat.js';
-import type { ModelClient, ModelErrorEvent, ModelUsage } from './llm.js';
+import type { ModelClient, ModelErrorEvent, ModelUsage, ReasoningEffort } from './llm.js';
 import type { RuntimeState } from './runtime.js';
 import type { ToolContext, ToolDispatch, ToolHandler, ToolResult } from './tools.js';
 import type { Tracer } from './trace.js';
@@ -53,6 +53,8 @@ export interface StrategyRunInput {
    *  per-iteration `requestId`s. The session is what owns the turn
    *  identity; the strategy receives it for trace labeling only. */
   turnId?: string;
+  /** Optional Gemini reasoning effort (e.g., 'low' | 'medium' | 'high'). */
+  reasoningEffort?: ReasoningEffort;
 }
 
 export type StrategyEvent =
