@@ -13,6 +13,8 @@ export function createNodeCommandRunner(): HostCommandRunner {
       const proc = spawn(command, Array.from(args.slice(1)), {
         signal: options.signal,
       });
+      proc.stdin.on('error', () => undefined);
+      proc.stdin.end(options.input);
       const [stdout, stderr, exitCode] = await Promise.all([
         readNodeStream(proc.stdout, 'stdout', options),
         readNodeStream(proc.stderr, 'stderr', options),

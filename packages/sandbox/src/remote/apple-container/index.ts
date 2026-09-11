@@ -8,8 +8,11 @@ import type {
   HostCommandRunner,
 } from '../host/types.js';
 import { createNodeCommandRunner } from '../node/command.js';
+import { createRootedContainerFileSystem } from './rooted-fs.js';
 
 export interface AppleContainerProviderOptions {
+  /** Requires python3 and setsid in the image. Runs commands as uid 1000. */
+  rootedFileSystem?: boolean;
   image: string;
   containerBin?: string;
   namePrefix?: string;
@@ -60,10 +63,22 @@ export function createAppleContainerProvider(
       );
     },
     async createSession(sessionOptions) {
+      if (options.rootedFileSystem && sessionOptions.root === '/')
+        throw new Error('Rooted filesystem requires a dedicated workspace mount, not /');
       const name = safeContainerName(sessionOptions.id, namePrefix);
       await deleteContainer(commandRunner, containerBin, name);
       await commandRunner.run(
-        [containerBin, 'run', '--detach', '--name', name, options.image, 'sleep', 'infinity'],
+        [
+          containerBin,
+          'run',
+          '--detach',
+          '--name',
+          name,
+          ...(options.rootedFileSystem ? ['--tmpfs', sessionOptions.root] : []),
+          options.image,
+          'sleep',
+          'infinity',
+        ],
         { rejectOnFailure: true },
       );
       const session = new AppleContainerSession(
@@ -79,6 +94,25 @@ export function createAppleContainerProvider(
       if (mkdir.exitCode !== 0) {
         await session.dispose();
         throw new Error(`Failed to create container root ${sessionOptions.root}: ${mkdir.stderr}`);
+      }
+      if (options.rootedFileSystem) {
+        try {
+          await commandRunner.run(
+            [
+              containerBin,
+              'exec',
+              name,
+              'sh',
+              '-lc',
+              `command -v python3 && command -v setsid && chmod 1777 /tmp && chown 1000:1000 ${shellQuote(sessionOptions.root)}`,
+            ],
+            { rejectOnFailure: true },
+          );
+          session.enableRootedFileSystem();
+        } catch (error) {
+          await session.dispose();
+          throw error;
+        }
       }
       return session;
     },
@@ -115,6 +149,17 @@ export const appleContainerProviderFactory: ContainerProviderFactory = {
 };
 
 class AppleContainerSession implements ContainerSession {
+  fileSystemIsolation?: 'rooted';
+  enableRootedFileSystem() {
+    const fs = createRootedContainerFileSystem(
+      this.commandRunner,
+      this.containerBin,
+      this.name,
+      this.root,
+    );
+    Object.assign(this, fs, { lstat: fs.stat });
+    this.fileSystemIsolation = 'rooted';
+  }
   readonly id: string;
   readonly root: string;
 
@@ -131,25 +176,90 @@ class AppleContainerSession implements ContainerSession {
   }
 
   async run(command: string, options: ContainerRunOptions = {}) {
+    if (options.signal?.aborted) throw new Error('Command cancelled before start');
     const started = Date.now();
     const cwd = options.cwd ?? this.root;
-    const result = await this.commandRunner.run(
-      [this.containerBin, 'exec', this.name, 'sh', '-lc', `cd ${shellQuote(cwd)} && ${command}`],
-      {
-        signal: options.signal,
-        onOutput: options.onOutput,
-        maxBufferedOutputChars: this.maxBufferedOutputChars,
-      },
-    );
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      exitCode: result.exitCode,
-      cwd,
-      durationMs: Date.now() - started,
-      stdoutTruncated: result.stdoutTruncated,
-      stderrTruncated: result.stderrTruncated,
+    const job = `/tmp/inbrowser-run-${crypto.randomUUID()}`;
+    let cancellation: Promise<{ exitCode: number }> | undefined;
+    const cancel = () => {
+      cancellation ??= this.commandRunner.run([
+        this.containerBin,
+        'exec',
+        '--user',
+        '1000:1000',
+        this.name,
+        'python3',
+        '-I',
+        '-c',
+        `import os,signal,time,pathlib
+job=pathlib.Path(${JSON.stringify(job)})
+job.with_suffix('.cancel').touch()
+if job.exists():
+ pgid=int(job.read_text())
+ if pgid>1:
+  for sig in (signal.SIGTERM,signal.SIGKILL):
+   try: os.killpg(pgid,sig)
+   except ProcessLookupError: break
+   time.sleep(1)
+`,
+      ]);
+      void cancellation.catch(() => undefined);
     };
+    // setsid gives the workload its own process group. Cancellation uses a
+    // second container exec, not termination of the host CLI process.
+    const tracked = options.signal && this.fileSystemIsolation === 'rooted';
+    const script = tracked
+      ? `setsid sh -c ${shellQuote(`echo $$ > ${shellQuote(job)}; test ! -f ${shellQuote(`${job}.cancel`)} || exit 130; cd ${shellQuote(cwd)} && ${command}`)}`
+      : `cd ${shellQuote(cwd)} && ${command}`;
+    if (tracked) options.signal?.addEventListener('abort', cancel, { once: true });
+    try {
+      const result = await this.commandRunner.run(
+        [
+          this.containerBin,
+          'exec',
+          ...(this.fileSystemIsolation === 'rooted' ? ['--user', '1000:1000'] : []),
+          this.name,
+          'sh',
+          '-lc',
+          script,
+        ],
+        {
+          signal: tracked ? undefined : options.signal,
+          onOutput: options.onOutput,
+          maxBufferedOutputChars: this.maxBufferedOutputChars,
+        },
+      );
+      if (options.signal?.aborted) {
+        const cancelled = await cancellation;
+        if (!cancelled || cancelled.exitCode !== 0 || result.exitCode === 0)
+          throw new Error('Cancellation was requested but process termination was not confirmed');
+        throw new Error('Command cancelled');
+      }
+      return {
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.exitCode,
+        cwd,
+        durationMs: Date.now() - started,
+        stdoutTruncated: result.stdoutTruncated,
+        stderrTruncated: result.stderrTruncated,
+      };
+    } finally {
+      options.signal?.removeEventListener('abort', cancel);
+      await cancellation;
+      if (tracked)
+        await this.commandRunner.run([
+          this.containerBin,
+          'exec',
+          '--user',
+          '1000:1000',
+          this.name,
+          'rm',
+          '-f',
+          job,
+          `${job}.cancel`,
+        ]);
+    }
   }
 
   async readFile(path: string): Promise<Uint8Array> {

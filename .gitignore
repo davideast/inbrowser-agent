@@ -15,3 +15,5 @@ plans/
 site/dist/
 site/src/generated/
 .release/
+
+.pyric/

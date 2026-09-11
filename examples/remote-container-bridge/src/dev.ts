@@ -10,10 +10,14 @@ const viteBin = resolve(dirname(viteEntry), '..', '..', 'bin', 'vite.js');
 const { bridgeOptions, uiPort } = readRemoteContainerBridgeEnv();
 const uiUrl = `http://127.0.0.1:${uiPort}/`;
 
-const bridge = await startRemoteContainerBridge({
-  ...bridgeOptions,
-  uiUrl,
-});
+const transport = process.env.REMOTE_CONTAINER_TRANSPORT ?? 'websocket';
+if (transport !== 'websocket' && transport !== 'firebase-rtdb')
+  throw new Error('REMOTE_CONTAINER_TRANSPORT must be websocket or firebase-rtdb');
+const bridge =
+  transport === 'firebase-rtdb'
+    ? (await import('./firebase-host.js')).bridge
+    : await startRemoteContainerBridge({ ...bridgeOptions, uiUrl });
+const origin = 'origin' in bridge ? bridge.origin : '';
 
 const vite = Bun.spawn(
   ['node', viteBin, '--host', '0.0.0.0', '--port', String(uiPort), '--strictPort'],
@@ -21,7 +25,8 @@ const vite = Bun.spawn(
     cwd: exampleRoot,
     env: {
       ...process.env,
-      REMOTE_CONTAINER_BRIDGE_TARGET: bridge.origin,
+      REMOTE_CONTAINER_BRIDGE_TARGET: origin,
+      VITE_REMOTE_CONTAINER_TRANSPORT: transport,
       REMOTE_CONTAINER_UI_PORT: String(uiPort),
     },
     stdout: 'inherit',
@@ -29,9 +34,9 @@ const vite = Bun.spawn(
   },
 );
 
-console.log(`remote container bridge API listening on ${bridge.origin}`);
+if (origin) console.log(`remote container bridge API listening on ${origin}`);
 console.log(`remote container bridge UI listening on ${uiUrl}`);
-console.log(`provider=${bridge.provider} host=${bridge.host}`);
+console.log(`transport=${transport}`);
 
 vite.exited.then(async (code) => {
   await bridge.stop();

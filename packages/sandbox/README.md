@@ -40,6 +40,8 @@ when a host needs a common tool, checkpoint, event, or runtime adapter layer.
   boundary.
 - [Why sandbox tools and agent tools are separate](./docs/why-sandbox-and-agent-tools-are-separate.md)
   explains the boundary between sandbox side effects and agent policy.
+- [Firebase RTDB bridge](./docs/firebase-rtdb.md) covers the optional managed transport,
+  authenticated developer/reviewer sessions, and Pyric development workflow.
 - [API reference](./docs/reference.md) lists the public surface.
 
 ## What It Owns
@@ -51,7 +53,7 @@ when a host needs a common tool, checkpoint, event, or runtime adapter layer.
 - Checkpoint creation, restore, history queries, and pruning over any sandbox
   file system that supports snapshots.
 - A `createWorkspaceSandbox` adapter for `@inbrowser/workspace`.
-- A remote bridge subpath for adapting WebSocket-backed host/container runtimes
+- Remote bridge subpaths for adapting WebSocket- or Firebase-backed host/container runtimes
   into the same sandbox contract.
 - Host-only remote bridge subpaths for decision-less local container bridges,
   Node/Bun daemons, command runners, and Apple `container` providers.

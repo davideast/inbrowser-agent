@@ -114,6 +114,9 @@ const SPECS: PackSpec[] = [
       'package/docs/overview.md',
       'package/docs/how-to-wire-an-agent.md',
       'package/docs/reference.md',
+      'package/dist/remote/firebase/rtdb/index.js',
+      'package/dist/remote/firebase/rtdb/host/index.js',
+      'package/rules/database.rules.json',
     ],
     forbidFiles: [/^package\/src\//, /^package\/test\//, /tsconfig\.json$/],
   },
@@ -574,6 +577,59 @@ async function browserBundle(): Promise<void> {
   ok('packed @inbrowser/model root browser bundle has no Transformers or ONNX reference');
 }
 
+async function firebaseSandboxBundle(): Promise<void> {
+  step('optional Firebase sandbox exports');
+  if (
+    existsSync(join(SCRATCH, 'node_modules/firebase')) ||
+    existsSync(join(SCRATCH, 'node_modules/pyric'))
+  )
+    fail('plain package install includes Firebase or Pyric');
+  const plain = join(SCRATCH, 'sandbox-no-firebase.mjs');
+  await Bun.write(
+    plain,
+    `
+import assert from 'node:assert/strict';
+import * as sandbox from '@inbrowser/sandbox';
+import * as remote from '@inbrowser/sandbox/remote';
+import * as host from '@inbrowser/sandbox/remote/host';
+import * as nodeHost from '@inbrowser/sandbox/remote/node';
+assert.equal(typeof remote.createRemoteSandbox, 'function');
+assert.equal(typeof host.createBridgeExecutor, 'function');
+assert.equal(typeof nodeHost.startNodeBridgeHostServer, 'function');
+`,
+  );
+  await $`node ${plain}`.cwd(SCRATCH);
+  ok('root and WebSocket imports work without Firebase');
+  await $`npm install --silent --no-audit --no-fund --cache ${NPM_CACHE} firebase@^12.12.0`.cwd(
+    SCRATCH,
+  );
+  const imports = join(SCRATCH, 'firebase-imports.mjs');
+  await Bun.write(
+    imports,
+    `
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createFirebaseRtdbBridgeProvider } from '@inbrowser/sandbox/remote/firebase/rtdb';
+import { startFirebaseRtdbBridge } from '@inbrowser/sandbox/remote/firebase/rtdb/host';
+assert.equal(typeof createFirebaseRtdbBridgeProvider, 'function');
+assert.equal(typeof startFirebaseRtdbBridge, 'function');
+const rules = JSON.parse(readFileSync(new URL(import.meta.resolve('@inbrowser/sandbox/remote/firebase/rtdb/database.rules.json')), 'utf8'));
+assert.equal(rules.rules['.write'], false);
+`,
+  );
+  await $`node ${imports}`.cwd(SCRATCH);
+  const entry = join(SCRATCH, 'firebase-browser.mjs');
+  await Bun.write(entry, "export * from '@inbrowser/sandbox/remote/firebase/rtdb';\n");
+  const build = await Bun.build({ entrypoints: [entry], target: 'browser', minify: true });
+  if (!build.success) fail(`Firebase browser bundle failed: ${build.logs.join('\n')}`);
+  for (const output of build.outputs) {
+    const text = await output.text();
+    if (/node:fs|node:child_process|openJournal|createBridgeExecutor|pyric/i.test(text))
+      fail('Firebase browser bundle contains host or Pyric code');
+  }
+  ok('Firebase browser bundle, host export and Rules asset resolve without Pyric');
+}
+
 function showTarballSizes(): void {
   step('tarball sizes');
   for (const file of readdirSync(PACK_OUT)) {
@@ -601,6 +657,7 @@ try {
   await scratchInstall(tarballs);
   await importTest();
   await browserBundle();
+  await firebaseSandboxBundle();
   console.log(`\n✓ smoke pack passed — ${passed} checks`);
 } catch (err) {
   console.error(`\n✗ smoke pack failed: ${err instanceof Error ? err.message : String(err)}`);

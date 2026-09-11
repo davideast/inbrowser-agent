@@ -45,17 +45,23 @@ export async function createRemoteSandbox(options: RemoteSandboxOptions): Promis
     auth: options.auth,
     resumeFromSeq: options.resumeFromSeq,
   });
-  const session = await request<RemoteSessionCreateResponse>(
-    connection,
-    REMOTE_PROTOCOL_TYPES.sessionCreate,
-    { root, capabilities: options.capabilities },
-    options.requestTimeoutMs,
-  );
+  let session: BridgeEnvelope<RemoteSessionCreateResponse>;
+  try {
+    session = await request<RemoteSessionCreateResponse>(
+      connection,
+      REMOTE_PROTOCOL_TYPES.sessionCreate,
+      { root, capabilities: options.capabilities },
+      options.requestTimeoutMs,
+    );
+  } catch (error) {
+    await connection.close('session activation failed').catch(() => undefined);
+    throw error;
+  }
   const cwd = normalizeSandboxPath(session.payload.root || root);
   const fileListeners = new Set<(event: SandboxFileEvent) => void>();
   const attached: { sandbox?: Sandbox } = {};
 
-  const unsubscribe = connection.subscribe((envelope) => {
+  function deliver(envelope: BridgeEnvelope) {
     if (envelope.kind !== 'event') return;
     const bridgeEvent = envelope.payload as RemoteBridgeEvent;
     if (bridgeEvent.type === 'file') {
@@ -68,6 +74,20 @@ export async function createRemoteSandbox(options: RemoteSandboxOptions): Promis
     }
     if (bridgeEvent.type === 'port')
       attached.sandbox?.emit({ type: 'port', port: bridgeEvent.port });
+  }
+  const initialEvents: BridgeEnvelope[] = [];
+  let observerAttached = false;
+  let replayGap = false;
+  const unsubscribe = connection.subscribe((envelope) => {
+    if (envelope.kind !== 'event') return;
+    if (observerAttached) deliver(envelope);
+    else {
+      if (initialEvents.length >= 256) {
+        initialEvents.shift();
+        replayGap = true;
+      }
+      initialEvents.push(envelope);
+    }
   });
 
   const fs = createRemoteFileSystem(connection, cwd, fileListeners, options.requestTimeoutMs);
@@ -88,9 +108,27 @@ export async function createRemoteSandbox(options: RemoteSandboxOptions): Promis
   sandbox.on((event) => {
     if (event.type === 'destroyed') {
       unsubscribe();
-      void connection.close('sandbox destroyed');
+      initialEvents.length = 0;
+      void connection.close('sandbox destroyed').catch(() => undefined);
     }
   });
+  const on = sandbox.on.bind(sandbox);
+  sandbox.on = (callback) => {
+    const stop = on(callback);
+    if (!observerAttached) {
+      observerAttached = true;
+      if (replayGap)
+        sandbox.emit({
+          type: 'artifact',
+          artifact: {
+            kind: 'bridge.replay-gap',
+            reason: 'Initial sandbox events exceeded retention',
+          },
+        });
+      for (const event of initialEvents.splice(0)) deliver(event);
+    }
+    return stop;
+  };
   return sandbox;
 }
 

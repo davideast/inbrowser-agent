@@ -15,6 +15,15 @@
       "types": "./dist/remote/index.d.ts",
       "import": "./dist/remote/index.js"
     },
+    "./remote/firebase/rtdb": {
+      "types": "./dist/remote/firebase/rtdb/index.d.ts",
+      "import": "./dist/remote/firebase/rtdb/index.js"
+    },
+    "./remote/firebase/rtdb/host": {
+      "types": "./dist/remote/firebase/rtdb/host/index.d.ts",
+      "import": "./dist/remote/firebase/rtdb/host/index.js"
+    },
+    "./remote/firebase/rtdb/database.rules.json": "./rules/database.rules.json",
     "./remote/apple-container": {
       "types": "./dist/remote/apple-container/index.d.ts",
       "import": "./dist/remote/apple-container/index.js"
@@ -32,18 +41,29 @@
       "import": "./dist/remote/host/index.js"
     }
   },
-  "files": ["dist", "README.md", "AGENTS.md", "docs"],
+  "files": ["dist", "README.md", "AGENTS.md", "docs", "rules"],
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "bun run build",
     "test": "bun test",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:firebase:pyric": "bun test --preload ./test/helpers/pyric-preload.ts ./test/firebase-rtdb.test.ts"
   },
   "dependencies": {
     "@inbrowser/workspace": "^0.4.2",
     "ws": "^8.21.0"
   },
+  "peerDependencies": {
+    "firebase": "^12.12.0"
+  },
+  "peerDependenciesMeta": {
+    "firebase": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "firebase": "^12.12.0",
+    "pyric": "0.1.0-alpha.22",
     "@types/bun": "latest",
     "@types/node": "^20.0.0",
     "@types/ws": "^8.18.1",

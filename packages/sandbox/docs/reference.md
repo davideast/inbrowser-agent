@@ -268,3 +268,7 @@ function createSandboxAgentTools(
 The bridge returns an `AgentTools` object built from the sandbox's installed
 tools. Pass `names` to expose only selected tools. Pure sandbox tools are marked
 `parallelSafe`.
+
+## Firebase RTDB transport
+
+The optional [`/remote/firebase/rtdb` browser transport and `/host` executor](./firebase-rtdb.md) compose with `createRemoteSandbox()`. Firebase is an optional peer; Rules ship as the `database.rules.json` subpath. See that guide for provisioning, roles, durable delivery, rooted providers, reattachment, and Pyric development.

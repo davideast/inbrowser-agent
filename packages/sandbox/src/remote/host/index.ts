@@ -219,3 +219,11 @@ export type {
   ResolvedContainerProviderOptions,
   StartRemoteContainerBridgeOptions,
 } from './types.js';
+
+export { createBridgeExecutor } from './executor.js';
+export type {
+  BridgeExecutionPolicy,
+  BridgePrincipal,
+  BridgeRequestContext,
+  BridgeExecutorOptions,
+} from './executor.js';

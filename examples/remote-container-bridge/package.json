@@ -9,14 +9,18 @@
     "bridge": "bun src/index.ts",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "test": "bun test",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "firebase:host": "bun src/firebase-host.ts",
+    "firebase:ui": "VITE_REMOTE_CONTAINER_TRANSPORT=firebase-rtdb vite --host 127.0.0.1",
+    "demo:pyric": "bun test --preload ../../packages/sandbox/test/helpers/pyric-preload.ts ../../packages/sandbox/test/firebase-rtdb.test.ts"
   },
   "dependencies": {
     "@inbrowser/example-shared": "workspace:*",
     "@inbrowser/sandbox": "workspace:*",
     "@inbrowser/workspace": "workspace:*",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "firebase": "^12.12.0"
   },
   "devDependencies": {
     "@types/bun": "latest",

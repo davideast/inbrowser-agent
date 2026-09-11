@@ -22,6 +22,11 @@ export async function startNodeBridgeHostServer(
 ): Promise<BridgeHostServer> {
   const hostname = options.hostname ?? DEFAULT_BRIDGE_HOSTNAME;
   const httpServer = createServer();
+  const sockets = new Set<Duplex>();
+  httpServer.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
+  });
   const wss = new WebSocketServer({ noServer: true });
   const core = createBridgeHostCore({
     ...options,
@@ -77,7 +82,12 @@ export async function startNodeBridgeHostServer(
       await core.closeSessions();
       if (stopped) return;
       stopped = true;
-      for (const client of wss.clients) client.close(1001, 'bridge host stopped');
+      // Containers are already disposed; shutdown must not wait indefinitely for
+      // a peer's close handshake (including a simultaneously closing browser).
+      for (const client of wss.clients) client.terminate();
+      for (const socket of sockets) socket.destroy();
+      httpServer.closeAllConnections();
+      httpServer.closeIdleConnections();
       await Promise.all([closeWebSocketServer(wss), closeHttpServer(httpServer)]);
     },
   };
@@ -197,6 +207,10 @@ function closeWebSocketServer(wss: WebSocketServer): Promise<void> {
 
 function closeHttpServer(server: ReturnType<typeof createServer>): Promise<void> {
   return new Promise((resolve, reject) => {
-    server.close((err) => (err ? reject(err) : resolve()));
+    server.close((err) =>
+      err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING'
+        ? reject(err)
+        : resolve(),
+    );
   });
 }

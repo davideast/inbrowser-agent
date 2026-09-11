@@ -1,0 +1,118 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "inbrowserBridge": {
+      "executors": {
+        "$executor": {
+          "config": {
+            ".read": "auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid"
+          },
+          "runtime": {
+            ".read": "auth != null",
+            ".write": "auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid",
+            ".validate": "newData.hasChildren(['generation','uid','expiresAt']) && newData.child('uid').val() == root.child('inbrowserBridge/executors').child($executor).child('config/uid').val() && newData.child('expiresAt').isNumber() && newData.child('expiresAt').val() <= now + 60000",
+            "generation": {
+              ".validate": "newData.isString() && newData.val().length <= 128"
+            },
+            "uid": {
+              ".validate": "newData.isString() && newData.val().length <= 128"
+            },
+            "expiresAt": {},
+            "$other": {
+              ".validate": "$other == 'generation' || $other == 'uid' || $other == 'expiresAt'"
+            }
+          },
+          "sessions": {
+            ".read": "auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid",
+            "$session": {
+              ".read": "auth != null && ((auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid) || (root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('ownerUid').val() == auth.uid || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(auth.uid).val() == 'developer' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(auth.uid).val() == 'reviewer'))",
+              "manifest": {
+                "members": {
+                  ".write": "auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('ownerUid').val() == auth.uid",
+                  "$uid": {
+                    ".validate": "newData.val() == 'developer' || newData.val() == 'reviewer'"
+                  }
+                }
+              },
+              "status": {
+                ".write": "auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid"
+              },
+              "requests": {
+                "$slot": {
+                  ".write": "auth != null && ((!newData.exists() && (auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid)) || (!data.exists() && newData.exists() && newData.child('author').val() == auth.uid && (root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('ownerUid').val() == auth.uid || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(auth.uid).val() == 'developer' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(auth.uid).val() == 'reviewer') && (newData.child('type').val() == 'host.status' || newData.child('type').val() == 'fs.read' || newData.child('type').val() == 'fs.list' || newData.child('type').val() == 'fs.stat' || newData.child('type').val() == 'fs.lstat' || newData.child('type').val() == 'fs.snapshot' || ((root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('ownerUid').val() == auth.uid || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(auth.uid).val() == 'developer') && (newData.child('type').val() == 'run.start' || newData.child('type').val() == 'run.cancel' || newData.child('type').val() == 'fs.write' || newData.child('type').val() == 'fs.mkdir' || newData.child('type').val() == 'fs.delete' || newData.child('type').val() == 'fs.rename' || newData.child('type').val() == 'fs.restore')) || (newData.child('type').val() == 'session.create' && ((root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('ownerUid').val() == auth.uid || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(auth.uid).val() == 'developer') || (root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('status/active').val() == true && root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('status/generation').val() == root.child('inbrowserBridge').child('executors').child($executor).child('runtime/generation').val()))) || (newData.child('type').val() == 'session.destroy' && root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('ownerUid').val() == auth.uid)) && newData.child('generation').val() == root.child('inbrowserBridge').child('executors').child($executor).child('runtime/generation').val() && root.child('inbrowserBridge').child('executors').child($executor).child('runtime/expiresAt').val() > now && newData.child('deadline').val() > now && newData.child('deadline').val() <= now + 30000))",
+                  ".validate": "$slot.matches(/^slot-[0-9][0-9]$/) && newData.hasChildren(['id','author','generation','deadline','type','envelopeJson'])",
+                  "id": {
+                    ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,128}$/)"
+                  },
+                  "author": {
+                    ".validate": "newData.isString() && newData.val().length <= 128"
+                  },
+                  "generation": {
+                    ".validate": "newData.isString() && newData.val().length <= 128"
+                  },
+                  "deadline": {
+                    ".validate": "newData.isNumber()"
+                  },
+                  "type": {
+                    ".validate": "newData.isString()"
+                  },
+                  "envelopeJson": {
+                    ".validate": "newData.isString() && newData.val().length <= 1048576"
+                  },
+                  "$other": {
+                    ".validate": "$other == 'id' || $other == 'author' || $other == 'generation' || $other == 'deadline' || $other == 'type' || $other == 'envelopeJson'"
+                  }
+                }
+              },
+              "admissions": {
+                "$slot": {
+                  ".write": "(auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid) && (!newData.exists() || ((!data.exists() || (data.child('phase').val() == 'accepted' && newData.child('phase').val() == 'running' && data.child('id').val() == newData.child('id').val())) && root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).exists() && newData.child('id').val() == root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('id').val() && newData.child('generation').val() == root.child('inbrowserBridge').child('executors').child($executor).child('runtime/generation').val() && root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('generation').val() == root.child('inbrowserBridge').child('executors').child($executor).child('runtime/generation').val() && root.child('inbrowserBridge').child('executors').child($executor).child('runtime/expiresAt').val() > now && root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('deadline').val() > now && (root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('ownerUid').val() == root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('author').val() || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('author').val()).val() == 'developer' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('author').val()).val() == 'reviewer') && (root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'host.status' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'fs.read' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'fs.list' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'fs.stat' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'fs.lstat' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'fs.snapshot' || ((root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('ownerUid').val() == root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('author').val() || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('author').val()).val() == 'developer') && (root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'run.start' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'run.cancel' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'fs.write' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'fs.mkdir' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'fs.delete' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'fs.rename' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'fs.restore')) || (root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'session.create' && ((root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('ownerUid').val() == root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('author').val() || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('author').val()).val() == 'developer') || (root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('status/active').val() == true && root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('status/generation').val() == root.child('inbrowserBridge').child('executors').child($executor).child('runtime/generation').val()))) || (root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('type').val() == 'session.destroy' && root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('ownerUid').val() == root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('requests').child($slot).child('author').val()))))",
+                  ".validate": "newData.hasChildren(['id','generation','at','phase'])",
+                  "id": {
+                    ".validate": "newData.isString() && newData.val().length <= 128"
+                  },
+                  "generation": {
+                    ".validate": "newData.isString() && newData.val().length <= 128"
+                  },
+                  "at": {
+                    ".validate": "newData.isNumber()"
+                  },
+                  "$other": {
+                    ".validate": "$other == 'id' || $other == 'generation' || $other == 'at' || $other == 'phase'"
+                  },
+                  "phase": {
+                    ".validate": "newData.val() == 'accepted' || newData.val() == 'running'"
+                  }
+                }
+              },
+              "responses": {
+                "$request": {
+                  ".write": "auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid",
+                  ".validate": "newData.hasChildren(['envelopeJson','completedAt','requestHash']) && newData.child('envelopeJson').isString() && newData.child('envelopeJson').val().length <= 1048576 && newData.child('completedAt').isNumber() && newData.child('requestHash').isString() && newData.child('requestHash').val().length == 64"
+                }
+              },
+              "events": {
+                ".write": "auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid"
+              },
+              "eventWindow": {
+                ".write": "auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid"
+              },
+              "attachments": {
+                "$uid": {
+                  "$attachment": {
+                    ".write": "(auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid) || (auth != null && auth.uid == $uid && (root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('ownerUid').val() == auth.uid || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(auth.uid).val() == 'developer' || root.child('inbrowserBridge').child('executors').child($executor).child('sessions').child($session).child('manifest').child('members').child(auth.uid).val() == 'reviewer') && (!newData.exists() || (newData.child('generation').val() == root.child('inbrowserBridge').child('executors').child($executor).child('runtime/generation').val() && newData.child('expiresAt').val() <= now + 60000 && newData.child('expiresAt').val() > now)))",
+                    ".validate": "newData.hasChildren(['expiresAt','generation']) && newData.child('expiresAt').isNumber() && newData.child('generation').isString()"
+                  }
+                }
+              },
+              "operations": {
+                ".write": "auth != null && root.child('inbrowserBridge').child('executors').child($executor).child('config/uid').val() == auth.uid"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

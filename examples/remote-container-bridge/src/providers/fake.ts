@@ -30,7 +30,7 @@ export function createFakeContainerProvider(): ContainerSandboxProvider {
 async function createFakeContainerSession(
   options: ContainerSessionOptions,
 ): Promise<ContainerSession> {
-  const fs = createMemoryFileSystem({ root: '/' });
+  const fs = createMemoryFileSystem({ root: options.root });
   const listeners = new Set<(event: SandboxFileEvent) => void>();
   await fs.promises.mkdir(options.root, { recursive: true });
 
@@ -41,6 +41,7 @@ async function createFakeContainerSession(
 
   return {
     id: options.id,
+    fileSystemIsolation: 'rooted',
     root: options.root,
     async run(command, runOptions) {
       const cwd = runOptions?.cwd ?? options.root;
@@ -53,6 +54,8 @@ async function createFakeContainerSession(
         'container exited 0\n',
       ];
       for (const chunk of chunks) {
+        if (runOptions?.signal?.aborted)
+          return { stdout: '', stderr: 'cancelled', exitCode: 143, cwd };
         runOptions?.onOutput?.({ stream: 'stdout', chunk });
         await Bun.sleep(120);
       }

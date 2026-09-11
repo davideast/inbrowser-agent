@@ -16,10 +16,14 @@ export interface CreateBridgeConnectionOptions {
   role: BridgePeerRole;
   transport: EnvelopeTransport;
   now?: () => number;
+  /** Retain initial events until the first subscriber attaches. */
+  initialEventBuffer?: number;
 }
 
 export function createBridgeConnection(options: CreateBridgeConnectionOptions): BridgeConnection {
   const listeners = new Set<(envelope: BridgeEnvelope) => void>();
+  const initialEvents: BridgeEnvelope[] = [];
+  let droppedInitialEvents = false;
   const pending = new Map<
     string,
     {
@@ -41,6 +45,13 @@ export function createBridgeConnection(options: CreateBridgeConnectionOptions): 
           pendingRequest.resolve(envelope);
         }
       }
+    }
+    if (envelope.kind === 'event' && !listeners.size && options.initialEventBuffer) {
+      if (initialEvents.length >= options.initialEventBuffer) {
+        initialEvents.shift();
+        droppedInitialEvents = true;
+      }
+      initialEvents.push(envelope);
     }
     for (const listener of Array.from(listeners)) listener(envelope);
   });
@@ -69,6 +80,21 @@ export function createBridgeConnection(options: CreateBridgeConnectionOptions): 
     },
     subscribe(callback) {
       listeners.add(callback);
+      if (droppedInitialEvents) {
+        callback({
+          id: crypto.randomUUID(),
+          sessionId: options.sessionId,
+          kind: 'event',
+          type: 'event',
+          sentAt: Date.now(),
+          payload: {
+            type: 'artifact',
+            artifact: { kind: 'bridge.replay-gap', reason: 'Initial event buffer exceeded' },
+          },
+        });
+        droppedInitialEvents = false;
+      }
+      for (const event of initialEvents.splice(0)) callback(event);
       return () => listeners.delete(callback);
     },
     async close(reason) {
@@ -79,6 +105,7 @@ export function createBridgeConnection(options: CreateBridgeConnectionOptions): 
         pendingRequest.reject(new Error(reason ? `Bridge closed: ${reason}` : 'Bridge closed'));
       }
       listeners.clear();
+      initialEvents.length = 0;
       await options.transport.close(reason);
     },
   };
@@ -146,9 +173,6 @@ function bridgeError(envelope: BridgeEnvelope): Error {
   return new Error(payload?.message ?? `Bridge request failed: ${envelope.type}`);
 }
 
-let idCounter = 0;
-
 export function createBridgeEnvelopeId(prefix = 'bridge'): string {
-  idCounter += 1;
-  return `${prefix}-${Date.now().toString(36)}-${idCounter.toString(36)}`;
+  return `${prefix}-${crypto.randomUUID()}`;
 }

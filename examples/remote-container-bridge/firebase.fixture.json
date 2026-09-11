@@ -1,0 +1,25 @@
+{
+  "accounts": [
+    { "uid": "owner", "email": "owner@example.test", "password": "local-demo-password" },
+    { "uid": "developer", "email": "developer@example.test", "password": "local-demo-password" },
+    { "uid": "reviewer", "email": "reviewer@example.test", "password": "local-demo-password" },
+    { "uid": "executor", "email": "executor@example.test", "password": "local-demo-password" }
+  ],
+  "database": {
+    "inbrowserBridge": {
+      "executors": {
+        "demo": {
+          "config": { "uid": "executor" },
+          "sessions": {
+            "demo-container-session": {
+              "manifest": {
+                "ownerUid": "owner",
+                "members": { "developer": "developer", "reviewer": "reviewer" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

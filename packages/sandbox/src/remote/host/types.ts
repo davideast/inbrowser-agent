@@ -42,6 +42,7 @@ export interface HostCommandRunner {
 }
 
 export interface HostCommandRunOptions {
+  input?: string | Uint8Array;
   signal?: AbortSignal;
   onOutput?: (output: ContainerProcessOutput) => void;
   rejectOnFailure?: boolean;
@@ -156,6 +157,8 @@ export interface ContainerSessionOptions {
 }
 
 export interface ContainerSession {
+  /** File operations reject symlinks and cannot traverse outside root. */
+  readonly fileSystemIsolation?: 'rooted';
   readonly id: string;
   readonly root: string;
   run(command: string, options?: ContainerRunOptions): Promise<RemoteRunResponse>;
