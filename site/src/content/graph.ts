@@ -16,6 +16,7 @@ export type PackageId =
   | 'agent'
   | 'workspace'
   | 'sandbox'
+  | 'node'
   | 'relay'
   | 'resumable'
   | 'model';
@@ -51,6 +52,7 @@ export const PACKAGE_ORDER: PackageId[] = [
   'agent',
   'workspace',
   'sandbox',
+  'node',
   'relay',
   'resumable',
   'model',
@@ -61,6 +63,7 @@ export const PACKAGE_LABELS: Record<PackageId, string> = {
   agent: '@inbrowser/agent',
   workspace: '@inbrowser/workspace',
   sandbox: '@inbrowser/sandbox',
+  node: '@inbrowser/node',
   relay: '@inbrowser/relay',
   resumable: '@inbrowser/resumable',
   model: '@inbrowser/model',
@@ -389,6 +392,78 @@ export const NODES: DocNode[] = [
     summary: 'Package invariants for sandbox tools, events, checkpoints, and workspace adapters.',
   },
 
+  // ── @inbrowser/node ───────────────────────────────────────────────
+  {
+    id: 'node',
+    package: 'node',
+    category: 'overview',
+    title: '@inbrowser/node',
+    route: '/node',
+    sourcePath: 'packages/node/README.md',
+    summary:
+      'Browser-native Node 22.18 container runtime: dedicated kernel and process Web Workers, SharedArrayBuffer syscalls, Service Worker HTTP/WebSocket preview, node:sqlite, and three-origin SandboxContainer isolation.',
+  },
+  {
+    id: 'node/how-to/embedding-and-hosting',
+    package: 'node',
+    category: 'how-to',
+    title: 'Guide: embedding and hosting @inbrowser/node',
+    route: '/node/how-to/embedding-and-hosting',
+    sourcePath: 'packages/node/docs/guide/README.md',
+    summary:
+      'Host headers, asset wiring, BrowserContainer and SandboxContainer setup, per-origin preview, and client-channel plumbing.',
+  },
+  {
+    id: 'node/reference/limits',
+    package: 'node',
+    category: 'reference',
+    title: 'Supported surface and deliberate limits',
+    route: '/node/reference/limits',
+    sourcePath: 'packages/node/docs/guide/limits.md',
+    summary:
+      'Module-by-module Node 22.18 compatibility table, supported APIs, and explicit browser-substrate boundaries.',
+  },
+  {
+    id: 'node/design/architecture',
+    package: 'node',
+    category: 'design',
+    title: 'Architecture decision: browser kernel POC',
+    route: '/node/design/architecture',
+    sourcePath: 'packages/node/docs/reference/architecture.md',
+    summary:
+      'Kernel and process Worker topology, SharedArrayBuffer syscall transport, CJS/ESM loading, and Service Worker preview HTTP.',
+  },
+  {
+    id: 'node/reference/resource-policy',
+    package: 'node',
+    category: 'reference',
+    title: 'Resource policy',
+    route: '/node/reference/resource-policy',
+    sourcePath: 'packages/node/docs/reference/resource-policy.md',
+    summary:
+      'Bounded resource limits across processes, filesystem, descriptors, modules, syscalls, and preview HTTP streams.',
+  },
+  {
+    id: 'node/explanation/threat-model',
+    package: 'node',
+    category: 'explanation',
+    title: 'Threat model and security posture',
+    route: '/node/explanation/threat-model',
+    sourcePath: 'packages/node/docs/reference/threat-model.md',
+    summary:
+      'Trust boundaries, same-origin vs three-origin SandboxContainer isolation, COOP/COEP requirements, and explicit non-claims.',
+  },
+  {
+    id: 'node/agent-context',
+    package: 'node',
+    category: 'agent-context',
+    title: 'AGENTS.md — @inbrowser/node',
+    route: '/node/agent-context',
+    sourcePath: 'packages/node/AGENTS.md',
+    summary:
+      'Architecture boundaries, host header invariants, and workflow conventions for @inbrowser/node.',
+  },
+
   // ── @inbrowser/relay ───────────────────────────────────────────────
   {
     id: 'relay',
@@ -670,7 +745,15 @@ export function buildRouteMap(): Record<string, string> {
     map[entryIdOf(node)] = node.route;
   }
   // Package directories -> their overview route (root READMEs link these).
-  for (const pkg of ['agent', 'workspace', 'sandbox', 'relay', 'resumable', 'model'] as const) {
+  for (const pkg of [
+    'agent',
+    'workspace',
+    'sandbox',
+    'node',
+    'relay',
+    'resumable',
+    'model',
+  ] as const) {
     map[`packages/${pkg}`] = `/${pkg}`;
   }
   return map;

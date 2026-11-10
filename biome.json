@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignore": ["dist", "node_modules", "*.tsbuildinfo"]
+    "ignore": ["dist", "node_modules", "*.tsbuildinfo", "packages/node/vendor"]
   },
   "formatter": {
     "enabled": true,
@@ -59,6 +59,42 @@
           },
           "a11y": {
             "useMediaCaption": "off"
+          }
+        }
+      }
+    },
+    {
+      "include": ["packages/node/src/**"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noThisInStatic": "off",
+            "noUselessConstructor": "off"
+          },
+          "security": {
+            "noGlobalEval": "off"
+          },
+          "style": {
+            "noArguments": "off",
+            "noParameterAssign": "off",
+            "useNodejsImportProtocol": "off"
+          },
+          "suspicious": {
+            "noThenProperty": "off"
+          }
+        }
+      }
+    },
+    {
+      "include": ["packages/node/tests/unit/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useNodejsImportProtocol": "off"
+          },
+          "suspicious": {
+            "noApproximativeNumericConstant": "off",
+            "noSparseArray": "off"
           }
         }
       }

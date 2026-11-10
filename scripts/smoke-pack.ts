@@ -33,6 +33,7 @@ const ROOT = resolve(import.meta.dir, '..');
 const PACK_OUT = mkdtempSync(join(tmpdir(), 'inbrowser-pack-'));
 const SCRATCH = mkdtempSync(join(tmpdir(), 'inbrowser-smoke-'));
 const AGENT_INSTALL_SCRATCH = mkdtempSync(join(tmpdir(), 'inbrowser-agent-install-'));
+const NODE_INSTALL_SCRATCH = mkdtempSync(join(tmpdir(), 'inbrowser-node-install-'));
 const NPM_CACHE = join(PACK_OUT, '.npm-cache');
 
 interface PackSpec {
@@ -41,6 +42,7 @@ interface PackSpec {
     | '@inbrowser/relay'
     | '@inbrowser/workspace'
     | '@inbrowser/sandbox'
+    | '@inbrowser/node'
     | '@inbrowser/agent'
     | '@inbrowser/model';
   dir: string;
@@ -116,6 +118,34 @@ const SPECS: PackSpec[] = [
       'package/docs/reference.md',
     ],
     forbidFiles: [/^package\/src\//, /^package\/test\//, /tsconfig\.json$/],
+  },
+  {
+    name: '@inbrowser/node',
+    dir: 'packages/node',
+    expectFiles: [
+      'package/dist/runtime.js',
+      'package/dist/kernel.js',
+      'package/dist/process.js',
+      'package/dist/sw.js',
+      'package/dist/service-worker.js',
+      'package/dist/context-compiler-worker.js',
+      'package/dist/sqlite.wasm',
+      'package/dist/zlib-brotli.wasm',
+      'package/dist/zlib-zstd.wasm',
+      'package/dist/context-esbuild.wasm',
+      'package/dist/preview-origin/__inbrowser_preview_sw.js',
+      'package/dist/types/index.d.ts',
+      'package/dist/types/service-worker.d.ts',
+      'package/dist/THIRD_PARTY_NOTICES.txt',
+      'package/README.md',
+      'package/AGENTS.md',
+    ],
+    forbidFiles: [
+      /^package\/src\//,
+      /^package\/tests?\//,
+      /^package\/vendor\//,
+      /tsconfig.*\.json$/,
+    ],
   },
   {
     name: '@inbrowser/agent',
@@ -280,6 +310,88 @@ async function verifyDefaultAgentInstall(
     fail(`default agent install contains local-model dependencies:\n${heavyweightTree.trim()}`);
   }
   ok('plain npm install has no @huggingface/transformers or onnxruntime-node');
+}
+
+async function verifyZeroDepsNodeInstall(
+  tarballs: ReadonlyMap<PackSpec['name'], string>,
+): Promise<void> {
+  step('standalone @inbrowser/node install has zero third-party deps and clean .d.ts');
+  await $`npm init -y`.cwd(NODE_INSTALL_SCRATCH).quiet();
+  const nodeTarball = tarballs.get('@inbrowser/node');
+  if (!nodeTarball) fail('missing packed @inbrowser/node tarball');
+  await $`npm install --silent --no-audit --no-fund --cache ${NPM_CACHE} ${nodeTarball}`.cwd(
+    NODE_INSTALL_SCRATCH,
+  );
+  const topEntries = readdirSync(join(NODE_INSTALL_SCRATCH, 'node_modules')).filter(
+    (entry) => !entry.startsWith('.'),
+  );
+  if (topEntries.length !== 1 || topEntries[0] !== '@inbrowser') {
+    fail(`@inbrowser/node installed unexpected third-party packages: ${topEntries.join(', ')}`);
+  }
+  const scopedEntries = readdirSync(join(NODE_INSTALL_SCRATCH, 'node_modules/@inbrowser'));
+  if (scopedEntries.length !== 1 || scopedEntries[0] !== 'node') {
+    fail(`@inbrowser/node installed unexpected @inbrowser packages: ${scopedEntries.join(', ')}`);
+  }
+  ok('standalone @inbrowser/node installs zero third-party packages');
+
+  await Bun.write(
+    join(NODE_INSTALL_SCRATCH, 'consumer-dom.ts'),
+    `import { BrowserContainer, SandboxContainer, DEFAULT_RESOURCE_POLICY, RuntimeError } from '@inbrowser/node';
+import { installSandboxHost } from '@inbrowser/node/sandbox-host';
+export const surface = {
+  BrowserContainer,
+  SandboxContainer,
+  DEFAULT_RESOURCE_POLICY,
+  RuntimeError,
+  installSandboxHost,
+};
+`,
+  );
+  await Bun.write(
+    join(NODE_INSTALL_SCRATCH, 'consumer-sw.ts'),
+    `import { installRuntimeServiceWorker, isRuntimeRequest } from '@inbrowser/node/service-worker';
+export const swSurface = {
+  installRuntimeServiceWorker,
+  isRuntimeRequest,
+};
+`,
+  );
+  await Bun.write(
+    join(NODE_INSTALL_SCRATCH, 'tsconfig.dom.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+        lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+        strict: true,
+        skipLibCheck: false,
+        noEmit: true,
+        types: [],
+      },
+      include: ['consumer-dom.ts'],
+    }),
+  );
+  await Bun.write(
+    join(NODE_INSTALL_SCRATCH, 'tsconfig.sw.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+        lib: ['ES2022', 'WebWorker'],
+        strict: true,
+        skipLibCheck: false,
+        noEmit: true,
+        types: [],
+      },
+      include: ['consumer-sw.ts'],
+    }),
+  );
+  const tscBin = join(ROOT, 'node_modules/.bin/tsc');
+  await $`${tscBin} -p tsconfig.dom.json`.cwd(NODE_INSTALL_SCRATCH);
+  await $`${tscBin} -p tsconfig.sw.json`.cwd(NODE_INSTALL_SCRATCH);
+  ok('@inbrowser/node .d.ts passes strict DOM and WebWorker consumer tsc with skipLibCheck: false');
 }
 
 async function importTest(): Promise<void> {
@@ -531,6 +643,36 @@ console.log('  ✓ model/providers: factories + Firebase adapter resolve from su
 import { createEngineModelClient } from '@inbrowser/model/local';
 assert.equal(typeof createEngineModelClient, 'function', 'model/local: createEngineModelClient');
 console.log('  ✓ model/local: createEngineModelClient resolves');
+
+// === @inbrowser/node + @inbrowser/node/service-worker + @inbrowser/node/sandbox-host ===
+import {
+  BrowserContainer,
+  SandboxContainer,
+  installSandboxHost,
+  DEFAULT_RESOURCE_POLICY,
+  resolveResourcePolicy,
+  UNBOUNDED,
+  RuntimeError,
+} from '@inbrowser/node';
+import { installRuntimeServiceWorker, isRuntimeRequest } from '@inbrowser/node/service-worker';
+import { installSandboxHost as sandboxHostSubpath } from '@inbrowser/node/sandbox-host';
+assert.equal(typeof BrowserContainer, 'function');
+assert.equal(typeof BrowserContainer.boot, 'function');
+assert.equal(typeof SandboxContainer, 'function');
+assert.equal(typeof SandboxContainer.boot, 'function');
+assert.equal(typeof installSandboxHost, 'function');
+assert.equal(installSandboxHost, sandboxHostSubpath);
+assert.equal(typeof DEFAULT_RESOURCE_POLICY.filesystem.maxTotalBytes, 'number');
+assert.equal(typeof resolveResourcePolicy, 'function');
+assert.equal(UNBOUNDED, Infinity);
+assert.equal(typeof RuntimeError, 'function');
+assert.equal(typeof installRuntimeServiceWorker, 'function');
+assert.equal(typeof isRuntimeRequest, 'function');
+globalThis.self = { location: new URL('https://example.test/') };
+assert.equal(isRuntimeRequest(new Request('https://example.test/__preview__/abc/3000/')), true);
+assert.equal(isRuntimeRequest(new Request('https://example.test/index.html')), false);
+delete globalThis.self;
+console.log('  ✓ node: BrowserContainer, SandboxContainer, policies, errors, and service-worker resolve');
 `,
   );
   await $`node test.mjs`.cwd(SCRATCH);
@@ -572,6 +714,15 @@ async function browserBundle(): Promise<void> {
     }
   }
   ok('packed @inbrowser/model root browser bundle has no Transformers or ONNX reference');
+
+  const nodeConsumerEntry = join(SCRATCH, 'node-browser-entry.mjs');
+  await Bun.write(
+    nodeConsumerEntry,
+    "export { BrowserContainer, SandboxContainer, DEFAULT_RESOURCE_POLICY, RuntimeError } from '@inbrowser/node';\nexport { installRuntimeServiceWorker, isRuntimeRequest } from '@inbrowser/node/service-worker';\n",
+  );
+  const nodeOut = join(SCRATCH, 'node-browser-bundle');
+  await $`bun build --target=browser --outdir=${nodeOut} ${nodeConsumerEntry}`.cwd(SCRATCH);
+  ok(`bundled @inbrowser/node + service-worker for the browser (output: ${nodeOut})`);
 }
 
 function showTarballSizes(): void {
@@ -586,6 +737,8 @@ function showTarballSizes(): void {
 
 const KEEP_TMP = process.env['KEEP_TMP'] === '1';
 
+let exitCode = 0;
+
 try {
   await build();
   const tarballs: string[] = [];
@@ -598,6 +751,7 @@ try {
   }
   showTarballSizes();
   await verifyDefaultAgentInstall(tarballsByName);
+  await verifyZeroDepsNodeInstall(tarballsByName);
   await scratchInstall(tarballs);
   await importTest();
   await browserBundle();
@@ -608,15 +762,20 @@ try {
     console.error(`  tarballs kept: ${PACK_OUT}`);
     console.error(`  scratch dir kept: ${SCRATCH}`);
   }
-  process.exit(1);
+  exitCode = 1;
 } finally {
   if (!KEEP_TMP) {
     rmSync(PACK_OUT, { recursive: true, force: true });
     rmSync(SCRATCH, { recursive: true, force: true });
     rmSync(AGENT_INSTALL_SCRATCH, { recursive: true, force: true });
+    rmSync(NODE_INSTALL_SCRATCH, { recursive: true, force: true });
   } else {
     console.log(
       `\n(KEEP_TMP=1: tarballs at ${PACK_OUT}, scratch at ${SCRATCH}, agent install at ${AGENT_INSTALL_SCRATCH})`,
     );
   }
+}
+
+if (exitCode !== 0) {
+  process.exit(exitCode);
 }
