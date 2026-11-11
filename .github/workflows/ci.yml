@@ -48,15 +48,15 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run check
-      - run: bun run typecheck
       - run: bun run build
+      - run: bun run typecheck
       - run: bun run test
       - run: bun run smoke
 
   node-e2e:
     needs: changes
     if: needs.changes.outputs.node == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -67,6 +67,8 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run build:node
-      - run: ./packages/node/node_modules/.bin/playwright install --with-deps chromium
+      - name: Install Playwright Chromium
+        working-directory: packages/node
+        run: npx --no-install playwright install --with-deps chromium
       - run: bun run test:e2e:node
 
