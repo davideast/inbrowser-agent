@@ -2,13 +2,14 @@
 
 Put a language model in a web app without running an inference backend. It runs on the user's GPU in the browser tab, or proxies to a cloud model, and the token stream survives reloads and dropped connections
 
-`@inbrowser` is six composable libraries:
+`@inbrowser` is seven composable libraries:
 1. `@inbrowser/model` - Run a language model on the user's GPU or through a cloud provider, and switch between them with a one-line change.
 1. `@inbrowser/agent` - Let the model use your tools and take several steps to finish a task, right in the browser.
 1. `@inbrowser/resumable` - Stream a long answer so a reload, a closed tab, or a dropped connection picks up where it left off instead of starting over.
 1. `@inbrowser/relay` - Add a thin server when you'd rather keep API keys off the client or share one run across devices.
-1. `@inbrowser/workspace` - Run files, shell commands, package installs, git, snapshots, and preview compilation in a browser workspace.
+1. `@inbrowser/workspace` - Run files, shell commands, package installs, git, snapshots, and `esbuild-wasm` compile-and-mount previews in a lightweight client-only browser workspace.
 1. `@inbrowser/sandbox` - Bind workspace capabilities into agent-facing tools, events, checkpoints, and artifacts.
+1. `@inbrowser/node` - Boot an isolated browser Node.js `22.18` kernel and process Workers when you need full-stack servers, `node:sqlite`, HTTP/SSE/WebSocket previews, or 3-origin `SandboxContainer` isolation.
 
 
 ## No API Key or BYOK
@@ -333,6 +334,19 @@ Any command emits structured output with the global `--output json` (`-o json`) 
 
 **Session events** (`SessionEvent` `kind`): `turn_started`, `text`, `thinking`, `tool_started`, `tool_finished`, `workspace_changed`, `runtime_changed`, `turn_completed`, `error`, `completed`, `strategy_event`.
 
+### `@inbrowser/node`
+
+A browser-isolated Node.js `22.18` container runtime. Choose `@inbrowser/workspace` when your app only needs client-side OPFS files, git, and `esbuild-wasm` compile-and-mount previews; choose `@inbrowser/node` when your app needs real Node `22.18` guest processes, HTTP/SSE/WebSocket servers, `node:sqlite`, `worker_threads`, WASM `zlib` (`brotli`/`zstd`), opt-in `AsyncLocalStorage`, or 3-origin `SandboxContainer` isolation.
+
+| Export | Entry | Description |
+|--------|-------|-------------|
+| `BrowserContainer.boot(opts?)` | `.` | Boots a kernel Worker + Service Worker container (`mount`, `spawn`, `preview`, `fs`, `snapshot`, `teardown`) |
+| `SandboxContainer.boot(url, opts?)` | `.` | Runs the container inside a cross-origin sandbox host iframe (`dispose`, `onPreviewClient`) |
+| `installSandboxHost(opts?)` | `.` / `/sandbox-host` | Installs the cross-origin sandbox host receiver |
+| `DEFAULT_RESOURCE_POLICY` / `resolveResourcePolicy` / `UNBOUNDED` | `.` | Resource quota defaults and policy resolution |
+| `RuntimeError` / `LimitError` / `UnsupportedError` / `ChannelError` / `LifecycleError` | `.` | Structured host/kernel error taxonomy |
+| `installRuntimeServiceWorker()` / `isRuntimeRequest(url)` | `/service-worker` | Composes runtime module & preview routing into a host-owned Service Worker |
+
 ## Installation
 
 Packages are published independently. Install what you need:
@@ -342,8 +356,9 @@ bun add @inbrowser/resumable    # resumable streaming-job engine
 bun add @inbrowser/model        # model contract; providers via /providers/<name>; on-device via /local
 bun add @inbrowser/relay        # LLM relay (depends on resumable + model)
 bun add @inbrowser/agent        # agent runtime + CLI
-bun add @inbrowser/workspace    # browser workspace: files, shell, preview, git
+bun add @inbrowser/workspace    # lightweight browser workspace: OPFS, shell, compile-and-mount preview, git
 bun add @inbrowser/sandbox      # tools, events, checkpoints, artifacts
+bun add @inbrowser/node         # full-stack browser Node 22.18 kernel, servers, sqlite, 3-origin sandbox
 ```
 
 The opt-in `@inbrowser/model/local` engine needs Transformers.js as an optional peer dependency. Install it only in applications that run models on-device:
@@ -391,6 +406,7 @@ bun --filter '@inbrowser/agent' run test
 @inbrowser/relay        depends on resumable + model
 @inbrowser/workspace    no internal deps
 @inbrowser/sandbox      depends on workspace
+@inbrowser/node         no internal deps (zero runtime npm deps)
 @inbrowser/agent        depends on model + sandbox
 ```
 
@@ -400,11 +416,12 @@ Pre-1.0. Versions are coordinated manually:
 
 | Package | Version |
 |---------|---------|
-| `@inbrowser/resumable` | 0.4.0 |
-| `@inbrowser/model` | 0.4.0 |
-| `@inbrowser/relay` | 0.4.0 |
-| `@inbrowser/workspace` | 0.4.0 |
-| `@inbrowser/sandbox` | 0.4.0 |
-| `@inbrowser/agent` | 0.4.0 |
+| `@inbrowser/resumable` | 0.4.2 |
+| `@inbrowser/model` | 0.5.0 |
+| `@inbrowser/relay` | 0.4.2 |
+| `@inbrowser/workspace` | 0.4.2 |
+| `@inbrowser/sandbox` | 0.4.2 |
+| `@inbrowser/node` | 0.4.2 |
+| `@inbrowser/agent` | 0.4.2 |
 
 Breaking changes are expected until 1.0.

@@ -66,3 +66,7 @@ For a browser-native app builder, this is the better default. The user wants to
 see files change, preview the app, inspect errors, and commit work. Those flows
 do not require a real Node process. They require a coherent workspace runtime
 whose limits are explicit.
+
+## When You Do Need Browser Node
+
+When an application genuinely needs real Node.js `22.18` processes, HTTP/SSE/WebSocket servers, `node:sqlite`, `worker_threads`, or `AsyncLocalStorage` in the browser without a remote container backend, use the sibling `@inbrowser/node` package (`packages/node`), which runs an isolated Web Worker kernel, guest process Workers, Service Worker preview transport, and optional 3-origin `SandboxContainer`.

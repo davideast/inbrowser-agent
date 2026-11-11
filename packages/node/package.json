@@ -1,0 +1,76 @@
+{
+  "name": "@inbrowser/node",
+  "version": "0.4.2",
+  "description": "Browser-isolated Node.js 22.18 container runtime: Web Worker kernel and guest processes, VFS, HTTP/SSE/WebSocket preview Service Worker, node:sqlite, WASM codecs, and 3-origin SandboxContainer.",
+  "type": "module",
+  "main": "./dist/runtime.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/runtime.js"
+    },
+    "./service-worker": {
+      "types": "./dist/types/service-worker.d.ts",
+      "import": "./dist/service-worker.js"
+    },
+    "./sandbox-host": {
+      "types": "./dist/types/sandbox-host.d.ts",
+      "import": "./dist/runtime.js"
+    },
+    "./assets/*": "./dist/*",
+    "./preview-origin/*": "./dist/preview-origin/*"
+  },
+  "files": ["dist", "README.md", "AGENTS.md", "LICENSE", "docs"],
+  "scripts": {
+    "build": "node scripts/build.mjs && node scripts/check-boundaries.mjs",
+    "prepublishOnly": "bun run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@oneidentity/zstd-js": "1.0.3",
+    "@playwright/test": "1.58.2",
+    "@types/events": "3.0.3",
+    "@types/node": "22.20.2",
+    "@types/path-browserify": "1.0.3",
+    "@types/sha.js": "2.4.4",
+    "acorn": "8.18.0",
+    "assert": "2.1.0",
+    "buffer": "6.0.3",
+    "cjs-module-lexer": "2.1.0",
+    "es-module-lexer": "1.7.0",
+    "esbuild": "^0.25.12",
+    "esbuild-wasm": "^0.25.0",
+    "events": "3.3.0",
+    "libsodium-sumo": "0.8.4",
+    "memfs": "4.17.0",
+    "node-sqlite3-wasm": "0.8.61",
+    "pako": "3.0.1",
+    "path-browserify": "1.0.1",
+    "path-browserify-win32": "2.0.1",
+    "process": "0.11.10",
+    "querystring-es3": "0.2.1",
+    "readable-stream": "4.7.0",
+    "resolve.exports": "2.0.3",
+    "sha.js": "2.4.12",
+    "statuses": "2.0.1",
+    "string_decoder": "1.3.0",
+    "strip-ansi": "7.2.0",
+    "typescript": "^5.7.0",
+    "url": "0.11.4",
+    "util": "0.12.5",
+    "vitest": "5.0.0",
+    "wasm-brotli": "2.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davideast/inbrowser-agent.git",
+    "directory": "packages/node"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}
