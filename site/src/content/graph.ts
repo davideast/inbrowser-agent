@@ -17,6 +17,7 @@ export type PackageId =
   | 'workspace'
   | 'sandbox'
   | 'node'
+  | 'driver'
   | 'relay'
   | 'resumable'
   | 'model';
@@ -53,6 +54,7 @@ export const PACKAGE_ORDER: PackageId[] = [
   'workspace',
   'sandbox',
   'node',
+  'driver',
   'relay',
   'resumable',
   'model',
@@ -64,6 +66,7 @@ export const PACKAGE_LABELS: Record<PackageId, string> = {
   workspace: '@inbrowser/workspace',
   sandbox: '@inbrowser/sandbox',
   node: '@inbrowser/node',
+  driver: '@inbrowser/driver',
   relay: '@inbrowser/relay',
   resumable: '@inbrowser/resumable',
   model: '@inbrowser/model',
@@ -464,6 +467,28 @@ export const NODES: DocNode[] = [
       'Architecture boundaries, host header invariants, and workflow conventions for @inbrowser/node.',
   },
 
+  // ── @inbrowser/driver ──────────────────────────────────────────────
+  {
+    id: 'driver',
+    package: 'driver',
+    category: 'overview',
+    title: '@inbrowser/driver',
+    route: '/driver',
+    sourcePath: 'packages/driver/README.md',
+    summary:
+      '1-RTT browser UI observation, transactional action execution, silent/GPU visual capture, agent tool surface, and optional CDP backend for live iframe and @inbrowser/node previews.',
+  },
+  {
+    id: 'driver/agent-context',
+    package: 'driver',
+    category: 'agent-context',
+    title: 'AGENTS.md — @inbrowser/driver',
+    route: '/driver/agent-context',
+    sourcePath: 'packages/driver/AGENTS.md',
+    summary:
+      'Preload budget, zero-dependency boundaries, wire validation, and verification rules for @inbrowser/driver.',
+  },
+
   // ── @inbrowser/relay ───────────────────────────────────────────────
   {
     id: 'relay',
@@ -750,6 +775,7 @@ export function buildRouteMap(): Record<string, string> {
     'workspace',
     'sandbox',
     'node',
+    'driver',
     'relay',
     'resumable',
     'model',

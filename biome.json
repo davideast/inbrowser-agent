@@ -98,6 +98,23 @@
           }
         }
       }
+    },
+    {
+      "include": ["packages/driver/src/preload/**"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "useArrowFunction": "off"
+          },
+          "style": {
+            "noCommaOperator": "off",
+            "useNumberNamespace": "off"
+          },
+          "suspicious": {
+            "useValidTypeof": "off"
+          }
+        }
+      }
     }
   ]
 }

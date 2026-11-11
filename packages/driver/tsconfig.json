@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@inbrowser/driver": ["./src/index.ts"],
+      "@inbrowser/driver/preload": ["./src/preload/export.ts"],
+      "@inbrowser/driver/tools": ["./src/tools/index.ts"],
+      "@inbrowser/driver/puppeteer": ["./src/puppeteer/index.ts"]
+    }
+  },
+  "include": ["src", "tests", "playwright.config.ts", "vitest.config.ts"]
+}

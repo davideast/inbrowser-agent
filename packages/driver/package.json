@@ -1,0 +1,72 @@
+{
+  "name": "@inbrowser/driver",
+  "version": "0.4.2",
+  "description": "1-RTT browser UI observation, transactional action, and visual capture driver for live iframes, MessagePorts, container previews, and real-CDP tabs.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/types/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./preload": {
+      "types": "./dist/types/preload/export.d.ts",
+      "import": "./dist/preload.js"
+    },
+    "./tools": {
+      "types": "./dist/types/tools/index.d.ts",
+      "import": "./dist/tools.js"
+    },
+    "./puppeteer": {
+      "types": "./dist/types/puppeteer/index.d.ts",
+      "import": "./dist/puppeteer.js"
+    }
+  },
+  "files": ["dist", "LICENSE", "THIRD_PARTY_NOTICES.txt", "README.md", "AGENTS.md"],
+  "peerDependencies": {
+    "@inbrowser/agent": ">=0.4.0",
+    "@inbrowser/node": ">=0.4.0",
+    "@inbrowser/sandbox": ">=0.4.0",
+    "puppeteer-core": "^24.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@inbrowser/agent": {
+      "optional": true
+    },
+    "@inbrowser/node": {
+      "optional": true
+    },
+    "@inbrowser/sandbox": {
+      "optional": true
+    },
+    "puppeteer-core": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs && node scripts/check-boundaries.mjs",
+    "prepublishOnly": "bun run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2",
+    "@types/node": "22.20.2",
+    "esbuild": "^0.25.12",
+    "puppeteer-core": "24.43.1",
+    "typescript": "^5.7.0",
+    "vitest": "5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davideast/inbrowser-agent.git",
+    "directory": "packages/driver"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -116,7 +116,12 @@ export function createBridgeHostCore(
           routes: portRoutes,
         });
       }
-      if (options.uiUrl) return Response.redirect(options.uiUrl, 302);
+      if (options.uiUrl) {
+        return new Response(null, {
+          status: 302,
+          headers: { location: new URL(options.uiUrl).toString() },
+        });
+      }
       return new Response(
         'Remote container bridge host is running. Start a UI and connect to /bridge.',
         {
