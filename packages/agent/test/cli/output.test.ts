@@ -3,7 +3,11 @@ import { PassThrough } from 'node:stream';
 import { createEmitter, errorEvent, pickMode } from '../../src/cli/output.js';
 
 function collect(stream: PassThrough): string {
-  return stream.read()?.toString() ?? '';
+  let out = '';
+  for (let chunk = stream.read(); chunk !== null; chunk = stream.read()) {
+    out += chunk.toString();
+  }
+  return out;
 }
 
 describe('pickMode', () => {
