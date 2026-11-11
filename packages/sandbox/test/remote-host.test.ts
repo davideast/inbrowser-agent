@@ -38,7 +38,7 @@ describe('remote bridge host servers', () => {
 
         const root = await fetch(server.bridgeOrigin, { redirect: 'manual' });
         expect(root.status).toBe(302);
-        expect(root.headers.get('location')).toBe('http://127.0.0.1:5184');
+        expect(root.headers.get('location')).toBe('http://127.0.0.1:5184/');
 
         const configResponse = await fetch(`${server.bridgeOrigin}/bridge-config`);
         const config = (await configResponse.json()) as {
