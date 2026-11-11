@@ -34,6 +34,7 @@ const PACK_OUT = mkdtempSync(join(tmpdir(), 'inbrowser-pack-'));
 const SCRATCH = mkdtempSync(join(tmpdir(), 'inbrowser-smoke-'));
 const AGENT_INSTALL_SCRATCH = mkdtempSync(join(tmpdir(), 'inbrowser-agent-install-'));
 const NODE_INSTALL_SCRATCH = mkdtempSync(join(tmpdir(), 'inbrowser-node-install-'));
+const DRIVER_INSTALL_SCRATCH = mkdtempSync(join(tmpdir(), 'inbrowser-driver-install-'));
 const NPM_CACHE = join(PACK_OUT, '.npm-cache');
 
 interface PackSpec {
@@ -43,6 +44,7 @@ interface PackSpec {
     | '@inbrowser/workspace'
     | '@inbrowser/sandbox'
     | '@inbrowser/node'
+    | '@inbrowser/driver'
     | '@inbrowser/agent'
     | '@inbrowser/model';
   dir: string;
@@ -145,6 +147,34 @@ const SPECS: PackSpec[] = [
       /^package\/tests?\//,
       /^package\/vendor\//,
       /tsconfig.*\.json$/,
+    ],
+  },
+  {
+    name: '@inbrowser/driver',
+    dir: 'packages/driver',
+    expectFiles: [
+      'package/dist/index.js',
+      'package/dist/preload.js',
+      'package/dist/preload.iife.js',
+      'package/dist/tools.js',
+      'package/dist/puppeteer.js',
+      'package/dist/types/index.d.ts',
+      'package/dist/types/preload/export.d.ts',
+      'package/dist/types/tools/index.d.ts',
+      'package/dist/types/puppeteer/index.d.ts',
+      'package/dist/THIRD_PARTY_NOTICES.txt',
+      'package/LICENSE',
+      'package/THIRD_PARTY_NOTICES.txt',
+      'package/README.md',
+      'package/AGENTS.md',
+    ],
+    forbidFiles: [
+      /^package\/src\//,
+      /^package\/tests?\//,
+      /^package\/scripts\//,
+      /tsconfig.*\.json$/,
+      /playwright\.config\.ts$/,
+      /vitest\.config\.ts$/,
     ],
   },
   {
@@ -392,6 +422,76 @@ export const swSurface = {
   await $`${tscBin} -p tsconfig.dom.json`.cwd(NODE_INSTALL_SCRATCH);
   await $`${tscBin} -p tsconfig.sw.json`.cwd(NODE_INSTALL_SCRATCH);
   ok('@inbrowser/node .d.ts passes strict DOM and WebWorker consumer tsc with skipLibCheck: false');
+}
+
+async function verifyZeroDepsDriverInstall(
+  tarballs: ReadonlyMap<PackSpec['name'], string>,
+): Promise<void> {
+  step('standalone @inbrowser/driver install has zero third-party deps and clean .d.ts');
+  await $`npm init -y`.cwd(DRIVER_INSTALL_SCRATCH).quiet();
+  const driverTarball = tarballs.get('@inbrowser/driver');
+  if (!driverTarball) fail('missing packed @inbrowser/driver tarball');
+  await $`npm install --silent --no-audit --no-fund --cache ${NPM_CACHE} ${driverTarball}`.cwd(
+    DRIVER_INSTALL_SCRATCH,
+  );
+  const topEntries = readdirSync(join(DRIVER_INSTALL_SCRATCH, 'node_modules')).filter(
+    (entry) => !entry.startsWith('.'),
+  );
+  if (topEntries.length !== 1 || topEntries[0] !== '@inbrowser') {
+    fail(`@inbrowser/driver installed unexpected third-party packages: ${topEntries.join(', ')}`);
+  }
+  const scopedEntries = readdirSync(join(DRIVER_INSTALL_SCRATCH, 'node_modules/@inbrowser'));
+  if (scopedEntries.length !== 1 || scopedEntries[0] !== 'driver') {
+    fail(`@inbrowser/driver installed unexpected @inbrowser packages: ${scopedEntries.join(', ')}`);
+  }
+  ok('standalone @inbrowser/driver installs zero third-party or optional peer packages');
+
+  await Bun.write(
+    join(DRIVER_INSTALL_SCRATCH, 'consumer-dom.ts'),
+    `import {
+  DriverError,
+  buildContainerPreviewClientScript,
+  connectContainerPreview,
+  connectIframe,
+  connectPort,
+  connectSandboxPreview,
+} from '@inbrowser/driver';
+import { DRIVER_PRELOAD_BYTE_LENGTH, DRIVER_PRELOAD_SOURCE } from '@inbrowser/driver/preload';
+import { createDriverTools } from '@inbrowser/driver/tools';
+export const driverSurface = {
+  DriverError,
+  buildContainerPreviewClientScript,
+  connectContainerPreview,
+  connectIframe,
+  connectPort,
+  connectSandboxPreview,
+  DRIVER_PRELOAD_BYTE_LENGTH,
+  DRIVER_PRELOAD_SOURCE,
+  createDriverTools,
+};
+`,
+  );
+  await Bun.write(
+    join(DRIVER_INSTALL_SCRATCH, 'tsconfig.dom.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+        lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+        strict: true,
+        exactOptionalPropertyTypes: true,
+        noUncheckedIndexedAccess: true,
+        skipLibCheck: false,
+        noEmit: true,
+        types: [],
+      },
+      include: ['consumer-dom.ts'],
+    }),
+  );
+  const tscBin = join(ROOT, 'node_modules/.bin/tsc');
+  await $`${tscBin} -p tsconfig.dom.json`.cwd(DRIVER_INSTALL_SCRATCH);
+  ok('@inbrowser/driver .d.ts passes strict DOM consumer tsc with skipLibCheck: false');
 }
 
 async function importTest(): Promise<void> {
@@ -673,10 +773,102 @@ assert.equal(isRuntimeRequest(new Request('https://example.test/__preview__/abc/
 assert.equal(isRuntimeRequest(new Request('https://example.test/index.html')), false);
 delete globalThis.self;
 console.log('  ✓ node: BrowserContainer, SandboxContainer, policies, errors, and service-worker resolve');
+
+// === @inbrowser/driver + /preload + /tools ===
+import {
+  DriverError,
+  buildContainerPreviewClientScript,
+  connectContainerPreview,
+  connectIframe,
+  connectPort,
+  connectSandboxPreview,
+} from '@inbrowser/driver';
+import { DRIVER_PRELOAD_BYTE_LENGTH, DRIVER_PRELOAD_SOURCE } from '@inbrowser/driver/preload';
+import { createDriverTools } from '@inbrowser/driver/tools';
+assert.equal(typeof DriverError, 'function');
+assert.equal(typeof connectContainerPreview, 'function');
+assert.equal(connectContainerPreview, connectSandboxPreview);
+assert.equal(typeof connectIframe, 'function');
+assert.equal(typeof connectPort, 'function');
+assert.equal(typeof DRIVER_PRELOAD_SOURCE, 'string');
+assert.ok(DRIVER_PRELOAD_BYTE_LENGTH > 0 && DRIVER_PRELOAD_BYTE_LENGTH <= 45_056);
+assert.ok(buildContainerPreviewClientScript('window.__extra = 1;').includes('window.__extra = 1;'));
+const driverRegistry = createToolRegistry();
+const stubTools = createDriverTools({
+  capabilities: {
+    trustedInput: false,
+    shadowDom: 'open',
+    capture: { silent: true, gpu: false, video: true },
+    eval: false,
+  },
+  observe: async () => { throw new DriverError('DRIVER_DISPOSED', 'stub'); },
+  act: async () => { throw new DriverError('DRIVER_DISPOSED', 'stub'); },
+  capture: async () => { throw new DriverError('DRIVER_DISPOSED', 'stub'); },
+  eval: async () => { throw new DriverError('DRIVER_EVAL_DISABLED', 'stub'); },
+  dispose() {},
+});
+for (const tool of stubTools) {
+  driverRegistry.register(tool);
+}
+assert.deepEqual(
+  driverRegistry.list().map((t) => t.name),
+  ['ui_observe', 'ui_act', 'ui_capture'],
+);
+console.log('  ✓ driver: core, preload bundle, and agent tool registration resolve');
 `,
   );
   await $`node test.mjs`.cwd(SCRATCH);
   ok('scratch dir import test passed');
+
+  await Bun.write(
+    join(SCRATCH, 'cross-ecosystem-check.ts'),
+    `import { createToolRegistry, type ToolHandler } from '@inbrowser/agent';
+import { connectContainerPreview, type PageDriver } from '@inbrowser/driver';
+import { createDriverTools } from '@inbrowser/driver/tools';
+import type { BrowserContainer, SandboxContainer } from '@inbrowser/node';
+import type { SandboxTool } from '@inbrowser/sandbox';
+
+export async function verifyEcosystemSeams(
+  browserContainer: BrowserContainer,
+  sandboxContainer: SandboxContainer,
+  driver: PageDriver,
+): Promise<{ agentTools: ToolHandler[]; sandboxTools: SandboxTool[] }> {
+  await connectContainerPreview(browserContainer, 3000);
+  await connectContainerPreview(sandboxContainer, 3000);
+  const tools = createDriverTools(driver);
+  const registry = createToolRegistry();
+  for (const tool of tools) {
+    registry.register(tool);
+  }
+  const agentTools: ToolHandler[] = [...tools];
+  const sandboxTools: SandboxTool[] = [...tools];
+  return { agentTools, sandboxTools };
+}
+`,
+  );
+  await Bun.write(
+    join(SCRATCH, 'tsconfig.ecosystem.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+        lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+        strict: true,
+        exactOptionalPropertyTypes: true,
+        noUncheckedIndexedAccess: true,
+        skipLibCheck: true,
+        noEmit: true,
+        types: [],
+      },
+      include: ['cross-ecosystem-check.ts'],
+    }),
+  );
+  const tscBin = join(ROOT, 'node_modules/.bin/tsc');
+  await $`${tscBin} -p tsconfig.ecosystem.json`.cwd(SCRATCH);
+  ok(
+    '@inbrowser/driver typechecks cleanly against packed @inbrowser/node, @inbrowser/agent, and @inbrowser/sandbox without casts',
+  );
 }
 
 async function browserBundle(): Promise<void> {
@@ -723,6 +915,21 @@ async function browserBundle(): Promise<void> {
   const nodeOut = join(SCRATCH, 'node-browser-bundle');
   await $`bun build --target=browser --outdir=${nodeOut} ${nodeConsumerEntry}`.cwd(SCRATCH);
   ok(`bundled @inbrowser/node + service-worker for the browser (output: ${nodeOut})`);
+
+  const driverConsumerEntry = join(SCRATCH, 'driver-browser-entry.mjs');
+  await Bun.write(
+    driverConsumerEntry,
+    "export { connectContainerPreview, connectIframe, connectPort, DriverError } from '@inbrowser/driver';\nexport { DRIVER_PRELOAD_SOURCE, DRIVER_PRELOAD_BYTE_LENGTH } from '@inbrowser/driver/preload';\nexport { createDriverTools } from '@inbrowser/driver/tools';\n",
+  );
+  const driverOut = join(SCRATCH, 'driver-browser-bundle');
+  await $`bun build --target=browser --outdir=${driverOut} ${driverConsumerEntry}`.cwd(SCRATCH);
+  for (const file of readdirSync(driverOut)) {
+    const output = await Bun.file(join(driverOut, file)).text();
+    if (output.includes('puppeteer-core')) {
+      fail(`browser @inbrowser/driver bundle includes puppeteer-core reference: ${file}`);
+    }
+  }
+  ok(`bundled @inbrowser/driver + preload + tools for the browser with zero puppeteer refs`);
 }
 
 function showTarballSizes(): void {
@@ -752,6 +959,7 @@ try {
   showTarballSizes();
   await verifyDefaultAgentInstall(tarballsByName);
   await verifyZeroDepsNodeInstall(tarballsByName);
+  await verifyZeroDepsDriverInstall(tarballsByName);
   await scratchInstall(tarballs);
   await importTest();
   await browserBundle();
@@ -769,6 +977,7 @@ try {
     rmSync(SCRATCH, { recursive: true, force: true });
     rmSync(AGENT_INSTALL_SCRATCH, { recursive: true, force: true });
     rmSync(NODE_INSTALL_SCRATCH, { recursive: true, force: true });
+    rmSync(DRIVER_INSTALL_SCRATCH, { recursive: true, force: true });
   } else {
     console.log(
       `\n(KEEP_TMP=1: tarballs at ${PACK_OUT}, scratch at ${SCRATCH}, agent install at ${AGENT_INSTALL_SCRATCH})`,

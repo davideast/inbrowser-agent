@@ -2,7 +2,7 @@
 
 ## Repo shape
 
-Seven packages under `packages/`:
+Eight packages under `packages/`:
 
 - `@inbrowser/model` — shared `ModelClient` contract, cloud provider factories/adapters, and opt-in on-device LLM engine (`/local`). Independent; no internal deps.
 - `@inbrowser/resumable` — pure resumable streaming-job engine. No internal deps.
@@ -10,6 +10,7 @@ Seven packages under `packages/`:
 - `@inbrowser/workspace` — lightweight browser workspace runtime (OPFS/memory files, `esbuild-wasm` compile-and-mount preview, jailed shell, snapshots, local git, package import maps). Independent; no internal deps.
 - `@inbrowser/sandbox` — binds workspace capabilities into agent-facing tools, chronological events, checkpoints, and artifacts. Depends on `@inbrowser/workspace`.
 - `@inbrowser/node` — browser-isolated Node.js `22.18` container runtime (Web Worker kernel and guest processes, POSIX VFS over `SharedArrayBuffer` + `Atomics`, Service Worker HTTP/SSE/WebSocket preview, `node:sqlite`, WASM codecs, and 3-origin `SandboxContainer`). Independent; zero runtime npm dependencies.
+- `@inbrowser/driver` — 1-RTT browser UI observation, transactional action execution, silent/GPU visual capture, agent tool surface (`/tools`), and optional real-CDP backend (`/puppeteer`) for live `<iframe>` previews, `MessagePort` channels, and `@inbrowser/node` containers. Independent; zero core runtime npm dependencies.
 - `@inbrowser/agent` — browser-safe agent runtime + Node CLI. Depends on `@inbrowser/model` and `@inbrowser/sandbox`.
 
 ## Conventions
@@ -28,4 +29,4 @@ Seven packages under `packages/`:
 
 ## Status
 
-Pre-1.0. Packages publish independently under `@inbrowser/*` (`0.4.2` across `resumable`, `relay`, `workspace`, `sandbox`, `node`, `agent`; `0.5.0` on `model`).
+Pre-1.0. Packages publish independently under `@inbrowser/*` (`0.4.2` across `resumable`, `relay`, `workspace`, `sandbox`, `node`, `driver`, `agent`; `0.5.0` on `model`).

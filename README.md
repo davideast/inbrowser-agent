@@ -2,7 +2,7 @@
 
 Put a language model in a web app without running an inference backend. It runs on the user's GPU in the browser tab, or proxies to a cloud model, and the token stream survives reloads and dropped connections
 
-`@inbrowser` is seven composable libraries:
+`@inbrowser` is eight composable libraries:
 1. `@inbrowser/model` - Run a language model on the user's GPU or through a cloud provider, and switch between them with a one-line change.
 1. `@inbrowser/agent` - Let the model use your tools and take several steps to finish a task, right in the browser.
 1. `@inbrowser/resumable` - Stream a long answer so a reload, a closed tab, or a dropped connection picks up where it left off instead of starting over.
@@ -10,6 +10,7 @@ Put a language model in a web app without running an inference backend. It runs 
 1. `@inbrowser/workspace` - Run files, shell commands, package installs, git, snapshots, and `esbuild-wasm` compile-and-mount previews in a lightweight client-only browser workspace.
 1. `@inbrowser/sandbox` - Bind workspace capabilities into agent-facing tools, events, checkpoints, and artifacts.
 1. `@inbrowser/node` - Boot an isolated browser Node.js `22.18` kernel and process Workers when you need full-stack servers, `node:sqlite`, HTTP/SSE/WebSocket previews, or 3-origin `SandboxContainer` isolation.
+1. `@inbrowser/driver` - Observe, act on, and capture live `<iframe>` and `@inbrowser/node` previews in 1 RTT with structured agent tools and silent WebP/WebM capture.
 
 
 ## No API Key or BYOK
@@ -347,6 +348,18 @@ A browser-isolated Node.js `22.18` container runtime. Choose `@inbrowser/workspa
 | `RuntimeError` / `LimitError` / `UnsupportedError` / `ChannelError` / `LifecycleError` | `.` | Structured host/kernel error taxonomy |
 | `installRuntimeServiceWorker()` / `isRuntimeRequest(url)` | `/service-worker` | Composes runtime module & preview routing into a host-owned Service Worker |
 
+### `@inbrowser/driver`
+
+1-RTT browser UI observation, transactional action execution, and silent/GPU visual capture across live `<iframe>` previews, `MessagePort` channels, `@inbrowser/node` containers, and optional Chrome DevTools Protocol tabs.
+
+| Export | Entry | Description |
+|--------|-------|-------------|
+| `connectContainerPreview(container, port, opts?)` | `.` | Injects preload, binds preview `MessagePort`s across navigations, and returns `{ previewUrl, driver }` |
+| `connectIframe(iframe, opts?)` / `connectPort(port, opts?)` | `.` | Connects a `PageDriver` (`observe`, `act`, `capture`, `eval`, `dispose`) to a preloaded frame or channel |
+| `DRIVER_PRELOAD_SOURCE` / `DRIVER_PRELOAD_BYTE_LENGTH` | `/preload` | Self-contained minified guest preload bundle (`<= 44 KiB` raw, `<= 16 KiB` gzip) |
+| `createDriverTools(driver, opts?)` | `/tools` | `ui_observe`, `ui_act`, `ui_capture` (+ opt-in `ui_eval`) assignable to `@inbrowser/agent` and `@inbrowser/sandbox` |
+| `connectPuppeteerDriver(opts)` | `/puppeteer` | Optional real-CDP `PageDriver` backend (`puppeteer-core` peer) |
+
 ## Installation
 
 Packages are published independently. Install what you need:
@@ -359,6 +372,7 @@ bun add @inbrowser/agent        # agent runtime + CLI
 bun add @inbrowser/workspace    # lightweight browser workspace: OPFS, shell, compile-and-mount preview, git
 bun add @inbrowser/sandbox      # tools, events, checkpoints, artifacts
 bun add @inbrowser/node         # full-stack browser Node 22.18 kernel, servers, sqlite, 3-origin sandbox
+bun add @inbrowser/driver       # 1-RTT preview UI observation, transactional actions, and visual capture
 ```
 
 The opt-in `@inbrowser/model/local` engine needs Transformers.js as an optional peer dependency. Install it only in applications that run models on-device:
@@ -407,6 +421,7 @@ bun --filter '@inbrowser/agent' run test
 @inbrowser/workspace    no internal deps
 @inbrowser/sandbox      depends on workspace
 @inbrowser/node         no internal deps (zero runtime npm deps)
+@inbrowser/driver       no internal deps (zero core runtime npm deps; optional peers)
 @inbrowser/agent        depends on model + sandbox
 ```
 
@@ -422,6 +437,7 @@ Pre-1.0. Versions are coordinated manually:
 | `@inbrowser/workspace` | 0.4.2 |
 | `@inbrowser/sandbox` | 0.4.2 |
 | `@inbrowser/node` | 0.4.2 |
+| `@inbrowser/driver` | 0.4.2 |
 | `@inbrowser/agent` | 0.4.2 |
 
 Breaking changes are expected until 1.0.
