@@ -11,8 +11,8 @@ Three public seams, one package:
 - **Root (`@inbrowser/model`).** Defines `ModelClient` / `ModelRequest` /
   `ModelEvent`, plus usage helpers and `withRetry`. No provider factories.
 - **Providers (`@inbrowser/model/providers/<name>`).** Each cloud provider
-  (`gemini`, `openrouter`, `requesty`, `anthropic`, `oai-compat`, `ollama`,
-  `llama-server`, `claude-cli`, `claude-code`) and the Firebase AI Logic
+  (`gemini`, `openrouter`, `requesty`, `uberllm`, `anthropic`, `oai-compat`,
+  `ollama`, `llama-server`, `claude-cli`, `claude-code`) and the Firebase AI Logic
   constructed-model adapter (`firebase-ai-logic`) returns a `ModelClient`.
 - **Local (`@inbrowser/model/local`).** `createEngine` loads ONNX models in
   the browser via `@huggingface/transformers` + ONNX Runtime Web (WebGPU /
@@ -170,7 +170,7 @@ The root `@inbrowser/model` is the lightweight contract/provider surface:
 | Export | What it gives you |
 |---|---|
 | `ModelClient`, `ModelRequest`, `ModelEvent`, `ModelMessage`, `ModelUsage`, `ToolSpec`, `ReasoningEffort` | The shared contract (type-only) |
-| `geminiModelClient`, `openrouterModelClient`, `requestyModelClient`, `anthropicModelClient`, `openaiCompatModelClient`, `ollamaModelClient`, `llamaServerModelClient`, `claudeCliModelClient`, `claudeCodeModelClient` | Cloud + local provider factories; each returns a `ModelClient` |
+| `geminiModelClient`, `openrouterModelClient`, `requestyModelClient`, `uberllmModelClient`, `anthropicModelClient`, `openaiCompatModelClient`, `ollamaModelClient`, `llamaServerModelClient`, `claudeCliModelClient`, `claudeCodeModelClient` | Cloud + local provider factories; each returns a `ModelClient` |
 | `createFirebaseAiLogicModelClient(model, opts?)` | Wraps a caller-constructed Firebase AI Logic `GenerativeModel`; Firebase/App Check lifecycle stays with the host |
 | `OpenAiCompatConfig`, `OllamaConfig`, `LlamaServerConfig` | Config shapes for the OpenAI-compatible factory and its local presets |
 | `withRetry(client, opts?)` | Decorator that retries transient upstream errors while nothing has streamed |

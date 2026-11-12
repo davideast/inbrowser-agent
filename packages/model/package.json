@@ -35,6 +35,10 @@
       "types": "./dist/providers/requesty.d.ts",
       "import": "./dist/providers/requesty.js"
     },
+    "./providers/uberllm": {
+      "types": "./dist/providers/uberllm.d.ts",
+      "import": "./dist/providers/uberllm.js"
+    },
     "./providers/anthropic": {
       "types": "./dist/providers/anthropic.d.ts",
       "import": "./dist/providers/anthropic.js"
