@@ -162,6 +162,7 @@ The shared `ModelClient` contract that relay and agent both consume, cloud provi
 | `createFirebaseAiLogicModelClient(model, opts?)` | Constructed Firebase `GenerativeModel` | Host owns Firebase, App Check, backend, and location; no Firebase dependency; not directly relay-registerable |
 | `openrouterModelClient(config)` | `OpenRouterConfig` | Unified API, many models |
 | `requestyModelClient(config)` | `RequestyConfig` | OpenAI-compatible gateway, many models |
+| `uberllmModelClient(config)` | `UberLLMConfig` | OpenAI-compatible gateway, `vendor/model` ids |
 | `anthropicModelClient(config)` | `AnthropicConfig` | Anthropic Claude |
 | `openaiCompatModelClient(config)` | `OpenAiCompatConfig` | Any OpenAI-compatible server |
 | `ollamaModelClient(config)` | `OllamaConfig` | Local Ollama server |
