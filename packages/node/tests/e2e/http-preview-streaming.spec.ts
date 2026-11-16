@@ -168,3 +168,131 @@ test('streams HTTP chunks, SSE events, binary POST uploads, and WebSocket upgrad
   expect(result.wsEcho).toBe('ack:ws-hello');
   expect(result.resourcesAfterKill).toEqual({ processes: 0, descriptors: 0, listeners: 0 });
 });
+
+test('rebinds cleanly across compatible host Service Worker controllerchange replacements and tears down on incompatible controller takeover', async ({
+  context,
+  page,
+}) => {
+  await context.route('**/__host_sw__.js*', async (route) => {
+    const swRes = await route.fetch({ url: new URL('/sw.js', route.request().url()).href });
+    const swBody = await swRes.text();
+    await route.fulfill({
+      status: 200,
+      headers: {
+        'Content-Type': 'text/javascript; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
+      body: `self.addEventListener('install', () => { self.skipWaiting(); });\n${swBody}`,
+    });
+  });
+
+  await context.route('**/__foreign_sw__.js*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        'Content-Type': 'text/javascript; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
+      body: [
+        "self.addEventListener('install', () => { self.skipWaiting(); });",
+        "self.addEventListener('activate', (event) => { event.waitUntil(self.clients.claim()); });",
+        "self.addEventListener('message', (event) => {",
+        "  event.ports[0]?.postMessage({ type: 'registered', version: 0, ok: false });",
+        '  event.ports[0]?.close();',
+        '});',
+      ].join('\n'),
+    });
+  });
+
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const waitForControllerSuffix = async (suffix: string) => {
+      if (navigator.serviceWorker.controller?.scriptURL.endsWith(suffix)) return;
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`SW claim timeout for ${suffix}`)), 10_000);
+        const onClaim = () => {
+          if (navigator.serviceWorker.controller?.scriptURL.endsWith(suffix)) {
+            clearTimeout(timer);
+            navigator.serviceWorker.removeEventListener('controllerchange', onClaim);
+            resolve();
+          }
+        };
+        navigator.serviceWorker.addEventListener('controllerchange', onClaim);
+      });
+    };
+
+    await navigator.serviceWorker.register('/__host_sw__.js?rev=1', {
+      type: 'module',
+      scope: '/',
+    });
+    await waitForControllerSuffix('/__host_sw__.js?rev=1');
+
+    const runtimeUrl = '/runtime.js';
+    const { BrowserContainer } = (await import(runtimeUrl)) as typeof RuntimeModule;
+    const container = await BrowserContainer.boot({ serviceWorker: 'existing' });
+
+    try {
+      await container.mount({
+        '/server.cjs': `
+          const http = require('node:http');
+          let hits = 0;
+          http.createServer((_req, res) => {
+            hits += 1;
+            res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+            res.end('hit-' + hits);
+          }).listen(3000);
+        `,
+      });
+      await container.spawn('node', ['/server.cjs']);
+      const baseUrl = await container.preview(3000);
+
+      const firstText = await (await fetch(baseUrl)).text();
+
+      // Replace controller back-to-back with compatible runtime ServiceWorker instances
+      await navigator.serviceWorker.register('/__host_sw__.js?rev=2', {
+        type: 'module',
+        scope: '/',
+      });
+      await waitForControllerSuffix('/__host_sw__.js?rev=2');
+      await navigator.serviceWorker.register('/__host_sw__.js?rev=3', {
+        type: 'module',
+        scope: '/',
+      });
+      await waitForControllerSuffix('/__host_sw__.js?rev=3');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const resourcesAfterCompatibleSwap = await container.resources();
+      const secondText = await (await fetch(baseUrl)).text();
+
+      // Replace controller with an incompatible non-runtime ServiceWorker -> must tear down
+      await navigator.serviceWorker.register('/__foreign_sw__.js', { scope: '/' });
+      await waitForControllerSuffix('/__foreign_sw__.js');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      let incompatibleErrorCode = '';
+      try {
+        await container.resources();
+      } catch (err) {
+        incompatibleErrorCode = String((err as { code?: string }).code ?? '');
+      }
+
+      return {
+        firstText,
+        resourcesAfterCompatibleSwap,
+        secondText,
+        incompatibleErrorCode,
+      };
+    } finally {
+      await container.teardown().catch(() => {});
+      const reg = await navigator.serviceWorker.getRegistration('/');
+      await reg?.unregister();
+    }
+  });
+
+  expect(result.firstText).toBe('hit-1');
+  expect(result.resourcesAfterCompatibleSwap.listeners).toBe(1);
+  expect(result.secondText).toBe('hit-2');
+  expect(result.incompatibleErrorCode).toBe('EPIPE');
+});
