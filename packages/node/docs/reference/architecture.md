@@ -1136,8 +1136,10 @@ identity and validated same-origin asset directory; restart discovery revalidate
 version and metadata. Preview WebSocket injection resolves against the owner's
 asset directory, independent of the service-worker script's location.
 
-The host binds service messages to one controller and version. An externally forced
-controller change tears down its kernel and processes. Standalone runtime updates
+The host binds service messages to the active (or rebinding) controller and wire
+version. On `controllerchange`, the host re-validates a replacement controller via
+the versioned `register` handshake and tears down its kernel and processes if the
+controller is cleared or fails validation. Standalone runtime updates
 do not skip waiting, preserving live old clients until normal activation. Boot
 never updates an active registration as a side effect and rejects foreign default
 registrations before mutation. Explicit serviceWorker:'existing' mode uses the
