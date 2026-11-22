@@ -270,10 +270,47 @@ export class BrowserContainer {
   })();
   private readonly kernel: Worker;
   private serviceWorker?: ServiceWorker;
+  private rebindingWorker?: ServiceWorker;
+  private rebindEpoch = 0;
   private servicePending = new Set<(error: unknown) => void>();
   private readonly serviceChange = () => {
-    if (this.serviceWorker && navigator.serviceWorker.controller !== this.serviceWorker)
+    if (this.closed || !this.serviceWorker) return;
+    const nextWorker = navigator.serviceWorker.controller;
+    if (nextWorker === this.serviceWorker) {
+      this.rebindingWorker = undefined;
+      this.rebindEpoch++;
+      return;
+    }
+    if (!nextWorker) {
+      this.rebindingWorker = undefined;
+      this.rebindEpoch++;
       void this.teardown();
+      return;
+    }
+    if (nextWorker === this.rebindingWorker) return;
+    const epoch = ++this.rebindEpoch;
+    this.rebindingWorker = nextWorker;
+    void this.registerController(nextWorker).then(
+      () => {
+        if (this.closed || epoch !== this.rebindEpoch) return;
+        this.rebindingWorker = undefined;
+        if (navigator.serviceWorker.controller !== nextWorker) {
+          this.serviceChange();
+        }
+      },
+      () => {
+        if (this.closed || epoch !== this.rebindEpoch) return;
+        this.rebindingWorker = undefined;
+        if (
+          navigator.serviceWorker.controller &&
+          navigator.serviceWorker.controller !== nextWorker
+        ) {
+          this.serviceChange();
+          return;
+        }
+        void this.teardown();
+      },
+    );
   };
   readonly id = crypto.randomUUID();
   private readonly serviceMessage = (event: MessageEvent<unknown>) => {
@@ -282,7 +319,8 @@ export class BrowserContainer {
       !record(message) ||
       message.containerId !== this.id ||
       message.version !== VERSION ||
-      event.source !== this.serviceWorker ||
+      (event.source !== this.serviceWorker &&
+        (this.rebindingWorker === undefined || event.source !== this.rebindingWorker)) ||
       this.closed
     )
       return;
@@ -733,17 +771,40 @@ export class BrowserContainer {
         'Service-worker registration timed out; check the asset response and hosting configuration',
       );
     const deadline = Date.now() + this.policy.timers.serviceTaskMs;
-    while (!navigator.serviceWorker.controller) {
+    while (true) {
+      while (!navigator.serviceWorker.controller) {
+        if (this.closed) throw fault('EPIPE', 'Container closed');
+        if (Date.now() >= deadline) throw fault('ETIMEDOUT', 'Service worker did not take control');
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
       if (this.closed) throw fault('EPIPE', 'Container closed');
-      if (Date.now() >= deadline) throw fault('ETIMEDOUT', 'Service worker did not take control');
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      const worker = navigator.serviceWorker.controller;
+      try {
+        await this.registerController(worker);
+        return;
+      } catch (error) {
+        if (
+          !this.closed &&
+          Date.now() < deadline &&
+          navigator.serviceWorker.controller !== worker
+        ) {
+          continue;
+        }
+        throw error;
+      }
     }
-    if (this.closed) throw fault('EPIPE', 'Container closed');
-    const worker = navigator.serviceWorker.controller;
+  }
+  private registerController(worker: ServiceWorker): Promise<void> {
     const channel = new MessageChannel();
-    await new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
+      const onControllerChange = () => {
+        if (navigator.serviceWorker.controller !== worker) {
+          cancel(fault('EPIPE', 'Service-worker controller changed; reboot the container'));
+        }
+      };
       const cleanup = () => {
         clearTimeout(timer);
+        navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
         this.servicePending.delete(cancel);
         channel.port1.close();
         channel.port2.close();
@@ -767,6 +828,7 @@ export class BrowserContainer {
           ),
         this.policy.timers.serviceTaskMs,
       );
+      navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
       this.servicePending.add(cancel);
       channel.port1.onmessage = (event: MessageEvent<unknown>) => {
         const reply = event.data;
@@ -1816,6 +1878,7 @@ export class BrowserContainer {
   async teardown(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    this.rebindingWorker = undefined;
     this.previewClientListeners.clear();
     this.installation.abort(fault('EPIPE', 'Container closed'));
     navigator.serviceWorker.removeEventListener('message', this.serviceMessage);
