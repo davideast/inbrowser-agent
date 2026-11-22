@@ -771,7 +771,8 @@ export function createLoader(
       // validates parameter/body boundaries before transformation; generators
       // stay generators, and async bodies are lowered like any other source.
       const install = (Native: FunctionConstructor, global: boolean) => {
-        const Context = (...args: unknown[]) => {
+        // biome-ignore lint/complexity/useArrowFunction: must be constructible via new Function
+        const Context = function (...args: unknown[]) {
           const original = new Native(...args.map(String));
           return new NativeFunction(
             compile('return (' + original.toString() + ');', 'Function', { generated: true }),
