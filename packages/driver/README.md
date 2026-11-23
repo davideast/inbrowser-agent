@@ -6,6 +6,14 @@ Fast 1-RTT browser UI observation, transactional action execution, and visual ca
 - **1-RTT Semantic Observation & Transactional Actions:** Compact ARIA, landmark, `data-driver`, and open Shadow DOM snapshots with `<video>`, `<audio>`, `<canvas>`, and `<svg>` metadata, drained console/page/network/compile diagnostics, self-healing semantic fingerprints, user-takeover abort guards, and localized revision diffs.
 - **Silent & GPU Visual Capture:** In-frame silent WebP/PNG screenshots and WebM video recordings on cross-origin previews without screen-share prompts, plus optional `DisplayMediaProvider` GPU capture (`RestrictionTarget` / `CropTarget`).
 
+## Install
+
+```bash
+bun add @inbrowser/driver
+```
+
+`@inbrowser/driver` ships with zero core runtime npm dependencies. If you use it with the optional container, agent, or CDP backends, install those peers alongside it (`@inbrowser/node`, `@inbrowser/agent`, `@inbrowser/sandbox`, or `puppeteer-core@^24.0.0`).
+
 ## Package Entrypoints
 
 | Entrypoint | Environment | Exports |

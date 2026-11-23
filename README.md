@@ -436,8 +436,8 @@ Pre-1.0. Versions are coordinated manually:
 | `@inbrowser/relay` | 0.4.2 |
 | `@inbrowser/workspace` | 0.4.2 |
 | `@inbrowser/sandbox` | 0.4.2 |
-| `@inbrowser/node` | 0.4.2 |
-| `@inbrowser/driver` | 0.4.2 |
+| `@inbrowser/node` | 0.5.0 |
+| `@inbrowser/driver` | 0.5.0 |
 | `@inbrowser/agent` | 0.4.2 |
 
 Breaking changes are expected until 1.0.

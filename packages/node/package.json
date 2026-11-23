@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/node",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Browser-isolated Node.js 22.18 container runtime: Web Worker kernel and guest processes, VFS, HTTP/SSE/WebSocket preview Service Worker, node:sqlite, WASM codecs, and 3-origin SandboxContainer.",
   "type": "module",
   "main": "./dist/runtime.js",
