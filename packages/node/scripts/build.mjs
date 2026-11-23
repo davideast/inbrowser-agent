@@ -1,9 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import ts from 'typescript';
 import {
   HOST_BUNDLE_ALIAS,
   PROCESS_BUNDLE_ALIAS,
@@ -161,4 +163,64 @@ execFileSync(
   [req.resolve('typescript/bin/tsc'), '-p', path.join(pkgRoot, 'tsconfig.build.json')],
   { cwd: pkgRoot, stdio: 'inherit' },
 );
+await addJsExtensionsToDeclarations(path.join(distDir, 'types'));
 await rm(path.join(distDir, 'tsconfig.build.tsbuildinfo'), { force: true });
+
+async function addJsExtensionsToDeclarations(typesRoot) {
+  const entries = await readdir(typesRoot, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(typesRoot, entry.name);
+    if (entry.isDirectory()) {
+      await addJsExtensionsToDeclarations(fullPath);
+      continue;
+    }
+    if (!entry.name.endsWith('.d.ts')) continue;
+    const text = await readFile(fullPath, 'utf8');
+    const sourceFile = ts.createSourceFile(fullPath, text, ts.ScriptTarget.Latest, true);
+    const edits = [];
+    const dir = path.dirname(fullPath);
+
+    const recordSpecifier = (literal) => {
+      const spec = literal.text;
+      if (!spec.startsWith('./') && !spec.startsWith('../')) return;
+      if (/\.(?:[cm]?js|json|[cm]?ts)$/i.test(spec)) return;
+      let nextSpec = null;
+      if (existsSync(path.join(dir, `${spec}.d.ts`))) {
+        nextSpec = `${spec}.js`;
+      } else if (existsSync(path.join(dir, spec, 'index.d.ts'))) {
+        nextSpec = `${spec}/index.js`;
+      } else {
+        throw new Error(`Unresolved relative declaration specifier "${spec}" in ${fullPath}`);
+      }
+      const start = literal.getStart(sourceFile) + 1;
+      const end = literal.getEnd() - 1;
+      edits.push({ start, end, nextSpec });
+    };
+
+    const visit = (node) => {
+      if (
+        (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+        node.moduleSpecifier &&
+        ts.isStringLiteral(node.moduleSpecifier)
+      ) {
+        recordSpecifier(node.moduleSpecifier);
+      } else if (
+        ts.isImportTypeNode(node) &&
+        ts.isLiteralTypeNode(node.argument) &&
+        ts.isStringLiteral(node.argument.literal)
+      ) {
+        recordSpecifier(node.argument.literal);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+
+    if (edits.length === 0) continue;
+    edits.sort((a, b) => b.start - a.start);
+    let updated = text;
+    for (const edit of edits) {
+      updated = updated.slice(0, edit.start) + edit.nextSpec + updated.slice(edit.end);
+    }
+    await writeFile(fullPath, updated, 'utf8');
+  }
+}
