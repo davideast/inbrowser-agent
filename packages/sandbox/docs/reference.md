@@ -53,9 +53,11 @@ function createSandbox(options: CreateSandboxOptions): Sandbox;
 | `emit(event)` | Emits a structured sandbox event. |
 | `destroy()` | Emits `destroyed`, removes listeners, and stops file watching. |
 
-## `createWorkspaceSandbox`
+## `createWorkspaceSandbox` (`@inbrowser/sandbox/workspace`)
 
 ```ts
+import { createWorkspaceSandbox } from '@inbrowser/sandbox/workspace';
+
 function createWorkspaceSandbox(options: CreateWorkspaceSandboxOptions): Promise<Sandbox>;
 ```
 

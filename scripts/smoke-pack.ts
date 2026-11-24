@@ -113,6 +113,8 @@ const SPECS: PackSpec[] = [
     expectFiles: [
       'package/dist/index.js',
       'package/dist/index.d.ts',
+      'package/dist/workspace.js',
+      'package/dist/workspace.d.ts',
       'package/README.md',
       'package/AGENTS.md',
       'package/docs/overview.md',
@@ -282,6 +284,18 @@ async function verifyTarball(spec: PackSpec, tarball: string): Promise<void> {
       fail(`forbidden in tarball: ${forbid} (${hits.length} hits, e.g. ${hits[0]})`);
     ok(`no ${forbid}`);
   }
+  const manifestText = await $`tar -xOzf ${tarball} package/package.json`.text();
+  const manifest = JSON.parse(manifestText) as Record<string, unknown>;
+  for (const section of ['dependencies', 'peerDependencies', 'optionalDependencies'] as const) {
+    const entries = manifest[section] as Record<string, string> | undefined;
+    if (!entries) continue;
+    for (const [dep, range] of Object.entries(entries)) {
+      if (range.startsWith('workspace:')) {
+        fail(`${spec.name} tarball still contains unresolved ${section}.${dep}: ${range}`);
+      }
+    }
+  }
+  ok('no unresolved workspace: specifiers in packed package.json');
 }
 
 async function scratchInstall(tarballs: string[]): Promise<void> {
@@ -292,35 +306,34 @@ async function scratchInstall(tarballs: string[]): Promise<void> {
   await $`npm install --silent --no-audit --no-fund --cache ${NPM_CACHE} ${tarballs}`.cwd(SCRATCH);
   ok(`installed ${tarballs.length} packages into ${SCRATCH}`);
 
-  // npm installs non-optional peers by default. Keep the on-device runtime out
-  // of a plain agent/model install unless the application explicitly asks for
-  // it.
-  const heavyweightTree =
-    await $`npm ls @huggingface/transformers onnxruntime-node --all --parseable`
+  // Optional peers must stay out of a plain install across all tarballs.
+  const unexpectedPeers =
+    await $`npm ls @huggingface/transformers onnxruntime-node @modelcontextprotocol/sdk @opentui/core @opentui/react react --all --parseable`
       .cwd(SCRATCH)
+      .nothrow()
       .text();
-  if (heavyweightTree.trim()) {
-    fail(`default install contains local-model dependencies:\n${heavyweightTree.trim()}`);
+  if (unexpectedPeers.trim()) {
+    fail(`default install pulled optional peer dependencies:\n${unexpectedPeers.trim()}`);
   }
-  ok('default install has no @huggingface/transformers or onnxruntime-node');
+  ok('default install excludes transformers, MCP SDK, OpenTUI, and react');
+
+  // Install the explicit opt-in peers needed for exercising `@inbrowser/agent/cli`
+  // and `@inbrowser/agent/node` during `importTest()`.
+  await $`npm install --silent --no-save --no-audit --no-fund --cache ${NPM_CACHE} @modelcontextprotocol/sdk@^1.0.0 react@^19.0.0`.cwd(
+    SCRATCH,
+  );
+  ok('installed explicit optional peers for CLI/node import checks');
 }
 
 async function verifyDefaultAgentInstall(
   tarballs: ReadonlyMap<PackSpec['name'], string>,
 ): Promise<void> {
-  step('default agent install excludes the local-model runtime');
+  step('default agent install has zero heavy third-party deps and clean .d.ts');
   await $`npm init -y`.cwd(AGENT_INSTALL_SCRATCH).quiet();
 
-  // Supply the packed workspace packages that make up the agent's local
-  // dependency chain. All third-party dependencies are resolved exactly as a
-  // consumer's plain `npm install` would resolve them: no --omit flags and no
-  // legacy-peer-deps escape hatch.
-  const localPackages = [
-    '@inbrowser/workspace',
-    '@inbrowser/sandbox',
-    '@inbrowser/model',
-    '@inbrowser/agent',
-  ] as const;
+  // Supply only the browser-pure agent dependency chain (`model`, `sandbox`,
+  // `agent`). Optional workspace/CLI/MCP/TUI/local-model peers must stay out.
+  const localPackages = ['@inbrowser/model', '@inbrowser/sandbox', '@inbrowser/agent'] as const;
   const localTarballs = localPackages.map((name) => {
     const tarball = tarballs.get(name);
     if (!tarball) fail(`missing packed dependency for default agent install: ${name}`);
@@ -330,16 +343,74 @@ async function verifyDefaultAgentInstall(
     AGENT_INSTALL_SCRATCH,
   );
 
-  // `npm ls` searches the complete dependency tree, including nested copies;
-  // checking only top-level node_modules would miss a transitive regression.
-  const heavyweightTree =
-    await $`npm ls @huggingface/transformers onnxruntime-node --all --parseable`
-      .cwd(AGENT_INSTALL_SCRATCH)
-      .text();
-  if (heavyweightTree.trim()) {
-    fail(`default agent install contains local-model dependencies:\n${heavyweightTree.trim()}`);
+  const topEntries = readdirSync(join(AGENT_INSTALL_SCRATCH, 'node_modules')).filter(
+    (entry) => !entry.startsWith('.'),
+  );
+  if (topEntries.length !== 1 || topEntries[0] !== '@inbrowser') {
+    fail(
+      `default @inbrowser/agent install pulled unexpected third-party packages: ${topEntries.join(', ')}`,
+    );
   }
-  ok('plain npm install has no @huggingface/transformers or onnxruntime-node');
+  const scopedEntries = readdirSync(join(AGENT_INSTALL_SCRATCH, 'node_modules/@inbrowser')).sort();
+  if (JSON.stringify(scopedEntries) !== JSON.stringify(['agent', 'model', 'sandbox'])) {
+    fail(`unexpected @inbrowser packages installed: ${scopedEntries.join(', ')}`);
+  }
+  ok('plain npm install contains only @inbrowser/{agent,model,sandbox} with zero heavy peers');
+
+  // Verify strict TypeScript checks pass on packed browser entrypoints without
+  // optional peers (`@modelcontextprotocol/sdk`, `@inbrowser/workspace`, `ws`, `react`, `@types/node`).
+  await Bun.write(
+    join(AGENT_INSTALL_SCRATCH, 'browser-check.ts'),
+    `import {
+  createAgentSession,
+  createReactLoopStrategy,
+  createToolRegistry,
+  type ModelClient,
+  type ReasoningEffort,
+} from '@inbrowser/agent';
+import { createSandboxAgentTools } from '@inbrowser/agent/sandbox';
+import type { ContextWindowTraceHostContext } from '@inbrowser/agent/usage';
+import { emptyModelUsage, withRetry, type ModelRequest } from '@inbrowser/model';
+import { createSandbox, standardSandboxTools, type Sandbox } from '@inbrowser/sandbox';
+
+export const surface = {
+  createAgentSession,
+  createReactLoopStrategy,
+  createToolRegistry,
+  createSandboxAgentTools,
+  emptyModelUsage,
+  withRetry,
+  createSandbox,
+  standardSandboxTools,
+};
+export type CheckTypes = {
+  client: ModelClient;
+  effort: ReasoningEffort;
+  req: ModelRequest;
+  sandbox: Sandbox;
+  ctx: ContextWindowTraceHostContext;
+};
+`,
+  );
+  await Bun.write(
+    join(AGENT_INSTALL_SCRATCH, 'tsconfig.browser.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+        lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+        strict: true,
+        skipLibCheck: false,
+        noEmit: true,
+        types: [],
+      },
+      include: ['browser-check.ts'],
+    }),
+  );
+  const tscBin = join(ROOT, 'node_modules/.bin/tsc');
+  await $`${tscBin} -p tsconfig.browser.json`.cwd(AGENT_INSTALL_SCRATCH);
+  ok('browser @inbrowser/{model,sandbox,agent} typecheck cleanly with skipLibCheck: false');
 }
 
 async function verifyZeroDepsNodeInstall(
@@ -638,11 +709,13 @@ import { createBrowserWorkspace } from '@inbrowser/workspace';
 import {
   createRuntimeAdapter,
   createSandbox,
-  createWorkspaceSandbox,
   standardSandboxTools,
 } from '@inbrowser/sandbox';
+import * as sandboxRoot from '@inbrowser/sandbox';
+import { createWorkspaceSandbox } from '@inbrowser/sandbox/workspace';
 assert.equal(typeof createBrowserWorkspace, 'function');
 assert.equal(typeof createWorkspaceSandbox, 'function');
+assert.equal(sandboxRoot.createWorkspaceSandbox, undefined, 'createWorkspaceSandbox belongs on /workspace subpath');
 assert.equal(typeof standardSandboxTools, 'function');
 assert.equal(typeof createSandbox, 'function');
 assert.equal(typeof createRuntimeAdapter, 'function');
@@ -988,6 +1061,33 @@ async function browserBundle(): Promise<void> {
     }
   }
   ok(`bundled @inbrowser/driver + preload + tools for the browser with zero puppeteer refs`);
+
+  const agentConsumerEntry = join(AGENT_INSTALL_SCRATCH, 'agent-browser-entry.mjs');
+  await Bun.write(
+    agentConsumerEntry,
+    "export * from '@inbrowser/agent';\nexport { createSandboxAgentTools } from '@inbrowser/agent/sandbox';\nexport { createSandbox, standardSandboxTools } from '@inbrowser/sandbox';\n",
+  );
+  const agentOut = join(AGENT_INSTALL_SCRATCH, 'agent-browser-bundle');
+  await $`bun build --target=browser --outdir=${agentOut} ${agentConsumerEntry}`.cwd(
+    AGENT_INSTALL_SCRATCH,
+  );
+  for (const file of readdirSync(agentOut)) {
+    const output = await Bun.file(join(agentOut, file)).text();
+    for (const forbidden of [
+      '@inbrowser/workspace',
+      'esbuild-wasm',
+      'just-bash',
+      '@modelcontextprotocol/sdk',
+      '@opentui',
+    ]) {
+      if (output.includes(forbidden)) {
+        fail(`browser @inbrowser/agent bundle references optional peer ${forbidden}: ${file}`);
+      }
+    }
+  }
+  ok(
+    'bundled @inbrowser/agent + /sandbox + @inbrowser/sandbox for the browser with zero Node/TUI/workspace refs',
+  );
 }
 
 function showTarballSizes(): void {

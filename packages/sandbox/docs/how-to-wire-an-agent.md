@@ -7,7 +7,7 @@ This guide shows you how to expose browser workspace tools to an
 
 ```ts
 import { createBrowserWorkspace } from '@inbrowser/workspace';
-import { createWorkspaceSandbox } from '@inbrowser/sandbox';
+import { createWorkspaceSandbox } from '@inbrowser/sandbox/workspace';
 
 const workspace = await createBrowserWorkspace({
   id: 'builder',

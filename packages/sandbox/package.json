@@ -1,7 +1,7 @@
 {
   "name": "@inbrowser/sandbox",
-  "version": "0.4.2",
-  "description": "Runtime-agnostic sandbox orchestration for the inbrowser stack: typed tools, runtime adapters, checkpoints, artifacts, and workspace integration.",
+  "version": "0.5.0",
+  "description": "Runtime-agnostic sandbox orchestration for the inbrowser stack: typed tools, runtime adapters, checkpoints, artifacts, and optional workspace integration (@inbrowser/sandbox/workspace).",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./workspace": {
+      "types": "./dist/workspace.d.ts",
+      "import": "./dist/workspace.js"
     },
     "./remote": {
       "types": "./dist/remote/index.d.ts",
@@ -39,15 +43,25 @@
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": {
-    "@inbrowser/workspace": "^0.4.2",
+  "peerDependencies": {
+    "@inbrowser/workspace": "workspace:^",
     "ws": "^8.21.0"
   },
+  "peerDependenciesMeta": {
+    "@inbrowser/workspace": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@inbrowser/workspace": "workspace:*",
     "@types/bun": "latest",
     "@types/node": "^20.0.0",
     "@types/ws": "^8.18.1",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "ws": "^8.21.0"
   },
   "repository": {
     "type": "git",

@@ -7,7 +7,7 @@ events, checkpoints, and agent-callable tools.
 
 ```ts
 import { createBrowserWorkspace } from '@inbrowser/workspace';
-import { createWorkspaceSandbox } from '@inbrowser/sandbox';
+import { createWorkspaceSandbox } from '@inbrowser/sandbox/workspace';
 
 const workspace = await createBrowserWorkspace({ id: 'local', storage: 'memory' });
 const sandbox = await createWorkspaceSandbox({ workspace });

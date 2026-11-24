@@ -346,22 +346,10 @@ export type {
   AgentToolResult,
 } from './types/agent.js';
 
-// Node-only modules — the stdio MCP server and the run-log writer
-// import `node:fs` / `node:path` / `node:os` and can't ship to the
-// browser. Consumers that need them (the CLI, the MCP entrypoint)
-// import the files directly via their relative paths.
-
-export type { ServeAgentsOptions, ServeAgentsHandle } from './mcp/serve.js';
-// MCP client adapter — runtime lives in `./node` (pulls the node-only stdio
-// transport); the types are browser-safe (erased at compile).
-export type { McpConnectOptions, McpConnection } from './mcp/connect.js';
-
-export type {
-  RunRecord,
-  RunRecordFilter,
-  RunLog,
-  OpenRunLogOptions,
-} from './metrics/runs.js';
+// Node-only modules (stdio MCP server/client, run log, event log disk
+// writer) live on `@inbrowser/agent/node` (`src/node.ts`) so importing
+// `@inbrowser/agent` root types never requires `node:fs` or
+// `@modelcontextprotocol/sdk` during strict TypeScript compilation.
 
 export type {
   MutationEvent,
@@ -377,8 +365,8 @@ export type {
 // `./events/index.js`) because that barrel re-exports `./events/log.js`,
 // which DOES pull in Node builtins.
 //
-// Node-only event log values (openEventLog, defaultProjectLogDir,
-// HOST_AGENT_ID, etc.) live on `@inbrowser/agent/node` — see src/node.ts.
+// Node-only event log values and types (`openEventLog`, `defaultProjectLogDir`,
+// `EventLogIO`, `OpenEventLogOptions`, etc.) live on `@inbrowser/agent/node`.
 export { wrapMutating, isWrappedHandler, WRAPPED_MARKER } from './events/wrap.js';
 export type { WrapMutatingOptions } from './events/wrap.js';
 export { replayEvents, ReplayInvariantError } from './events/replay.js';
@@ -392,10 +380,5 @@ export {
 } from './events/codec.js';
 export type { EventValueCodec } from './events/codec.js';
 
-// Type-only re-exports — `EventLog` + `AppendDraft` describe the
-// log writer's contract (browser-safe, defined in `log-core.ts`).
-// `EventLogIO` + `OpenEventLogOptions` describe the Node-side
-// writer's options and live in `log.ts`; including them here is
-// type-only so `node:fs` doesn't leak into the universal entry.
+// Browser-safe event log writer contract types (defined in `log-core.ts`).
 export type { EventLog, AppendDraft } from './events/log-core.js';
-export type { EventLogIO, OpenEventLogOptions } from './events/log.js';

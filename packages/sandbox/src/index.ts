@@ -1,7 +1,5 @@
 export { createSandbox, createRuntimeAdapter } from './core.js';
 export { standardSandboxTools } from './tools.js';
-export { createWorkspaceSandbox } from './workspace.js';
-export type { CreateWorkspaceSandboxOptions } from './workspace.js';
 
 export type {
   CreateSandboxOptions,
