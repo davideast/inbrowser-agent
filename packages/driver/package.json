@@ -1,6 +1,6 @@
 {
   "name": "@inbrowser/driver",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "1-RTT browser UI observation, transactional action, and visual capture driver for live iframes, MessagePorts, container previews, and real-CDP tabs.",
   "type": "module",
   "main": "./dist/index.js",

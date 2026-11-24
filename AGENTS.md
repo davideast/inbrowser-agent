@@ -29,4 +29,4 @@ Eight packages under `packages/`:
 
 ## Status
 
-Pre-1.0. Packages publish independently under `@inbrowser/*` (`0.4.2` across `resumable`, `relay`, `workspace`, `sandbox`, `node`, `driver`, `agent`; `0.5.0` on `model`).
+Pre-1.0. Packages publish independently under `@inbrowser/*` (`0.4.2` across `resumable`, `relay`, `workspace`, `sandbox`, `agent`; `0.5.0` on `model`, `node`, `driver`).

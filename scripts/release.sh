@@ -8,16 +8,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-VERSION="${1:-0.4.0}"
+VERSION="${1:-0.5.0}"
 OUT_DIR=".release/v${VERSION}"
 
 PACKAGES=(
   packages/model
   packages/resumable
   packages/workspace
+  packages/node
   packages/relay
   packages/sandbox
   packages/agent
+  packages/driver
 )
 
 echo "Preparing @inbrowser v${VERSION} tarballs"

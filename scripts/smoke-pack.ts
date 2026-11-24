@@ -421,7 +421,65 @@ export const swSurface = {
   const tscBin = join(ROOT, 'node_modules/.bin/tsc');
   await $`${tscBin} -p tsconfig.dom.json`.cwd(NODE_INSTALL_SCRATCH);
   await $`${tscBin} -p tsconfig.sw.json`.cwd(NODE_INSTALL_SCRATCH);
-  ok('@inbrowser/node .d.ts passes strict DOM and WebWorker consumer tsc with skipLibCheck: false');
+  await Bun.write(
+    join(NODE_INSTALL_SCRATCH, 'consumer-dom.mts'),
+    `import { BrowserContainer, SandboxContainer, DEFAULT_RESOURCE_POLICY, RuntimeError } from '@inbrowser/node';
+import { installSandboxHost } from '@inbrowser/node/sandbox-host';
+export const surface = {
+  BrowserContainer,
+  SandboxContainer,
+  DEFAULT_RESOURCE_POLICY,
+  RuntimeError,
+  installSandboxHost,
+};
+`,
+  );
+  await Bun.write(
+    join(NODE_INSTALL_SCRATCH, 'consumer-sw.mts'),
+    `import { installRuntimeServiceWorker, isRuntimeRequest } from '@inbrowser/node/service-worker';
+export const swSurface = {
+  installRuntimeServiceWorker,
+  isRuntimeRequest,
+};
+`,
+  );
+  await Bun.write(
+    join(NODE_INSTALL_SCRATCH, 'tsconfig.nodenext.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'NodeNext',
+        moduleResolution: 'NodeNext',
+        lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+        strict: true,
+        skipLibCheck: false,
+        noEmit: true,
+        types: [],
+      },
+      include: ['consumer-dom.mts'],
+    }),
+  );
+  await Bun.write(
+    join(NODE_INSTALL_SCRATCH, 'tsconfig.sw-nodenext.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'NodeNext',
+        moduleResolution: 'NodeNext',
+        lib: ['ES2022', 'WebWorker'],
+        strict: true,
+        skipLibCheck: false,
+        noEmit: true,
+        types: [],
+      },
+      include: ['consumer-sw.mts'],
+    }),
+  );
+  await $`${tscBin} -p tsconfig.nodenext.json`.cwd(NODE_INSTALL_SCRATCH);
+  await $`${tscBin} -p tsconfig.sw-nodenext.json`.cwd(NODE_INSTALL_SCRATCH);
+  ok(
+    '@inbrowser/node .d.ts passes strict DOM and WebWorker consumer tsc (Bundler + NodeNext) with skipLibCheck: false',
+  );
 }
 
 async function verifyZeroDepsDriverInstall(
