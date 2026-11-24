@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createBrowserWorkspace } from '@inbrowser/workspace';
-import { createWorkspaceSandbox } from '../src/index.js';
+import { createWorkspaceSandbox } from '../src/workspace.js';
 
 describe('workspace sandbox', () => {
   test('runs standard file tools against a browser workspace', async () => {

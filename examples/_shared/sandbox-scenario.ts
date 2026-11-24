@@ -1,5 +1,5 @@
 import type { Sandbox, SandboxDirent, SandboxEvent } from '@inbrowser/sandbox';
-import { createWorkspaceSandbox } from '@inbrowser/sandbox';
+import { createWorkspaceSandbox } from '@inbrowser/sandbox/workspace';
 import type {
   BrowserWorkspace,
   BrowserWorkspaceOptions,

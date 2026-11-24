@@ -19,6 +19,7 @@
  */
 
 export { openEventLog, defaultProjectLogDir } from './events/log.js';
+export type { EventLogIO, OpenEventLogOptions } from './events/log.js';
 export {
   generateEventId,
   buildRollbackEvent,
@@ -27,7 +28,15 @@ export {
   DEFAULT_MAX_EVENT_BYTES,
 } from './events/log-core.js';
 
+export type {
+  RunRecord,
+  RunRecordFilter,
+  RunLog,
+  OpenRunLogOptions,
+} from './metrics/runs.js';
+
 export { FixtureLoadError, loadFixture, loadFixtures } from './eval/load-node.js';
 
 export { connectMcpTools } from './mcp/connect.js';
 export type { McpConnectOptions, McpConnection } from './mcp/connect.js';
+export type { ServeAgentsOptions, ServeAgentsHandle } from './mcp/serve.js';

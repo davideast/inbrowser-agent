@@ -431,13 +431,13 @@ Pre-1.0. Versions are coordinated manually:
 
 | Package | Version |
 |---------|---------|
-| `@inbrowser/resumable` | 0.4.2 |
+| `@inbrowser/resumable` | 0.5.0 |
 | `@inbrowser/model` | 0.5.0 |
-| `@inbrowser/relay` | 0.4.2 |
-| `@inbrowser/workspace` | 0.4.2 |
-| `@inbrowser/sandbox` | 0.4.2 |
+| `@inbrowser/relay` | 0.5.0 |
+| `@inbrowser/workspace` | 0.5.0 |
+| `@inbrowser/sandbox` | 0.5.0 |
 | `@inbrowser/node` | 0.5.0 |
 | `@inbrowser/driver` | 0.5.0 |
-| `@inbrowser/agent` | 0.4.2 |
+| `@inbrowser/agent` | 0.5.0 |
 
 Breaking changes are expected until 1.0.
