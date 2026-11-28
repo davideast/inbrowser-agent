@@ -1,6 +1,6 @@
 # Gateway provider reference
 
-OpenRouter, Requesty and UberLLM are OpenAI-compatible gateway providers. All
+OpenRouter, Requesty and MartLLM (formerly UberLLM) are OpenAI-compatible gateway providers. All
 three are built on the shared OpenAI-compatible client and add gateway-specific
 defaults for reasoning, usage, and telemetry.
 
@@ -9,14 +9,14 @@ defaults for reasoning, usage, and telemetry.
 ```ts
 import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 import { requestyModelClient } from '@inbrowser/model/providers/requesty';
-import { uberllmModelClient } from '@inbrowser/model/providers/uberllm';
+import { martllmModelClient } from '@inbrowser/model/providers/martllm';
 ```
 
 | Factory | Endpoint | Client id |
 | --- | --- | --- |
 | `openrouterModelClient(config)` | `https://openrouter.ai/api/v1/chat/completions` | `openrouter:${config.model}` |
 | `requestyModelClient(config)` | `https://router.requesty.ai/v1/chat/completions` | `requesty:${config.model}` |
-| `uberllmModelClient(config)` | `https://api.uberllm.dev/v1/chat/completions` | `uberllm:${config.model}` |
+| `martllmModelClient(config)` | `https://api.martllm.com/v1/chat/completions` | `martllm:${config.model}` |
 
 Each factory returns a `ModelClient`.
 
@@ -76,7 +76,7 @@ Fields are omitted when the provider does not report them.
 
 ## Tool encoding
 
-OpenRouter, Requesty and UberLLM share the same nested OpenAI tool encoding. A
+OpenRouter, Requesty and MartLLM share the same nested OpenAI tool encoding. A
 `ToolSpec` becomes:
 
 ```ts

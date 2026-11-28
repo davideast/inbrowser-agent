@@ -3,11 +3,11 @@ import type { ModelRequest, ToolSpec } from '../../src/contract';
 import { toAnthropicTools } from '../../src/providers/anthropic';
 import { buildGeminiRequest } from '../../src/providers/gemini';
 import { toOaiTools as llamaServerTools } from '../../src/providers/llama-server';
+import { toOaiTools as martllmTools } from '../../src/providers/martllm';
 import { toOaiTools as oaiCompatTools } from '../../src/providers/oai-compat';
 import { toOaiTools as ollamaTools } from '../../src/providers/ollama';
 import { toOaiTools as openrouterTools } from '../../src/providers/openrouter';
 import { toOaiTools as requestyTools } from '../../src/providers/requesty';
-import { toOaiTools as uberllmTools } from '../../src/providers/uberllm';
 
 // The unified ModelClient contract carries tools in the nested OAI `ToolSpec`
 // shape ({ type:'function', function:{ name, description, parameters } }). Each
@@ -54,8 +54,8 @@ describe('provider tool-wire encoding (nested ToolSpec)', () => {
     expect(requestyTools(TOOLS)).toEqual(OAI_EXPECTED);
   });
 
-  it('uberllm: nested OAI tools', () => {
-    expect(uberllmTools(TOOLS)).toEqual(OAI_EXPECTED);
+  it('martllm: nested OAI tools', () => {
+    expect(martllmTools(TOOLS)).toEqual(OAI_EXPECTED);
   });
 
   it('ollama: nested OAI tools', () => {
@@ -70,7 +70,7 @@ describe('provider tool-wire encoding (nested ToolSpec)', () => {
     expect(ollamaTools).toBe(oaiCompatTools);
     expect(openrouterTools).toBe(oaiCompatTools);
     expect(requestyTools).toBe(oaiCompatTools);
-    expect(uberllmTools).toBe(oaiCompatTools);
+    expect(martllmTools).toBe(oaiCompatTools);
   });
 
   it('anthropic: name/description/input_schema (undefined when empty)', () => {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import type { ModelEvent, ModelRequest } from '../../src/contract';
-import { uberllmModelClient } from '../../src/providers/uberllm';
+import { martllmModelClient } from '../../src/providers/martllm';
 
 const originalFetch = globalThis.fetch;
 
@@ -50,19 +50,19 @@ function usageEvent(events: readonly ModelEvent[]): Extract<ModelEvent, { kind: 
   return event;
 }
 
-describe('uberllm provider', () => {
-  test('posts to the UberLLM endpoint with a Bearer key', async () => {
+describe('martllm provider', () => {
+  test('posts to the MartLLM endpoint with a Bearer key', async () => {
     const captured: CapturedRequest[] = [];
     stubFetch([{ choices: [{ delta: { content: 'hello' } }] }], captured);
 
-    const client = uberllmModelClient({
+    const client = martllmModelClient({
       apiKey: 'ull_test',
       model: 'deepseek/deepseek-v4.1-flash',
     });
     await collect(client.chat(REQ, new AbortController().signal));
 
     expect(captured).toHaveLength(1);
-    expect(captured[0].url).toBe('https://api.uberllm.dev/v1/chat/completions');
+    expect(captured[0].url).toBe('https://api.martllm.com/v1/chat/completions');
     expect(captured[0].headers.Authorization).toBe('Bearer ull_test');
     expect(captured[0].headers['HTTP-Referer']).toBeUndefined();
     expect(captured[0].headers['X-Title']).toBeUndefined();
@@ -76,7 +76,7 @@ describe('uberllm provider', () => {
     const captured: CapturedRequest[] = [];
     stubFetch([{ choices: [{ delta: { content: 'hello' } }] }], captured);
 
-    const client = uberllmModelClient({
+    const client = martllmModelClient({
       apiKey: 'ull_test',
       model: 'deepseek/deepseek-v4.1-flash',
       appAttribution: {
@@ -127,7 +127,7 @@ describe('uberllm provider', () => {
       },
     ]);
 
-    const client = uberllmModelClient({
+    const client = martllmModelClient({
       apiKey: 'ull_test',
       model: 'deepseek/deepseek-v4.1-flash',
     });
@@ -151,7 +151,7 @@ describe('uberllm provider', () => {
       { choices: [{ delta: { content: 'answer' } }] },
     ]);
 
-    const client = uberllmModelClient({
+    const client = martllmModelClient({
       apiKey: 'ull_test',
       model: 'deepseek/deepseek-v4.1-flash',
     });
@@ -176,7 +176,7 @@ describe('uberllm provider', () => {
       },
     ]);
 
-    const client = uberllmModelClient({
+    const client = martllmModelClient({
       apiKey: 'ull_test',
       model: 'deepseek/deepseek-v4.1-flash',
     });
@@ -195,7 +195,7 @@ describe('uberllm provider', () => {
     const captured: CapturedRequest[] = [];
     stubFetch([{ choices: [{ delta: { content: 'ok' } }] }], captured);
 
-    const client = uberllmModelClient({
+    const client = martllmModelClient({
       apiKey: 'ull_test',
       model: 'deepseek/deepseek-v4.1-flash',
     });
@@ -208,11 +208,11 @@ describe('uberllm provider', () => {
     globalThis.fetch = (async () =>
       new Response('bad key', { status: 401, statusText: 'Unauthorized' })) as typeof fetch;
 
-    const client = uberllmModelClient({ apiKey: 'bad', model: 'deepseek/deepseek-v4.1-flash' });
+    const client = martllmModelClient({ apiKey: 'bad', model: 'deepseek/deepseek-v4.1-flash' });
     const events = await collect(client.chat(REQ, new AbortController().signal));
 
     const err = events.find((e) => e.kind === 'error');
     expect(err?.kind).toBe('error');
-    expect((err as Extract<ModelEvent, { kind: 'error' }>).message).toContain('UberLLM 401');
+    expect((err as Extract<ModelEvent, { kind: 'error' }>).message).toContain('MartLLM 401');
   });
 });

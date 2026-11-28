@@ -7,32 +7,32 @@ import {
 } from './oai-compat.js';
 import type { CloudProviderConfig } from './types.js';
 
-const ENDPOINT = 'https://api.uberllm.dev/v1/chat/completions';
+const ENDPOINT = 'https://api.martllm.com/v1/chat/completions';
 
-/** Construction config for the UberLLM provider. */
-export interface UberLLMConfig extends CloudProviderConfig {
+/** Construction config for the MartLLM provider. */
+export interface MartLLMConfig extends CloudProviderConfig {
   appAttribution?: OaiGatewayAttribution;
 }
 
 export { toOaiTools };
 
 /**
- * Build an UberLLM `ModelClient`.
+ * Build a MartLLM `ModelClient`.
  *
- * UberLLM speaks the OpenAI chat-completions stream with `vendor/model` ids
+ * MartLLM speaks the OpenAI chat-completions stream with `vendor/model` ids
  * plus the OpenRouter-compatible `reasoning` request field and streamed
  * `reasoning` / `reasoning_content` deltas.
  */
-export function uberllmModelClient(config: UberLLMConfig): ModelClient {
+export function martllmModelClient(config: MartLLMConfig): ModelClient {
   return makeOaiClient({
-    id: `uberllm:${config.model}`,
+    id: `martllm:${config.model}`,
     endpoint: ENDPOINT,
     model: config.model,
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
       ...oaiGatewayAttributionHeaders(config.appAttribution),
     },
-    errorLabel: 'UberLLM',
+    errorLabel: 'MartLLM',
     idPrefix: 'ull',
     temperatureDefault: config.temperature,
     includeUsage: true,
