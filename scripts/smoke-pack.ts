@@ -218,6 +218,7 @@ const SPECS: PackSpec[] = [
       'package/dist/providers/openrouter.js',
       'package/dist/providers/openrouter-oauth.js',
       'package/dist/providers/requesty.js',
+      'package/dist/providers/martllm.js',
       'package/dist/providers/anthropic.js',
       'package/dist/providers/oai-compat.js',
       'package/dist/providers/ollama.js',

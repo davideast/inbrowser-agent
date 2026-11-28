@@ -1,26 +1,28 @@
 # Gateway provider reference
 
-OpenRouter and Requesty are OpenAI-compatible gateway providers. Both are built
-on the shared OpenAI-compatible client and add gateway-specific defaults for
-reasoning, usage, and telemetry.
+OpenRouter, Requesty and MartLLM (formerly UberLLM) are OpenAI-compatible gateway providers. All
+three are built on the shared OpenAI-compatible client and add gateway-specific
+defaults for reasoning, usage, and telemetry.
 
 ## Factories
 
 ```ts
 import { openrouterModelClient } from '@inbrowser/model/providers/openrouter';
 import { requestyModelClient } from '@inbrowser/model/providers/requesty';
+import { martllmModelClient } from '@inbrowser/model/providers/martllm';
 ```
 
 | Factory | Endpoint | Client id |
 | --- | --- | --- |
 | `openrouterModelClient(config)` | `https://openrouter.ai/api/v1/chat/completions` | `openrouter:${config.model}` |
 | `requestyModelClient(config)` | `https://router.requesty.ai/v1/chat/completions` | `requesty:${config.model}` |
+| `martllmModelClient(config)` | `https://api.martllm.com/v1/chat/completions` | `martllm:${config.model}` |
 
-Both factories return a `ModelClient`.
+Each factory returns a `ModelClient`.
 
 ## Config
 
-Both providers accept the shared cloud-provider fields:
+Each provider accepts the shared cloud-provider fields:
 
 | Field | Description |
 | --- | --- |
@@ -59,7 +61,7 @@ delta fields.
 
 ## Usage telemetry
 
-Both gateway providers request included usage details and preserve provider
+The gateway providers request included usage details and preserve provider
 telemetry in `ModelUsage`:
 
 | Usage field | Source |
@@ -74,7 +76,7 @@ Fields are omitted when the provider does not report them.
 
 ## Tool encoding
 
-OpenRouter and Requesty share the same nested OpenAI tool encoding. A
+OpenRouter, Requesty and MartLLM share the same nested OpenAI tool encoding. A
 `ToolSpec` becomes:
 
 ```ts

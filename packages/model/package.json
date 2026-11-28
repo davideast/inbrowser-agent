@@ -35,6 +35,10 @@
       "types": "./dist/providers/requesty.d.ts",
       "import": "./dist/providers/requesty.js"
     },
+    "./providers/martllm": {
+      "types": "./dist/providers/martllm.d.ts",
+      "import": "./dist/providers/martllm.js"
+    },
     "./providers/anthropic": {
       "types": "./dist/providers/anthropic.d.ts",
       "import": "./dist/providers/anthropic.js"
